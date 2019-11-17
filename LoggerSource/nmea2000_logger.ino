@@ -1,4 +1,4 @@
-/* \file nmea2000_logger.ino
+/*!\file nmea2000_logger.ino
  * \brief Arduino sketch for the NMEA2000 depth/position logger with network time
  * 
  * This provides the Ardunio-style interface to a NMEA2000 network data logger that's
@@ -6,7 +6,8 @@
  * (in keeping with IHO Crowdsourced Bathymetry Working Group recommendations as defined
  * in IHO publication B-12).
  * 
- * 2019-08-25.
+ * Copyright 2019, University of New Hampshire, Center for Coastal and Ocean Mapping.
+ * All Rights Reserved.
  */
 
 #include <SD.h>
@@ -16,15 +17,18 @@
 #include "SerialCommand.h"
 #include "StatusLED.h"
 
+/// Hardware version for the logger implementation (for NMEA2000 declaration)
 #define LOGGER_HARDWARE_VERSION "1.0.0"
 
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
-const int sd_chip_select_pin = 5; // Using VSPI interface (the Arduino default), GPIO5 is SS
-#else
-const int sd_chip_select_pin = 10; // Prototype board used GPIO10 for CS
+const int sd_chip_select_pin = 5; ///< Using VSPI interface for ESP32 SD card (the Arduino default), GPIO5 is SS
 #endif
 
-const unsigned long TransmitMessages[] PROGMEM={0};
+#if defined(__SAM3X8E__)
+const int sd_chip_select_pin = 10; ///< For SD card shield on Arduino Due, GPIO10 is SS for the SD
+#endif
+
+const unsigned long TransmitMessages[] PROGMEM={0}; ///< List of messages the logger transmits (null set)
 const unsigned long ReceiveMessages[] PROGMEM =
   {126992UL /*System Time */,
    127257UL /* Attitude */,
@@ -37,11 +41,18 @@ const unsigned long ReceiveMessages[] PROGMEM =
    130314UL /* Pressure */,
    130316UL /* Extended Temperature */,
    0
-  };
+  }; ///< List if messages that the logger expects to receive
 
-N2kLogger     *Logger = NULL;
-StatusLED     *LEDs = NULL;
-SerialCommand *CommandProcessor = NULL;
+N2kLogger     *Logger = NULL;			///< Pointer for the primary logger object
+StatusLED     *LEDs = NULL;				///< Pointer to the status LED manager object
+SerialCommand *CommandProcessor = NULL;	///< Pointer for the command processor object
+
+/// \brief Primary setup code for the logger
+///
+/// Primary setup for the logger.  This needs to configure the hardware Serial object used
+/// for reporting debug information (and taking commands), then setting up the primary objects,
+/// then starting the NMEA2000 bus interface.  This should allow messages to start to be
+/// received through the CAN bus controller.
 
 void setup()
 {
@@ -94,6 +105,14 @@ void setup()
 
   NMEA2000.Open();
 }
+
+/// \brief General processing loop code for the logger.
+///
+/// General processing loop.  The code needs to service all of the objects that need
+/// timely polling, including the NMEA2000 message stack, flashing the status LEDs,
+/// if required, and then checking for (and executing) any commands provided by the
+/// user either on the hardware Serial link or through the Bluetooth LE UART, if there's
+/// a client configured.
 
 void loop()
 {

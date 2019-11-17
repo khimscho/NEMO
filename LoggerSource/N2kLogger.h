@@ -28,6 +28,7 @@
 
 class Timestamp {
 public:
+    /// \brief Default constructor with invalid setup
     Timestamp(void);
     
     /// \brief Provide a new observation of a known (UTC) time
@@ -36,11 +37,18 @@ public:
     void Update(uint16_t date, double timestamp, unsigned long ms_counter);
 
     /// \brief Indicate whether a good timestamp has been generated yet
-    bool IsValid(void) const { return m_lastDatumTime >= 0.0; }
+    inline bool IsValid(void) const { return m_lastDatumTime >= 0.0; }
+    
     /// \struct TimeDatum
     /// \brief POD for a time instant
+    ///
+    /// This provides a data object that represents a single point in time, with real-time interpolated
+    /// from the elapsed time at construction based on the real-time reference and elapsed time
+    /// offset in the supporting \a Timestamp object.
+    
     struct TimeDatum {
     public:
+        /// \brief Constructor, generating an timestamp based on construction time
         TimeDatum(void) : datestamp(0), timestamp(-1.0), m_elapsed(millis()) {}
       
         uint16_t  datestamp; ///< Date in days since 1970-01-01
@@ -51,6 +59,7 @@ public:
         
         /// \brief Serialise the datum into a given target
         void Serialise(Serialisable& target) const;
+        
         /// \brief Give the size of the object once serialised
         uint32_t SerialisationSize(void) const { return sizeof(uint16_t)+sizeof(double); }
         
@@ -76,7 +85,7 @@ private:
     unsigned long m_elapsedTimeAtDatum; ///< Internal clock elapsed time at last known datum
 };
 
-/// \class tN2kLogger
+/// \class N2kLogger
 /// \brief Encapsulate N2K message handler and SD logger
 ///
 /// This provides a tNMEA2000::tMsgHandler sub-class that manages the messages required for the CSB
@@ -85,7 +94,10 @@ private:
 
 class N2kLogger : public tNMEA2000::tMsgHandler {
 public:
+    /// \brief Default constructor, given the NMEA2000 object that's doing the data capture
     N2kLogger(tNMEA2000 *source);
+    
+    /// \brief Default destructor
     ~N2kLogger(void);
     
     /// \brief Message handler for the tNMEA2000::tMsgHandler interface
@@ -110,35 +122,49 @@ public:
     void SetVerbose(bool verb) { m_verbose = verb; }
     
 private:
-    bool        m_verbose;          //< Flag for verbose debug output
-    SDFile      m_outputLog;        //< Current output log file on the SD card
-    SDFile      m_console;          //< Log for monitoring of the data stream
-    Timestamp   m_timeReference;    //< Time reference information for timestamping records
-    Serialiser  *m_serialiser;      //< Object to handle serialisation of data
+    bool        m_verbose;          ///< Flag for verbose debug output
+    SDFile      m_outputLog;        ///< Current output log file on the SD card
+    SDFile      m_console;          ///< Log for monitoring of the data stream
+    Timestamp   m_timeReference;    ///< Time reference information for timestamping records
+    Serialiser  *m_serialiser;      ///< Object to handle serialisation of data
     
-    uint32_t GetNextLogNumber(void);        //< Find the next log number in sequence
-    String  MakeLogName(uint32_t lognum);   //< Generate the filename for a specific log file
+    /// \brief Find the next log number in sequence that doesn't already exist
+    uint32_t GetNextLogNumber(void);
+    /// \brief Make a filename for the given log file number
+    String  MakeLogName(uint32_t lognum);
     
+    /// \enum PacketIDs
+    /// \brief Symbolic definition for the packet IDs used to serialise the messages from NMEA2000
     enum PacketIDs {
-        Pkt_SystemTime = 1,
-        Pkt_Attitude = 2,
-        Pkt_Depth = 3,
-        Pkt_COG = 4,
-        Pkt_GNSS = 5,
-        Pkt_Environment = 6,
-        Pkt_Temperature = 7,
-        Pkt_Humidity = 8,
-        Pkt_Pressure = 9
+        Pkt_SystemTime = 1,     ///< Real-time information from GNSS (or atomic clock)
+        Pkt_Attitude = 2,       ///< Platform roll, pitch, yaw
+        Pkt_Depth = 3,          ///< Observed depth, offset, and depth range
+        Pkt_COG = 4,            ///< Course and speed over ground
+        Pkt_GNSS = 5,           ///< Position information and metrics
+        Pkt_Environment = 6,    ///< Temperature, Humidity, and Pressure
+        Pkt_Temperature = 7,    ///< Temperature and source
+        Pkt_Humidity = 8,       ///< Humidity and source
+        Pkt_Pressure = 9        ///< Pressure and source
     };
+    /// \brief Translate and serialise the real-time information from GNSS (or atomic clock)
     void HandleSystemTime(Timestamp::TimeDatum const& t, tN2kMsg const& msg);
+    /// \brief Translate and serialise the platform attitude information
     void HandleAttitude(Timestamp::TimeDatum const& t, tN2kMsg const& msg);
+    /// \brief Translate and serialise the observed depth information
     void HandleDepth(Timestamp::TimeDatum const& t, tN2kMsg const& msg);
+    /// \brief Translate and serialise the course and speed over ground information
     void HandleCOG(Timestamp::TimeDatum const& t, tN2kMsg const& msg);
+    /// \brief Translate and serialise the GNSS observation information
     void HandleGNSS(Timestamp::TimeDatum const& t, tN2kMsg const& msg);
+    /// \brief Translate and serialise the temperature, humidity, and pressure information
     void HandleEnvironment(Timestamp::TimeDatum const& t, tN2kMsg const& msg);
+    /// \brief Translate and serialise a temperature observation
     void HandleTemperature(Timestamp::TimeDatum const& t, tN2kMsg const& msg);
+    /// \brief Translate and serialise an external temperature observation
     void HandleExtTemperature(Timestamp::TimeDatum const& t, tN2kMsg const& msg);
+    /// \brief Translate and serialise a humidity observation
     void HandleHumidity(Timestamp::TimeDatum const& t, tN2kMsg const& msg);
+    /// \brief Translate and serialise a pressure observation
     void HandlePressure(Timestamp::TimeDatum const& t, tN2kMsg const& msg);
 };
 

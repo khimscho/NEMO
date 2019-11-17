@@ -16,6 +16,10 @@
 
 #if defined(__SAM3X8E__)
 
+/// Read the unique identified for the Arduino Due board, using the flash unique identifier register.
+///
+/// \param pdwUniqueID  Pointer to an array of uint32 to store the unique ID
+
 __attribute__ ((section (".ramfunc")))
 void _EEFC_ReadUniqueID(uint32_t* pdwUniqueID) {
     unsigned int status ;
@@ -45,6 +49,11 @@ void _EEFC_ReadUniqueID(uint32_t* pdwUniqueID) {
     } while ( (status & EEFC_FSR_FRDY) != EEFC_FSR_FRDY ) ;
 }
 
+/// Get a unique serial number from the Arduino Due board (SAM3X8E).  The full unique ID is
+/// extracted from the flash store, and the first 32-bit is returned as the unique ID.
+///
+/// \return A unique identifier for the current microcontroller in use
+
 uint32_t GetSerialNumber(void) {
     uint32_t pdwUniqueID[5] ;
     WDT_Disable( WDT ) ;
@@ -56,6 +65,10 @@ uint32_t GetSerialNumber(void) {
 
 #elif defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
 
+/// Get a unique serial number from an ESP32 module using the eFuse MAC address.
+///
+/// \return 32-bit base MAC address for the current ESP32 module
+
 uint32_t GetSerialNumber(void) {
     uint8_t chipid[6];
     esp_efuse_mac_get_default(chipid);
@@ -63,6 +76,11 @@ uint32_t GetSerialNumber(void) {
 }
 
 #endif
+
+/// Get the board serial number (by the specific code for the microcontroller in use) and convert into
+/// a string representation.
+///
+/// \return Pointer to the internal buffer containing the string representation of the 32-bit unique ID
 
 const char *GetSerialNumberString(void)
 {

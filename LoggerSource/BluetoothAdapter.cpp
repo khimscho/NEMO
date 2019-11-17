@@ -245,7 +245,9 @@ BluetoothAdapter *BluetoothFactory::Create(void)
     return new ESP32Adapter();
 }
 
-#else
+#endif
+
+#if defined(__SAM3X8E__)
 
 // All other architectures (typically the Ardunio Due) are assumed to be
 // using an external Bluetooth adapter, in this case the Adafruit Bluefruit Friend SPI.

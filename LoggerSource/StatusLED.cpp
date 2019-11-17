@@ -10,8 +10,16 @@
 
 #include "StatusLED.h"
 
-const boolean ON = HIGH;
-const boolean OFF = LOW;
+const boolean ON = HIGH;    ///< Synonym for common cathode LED state being on (i.e., pin driven high)
+const boolean OFF = LOW;    ///< Synonym for common cathode LED state being off (i.e., pin driven low)
+
+/// Constructor for the LED manager.  This configures the manager to have all of the
+/// specified pins as output, and turns them off to start with.  The flasher is also disabled,
+/// and the on-period is set to 500ms by default.
+///
+/// \param red_pin      GPIO pin on which to find a red LED
+/// \param green_pin    GPIO pin on which to find a green LED
+/// \param blue_pin     GPIO pin on which to find a blue LED
 
 StatusLED::StatusLED(int red_pin, int green_pin, int blue_pin)
 {
@@ -27,6 +35,14 @@ StatusLED::StatusLED(int red_pin, int green_pin, int blue_pin)
     last_change_time = 0;
     on_period = 500; // milliseconds
 }
+
+/// Set the specific colours and flash pattern for any given state.  This translates the state
+/// descriptors into specific colours, and sets up the flasher logic if required.  Note that there
+/// is no way to have one LED stable and the others flashing if multiple LEDs are used (the
+/// target model is a single common-cathode RGB LED).
+///
+/// \param colour   Status indicator to set
+/// \param flash    Flag: true implies the LED will be flashing
 
 void StatusLED::SetColour(Colour colour, boolean flash)
 {
@@ -50,6 +66,11 @@ void StatusLED::SetColour(Colour colour, boolean flash)
     }
 }
 
+/// User-level code to set up the status indicator LED.  This turns on the appropriate
+/// flashing state for the LEDs, and translates the status to colour options.
+///
+/// \param status   Status to set
+
 void StatusLED::SetStatus(Status status)
 {
     switch (status) {
@@ -68,11 +89,19 @@ void StatusLED::SetStatus(Status status)
     }
 }
 
+/// User-level code to operate the flashing functionality of the LED(s), if configured for
+/// the current state.  Since the Arduino environment is single-threaded, we can't spin off
+/// another thread to manage the flashing on a regular basis, so it's important that this code
+/// is called regularly, and at least as often as the on-period (by default 500ms).  If this
+/// code is not called appropriately often, the LED(s) will not flash, or will flash irregularly,
+/// which is not ideal.  Calling this in loop() is appropriate.
+
 void StatusLED::ProcessFlash(void)
 {
     if (last_change_time > 0) {
         // This implies that we are flashing the LED
         if ((last_change_time + on_period) < millis()) {
+            // Only do anything if we've hit the time marker
             last_change_time = millis();
             if (led_flasher == ON) {
                 led_flasher = OFF;

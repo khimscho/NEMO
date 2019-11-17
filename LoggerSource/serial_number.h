@@ -14,7 +14,10 @@
 
 #include <stdint.h>
 
+/// \brief Get a unique serial number for the board
 uint32_t GetSerialNumber(void);
+
+/// \brief Get the unique serial number for the board, and convert to a string representation
 const char *GetSerialNumberString(void);
 
 #endif

@@ -17,7 +17,7 @@
 
 #include "Arduino.h"
 
-/// \class BluetoothAdaptor
+/// \class BluetoothAdapter
 /// \brief Interface class for the bluetooth module
 
 class BluetoothAdapter {

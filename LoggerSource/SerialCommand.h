@@ -15,28 +15,55 @@
 #include "StatusLED.h"
 #include "BluetoothAdapter.h"
 
+/// \class SerialCommand
+/// \brief Implement a simple ASCII command language for the logger
+///
+/// The \a SerialCommand object encapsulates a simple command language for the logger,
+/// which relies on ASCII commands provided over the Arduino "Serial" object, or (if connected
+/// to a client) the Bluetooth LE UART service.  Output from the commands is routed to the
+/// Arduino "Serial" UART, and possibly the BLE UART if connected and appropriate.
+///
+/// The code stores copies of the pointers for the logger and status LED controllers, but does
+/// not manage them.  The pointer for the BLE object is managed locally.
+///
+/// Like most Arduino code, the \a ProcessCommand method needs to be called regularly to
+/// check for commands, and execute them.
+
 class SerialCommand {
 public:
+    /// \brief Default constructor for the command processor
     SerialCommand(N2kLogger *logger, StatusLED *led);
+    /// \brief Default destructor
     ~SerialCommand();
     
+    /// \brief Poll for commands, and execute if they've been received.
     void ProcessCommand(void);
     
 private:
-    N2kLogger           *m_logger;
-    StatusLED           *m_led;
-    BluetoothAdapter    *m_ble;
+    N2kLogger           *m_logger;  ///< Pointer for the logger object to use
+    StatusLED           *m_led;     ///< Pointer for the status LED controller
+    BluetoothAdapter    *m_ble;     ///< Pointer for the BLE interface
     
+    /// \brief Print the console log on the output stream(s)
     void ReportConsoleLog(void);
+    /// \brief Walk the log file directory and report the files and their sizes
     void ReportLogfileSizes(void);
+    /// \brief Report the logger software version string
     void ReportSoftwareVersion(void);
+    /// \brief Erase one or all of the data log files
     void EraseLogfile(String const& filenum);
+    /// \brief Set the state of the LEDs (primarily for testing)
     void ModifyLEDState(String const& command);
+    /// \brief Report the logger's user-specified identification string
     void ReportIdentificationString(void);
+    /// \brief Set the logger's user-specified identification string
     void SetIdentificationString(String const& identifier);
+    /// \brief Set the advertising name for the BLE service
     void SetBluetoothName(String const& name);
+    /// \brief Turn on/off verbose information on messages received
     void SetVerboseMode(String const& mode);
     
+    /// \brief Check for commands, and execute them if found
     void Execute(String const& cmd);
 };
 
