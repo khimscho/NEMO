@@ -1,12 +1,12 @@
-/*
- * \file serial_number.cpp
+/*!\file serial_number.cpp
  * \brief Generate a serial number from the board hardware.
- * 
+ *
  * This provides a number, or string, for the board serial number, which should be unique within
  * any given production run.  This code was pulled from the NMEA2000 library example for N2K to 0183
  * conversion.
- * 
- * 2019-08-25.
+ *
+ * Copyright 2019, University of New Hampshire, Center for Coastal and Ocean Mapping
+ * and NOAA-UNH Joint Hydrographic Center.  All Rights Reserved.
  */
 
 #include "serial_number.h"

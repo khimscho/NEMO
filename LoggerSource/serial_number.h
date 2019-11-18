@@ -1,12 +1,12 @@
-/*
- * \file serial_number.h
+/*!\file serial_number.h
  * \brief Generate a serial number from the Arduino board to use as a logging ID
- * 
+ *
  * This pulls a serial number from the board in order to have a unique ID for the logger.
  * In a custom implementation, we'd have to do something equivalent (e.g., a reference number
  * pulled from a PROM/EEPROM).
- * 
- * 2019-08-25.
+ *
+ * Copyright 2019, University of New Hampshire, Center for Coastal and Ocean Mapping
+ * and NOAA-UNH Joint Hydrographic Center.  All Rights Reserved.
  */
 
 #ifndef __SERIAL_NUMBER_H__

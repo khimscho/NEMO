@@ -1,13 +1,13 @@
 /*! \file SerialCommand.cpp
-*  \brief Implementation for command line processing for the application
-*
-*  The logger takes commands on the serial input line from the user application (or
-*  the user if it's connected to a terminal).  This code generates the implementation for executing
-*  executing those commands.
-*
-*  Copyright (c) 2019, University of New Hampshire, Center for Coastal and Ocean Mapping.
-*  All Rights Reserved.
-*/
+ * \brief Implementation for command line processing for the application
+ *
+ * The logger takes commands on the serial input line from the user application (or
+ * the user if it's connected to a terminal).  This code generates the implementation for executing
+ * executing those commands.
+ *
+ * Copyright 2019, University of New Hampshire, Center for Coastal and Ocean Mapping
+ * and NOAA-UNH Joint Hydrographic Center.  All Rights Reserved.
+ */
 
 #include <Arduino.h>
 #include <SD.h>

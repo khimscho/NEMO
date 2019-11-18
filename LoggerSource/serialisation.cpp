@@ -1,4 +1,4 @@
-/* \file serialisation.cpp
+/*!\file serialisation.cpp
  * \brief Implement simple serialisation for SD file storage
  *
  * This implements the interface for serialisation of storage into
@@ -6,7 +6,8 @@
  * very automatic (on the order of Boost::Serialization), but just
  * enough to get packets into the file
  *
- * 2019-08-25.
+ * Copyright 2019, University of New Hampshire, Center for Coastal and Ocean Mapping
+ * and NOAA-UNH Joint Hydrographic Center.  All Rights Reserved.
  */
 
 #include <stdint.h>

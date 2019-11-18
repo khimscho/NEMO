@@ -1,4 +1,4 @@
-/* \file N2kLogger.cpp
+/*!\file N2kLogger.cpp
  * \brief Implementation of a simple NMEA2000 logger for SD
  *
  * This implements a simple logger for limited NMEA2000 data, as required to
@@ -12,7 +12,8 @@
  * to the data collector will all be binary, with expansion and conversion
  * at the (more capable) application level.  The goal here is simplicity.
  *
- * 2019-08-25.
+ * Copyright 2019, University of New Hampshire, Center for Coastal and Ocean Mapping
+ * and NOAA-UNH Joint Hydrographic Center.  All Rights Reserved.
  */
 
 #include <stdint.h>
@@ -21,14 +22,27 @@
 #include "N2kLogger.h"
 #include "N2kMessages.h"
 
-const int SoftwareVersionMajor = 1;
-const int SoftwareVersionMinor = 0;
-const int SoftwareVersionPatch = 0;
+const int SoftwareVersionMajor = 1; ///< Software major version for the logger
+const int SoftwareVersionMinor = 0; ///< Software minor version for the logger
+const int SoftwareVersionPatch = 0; ///< Software patch version for the logger
+
+/// Constructor for a timestamp holder.  This initialises with the last datum time set to a
+/// negative value so that it reads as invalid until something provides an update.
 
 Timestamp::Timestamp(void)
 {
     m_lastDatumTime = -1.0; // So !IsValid() == true
 }
+
+/// Update the current timestamp with a known date and time.  The date (days since 1970-01-01)
+/// and time (seconds past midnight) are the standard used for NMEA2000 SystemTime messages.
+/// The code picks the microcontroller's elapsed time (using millis() call) as soon as possible, and
+/// uses this as the time reference code that should be consistent between all timestamps.  Of
+/// course, there is no guarantee as to the latency with which this has been generated, so behaviours
+/// may vary.
+///
+/// \param date     Days since 1970-01-01
+/// \param timestamp    Seconds since midnight on the day
 
 void Timestamp::Update(uint16_t date, double timestamp)
 {
@@ -38,12 +52,34 @@ void Timestamp::Update(uint16_t date, double timestamp)
     m_elapsedTimeAtDatum = t;
 }
 
+/// Update the current timestamp with a known date and time, and externally generated reference time.
+/// This initialises (or updates) the object with a time reference point (i.e., real time associated with the
+/// elapsed time, which should be monotonic), and therefore allows for timestamps to be generated for
+/// other data packets subsequently.  The date and timestamp are as for NMEA2000 SystemTime packets.
+/// This form of the code allows the user to pick up a low-latency counter for the elapsed time (typically in
+/// milliseconds since boot) when a time reference becomes available, and then use it to generate an
+/// update in a more leisurely fashion.
+///
+/// \param date     Days since 1970-01-01
+/// \param timestamp    Seconds since midnight on the day
+/// \param ms_counter   Reference elapsed time count associated with the real-time update
+
 void Timestamp::Update(uint16_t date, double timestamp, unsigned long ms_counter)
 {
     m_lastDatumDate = date;
     m_lastDatumTime = timestamp;
     m_elapsedTimeAtDatum = ms_counter;
 }
+
+/// Generate a timestamp for the current instant, based on the reference time memorised in
+/// the Timestamp object.  This constructs an elapsed time as soon as possible, and then corrects
+/// if required if the elapsed time has rolled over since the datum, or if there has been more than a
+/// day since the datum was established (this should be very rare).  The returned TimeDatum maintains
+/// the original raw elapsed time instant, so that post-processed estimates are also possible.  Note that
+/// the accuracy of the real time estimate depends strongly on the accuracy of the internal time
+/// reference, which can be very dubious.  A non-causal solution might be a lot better.
+///
+/// \return TimeDatum with an estimate of the current real time
 
 Timestamp::TimeDatum Timestamp::Now(void)
 {
@@ -68,6 +104,10 @@ Timestamp::TimeDatum Timestamp::Now(void)
     return rtn;
 }
 
+/// Generate a printable version of the reference real-time in the object.
+///
+/// \return String with a human-readable (non-compact) version of the reference time.
+
 String Timestamp::printable(void) const
 {
     String rtn;
@@ -77,11 +117,21 @@ String Timestamp::printable(void) const
     return rtn;
 }
 
+/// Generate a binary representation of the real time estimate in the TimeDatum for
+/// serialisation.  This stores the estimate date (in days) and time (in seconds) into
+/// the supplied before, so that it can be serialised later.
+///
+/// \param s    Reference for the buffer into which to add the TimeDatum information.
+
 void Timestamp::TimeDatum::Serialise(Serialisable& s) const
 {
     s += datestamp;
     s += timestamp;
 }
+
+/// Generate a printable version of the estimated real time in the TimeDatum.
+///
+/// \return String with the human-readable (non-compact) version of the real time estimate.
 
 String Timestamp::TimeDatum::printable(void) const
 {
@@ -90,10 +140,19 @@ String Timestamp::TimeDatum::printable(void) const
     return rtn;
 }
 
+/// Default constructor for the logger and message handler.  This essentially just initialises
+/// the base class (with the pointer to the NMEA2000 source handler).
+///
+/// \param source   Pointer to the NMEA2000 object handling the CAN bus interface.
+
 N2kLogger::N2kLogger(tNMEA2000 *source)
 : tNMEA2000::tMsgHandler(0, source), m_verbose(false), m_serialiser(nullptr)
 {
 }
+
+/// Default destructor for the object.  This attempts to take down the output log file cleanly,
+/// and then logs the fact in the console log before completing.  This might take a little time
+/// under some circumstances, but should happen rarely.
 
 N2kLogger::~N2kLogger(void)
 {
@@ -109,6 +168,13 @@ N2kLogger::~N2kLogger(void)
     console.println("Stopped logging under control.");
     console.close();
 }
+
+/// Start logging data to a new log file, generating the next log number in sequence that
+/// hasn't been used within the current data set.  The numbers of the log files are used
+/// starting with zero, so it's possible that the "next" log file has lower number than the
+/// current one.  Note that this doesn't attempt to stop logging to the current file, if that's
+/// happening, and there's only one pointer held for the file.  Therefore, if the system could
+/// already be logging, you should call CloseLogfile() first.
 
 void N2kLogger::StartNewLog(void)
 {
@@ -140,12 +206,25 @@ void N2kLogger::StartNewLog(void)
     Serial.println("New log file initialisation complete.");
 }
 
+/// Close the current log file, and reset the Serialiser.  This ensures that the output log
+/// file is safely closed, and no other object has reference to the file structure used
+/// for it.
+
 void N2kLogger::CloseLogfile(void)
 {
     delete m_serialiser;
     m_serialiser = nullptr;
     m_outputLog.close();
 }
+
+/// Remove a specific log file from the SD card.  The specification of the filename, etc.
+/// is abstracted out, so that only the file number is required to remove.  Note that the
+/// code here doesn't check that the file exists before attempting to remove it.  Therefore,
+/// it is possible that you might receive a failure code either because the file doesn't exist
+/// or because the remove failed, and you can't tell the difference.
+///
+/// \param file_num Logical file number to remove.
+/// \return True if the file was successfully removed, otherwise False
 
 boolean N2kLogger::RemoveLogFile(uint32_t file_num)
 {
@@ -167,6 +246,10 @@ boolean N2kLogger::RemoveLogFile(uint32_t file_num)
     
     return rc;
 }
+
+/// Remove all log files on the system.  Note that this includes the file that is currently
+/// being written, if there is one ("all" means all).  The logger then automatically starts
+/// a new log file immediately.
 
 void N2kLogger::RemoveAllLogfiles(void)
 {
@@ -209,12 +292,24 @@ void N2kLogger::RemoveAllLogfiles(void)
     StartNewLog();
 }
 
+/// Generate a human-readable version of the logger's version information.  This is a simple
+/// major.minor.patch string.
+///
+/// \return String representation of the versioning information for the logger specifically.
+
 String N2kLogger::SoftwareVersion(void) const
 {
     String rtn;
     rtn = String(SoftwareVersionMajor) + "." + String(SoftwareVersionMinor) + "." + String(SoftwareVersionPatch);
     return rtn;
 }
+
+/// Implementation of the callback method required by the NMEA2000 handler to take care
+/// of messages received on the NMEA2000 bus.  Processing here is simply a matter of getting
+/// a good time stamp as quickly as possible, and then handing over parsing of the message to
+/// the specialist routines, one per message type.
+///
+/// \param message  Reference for the NMEA2000 message received
 
 void N2kLogger::HandleMsg(const tN2kMsg& message)
 {
@@ -245,6 +340,15 @@ void N2kLogger::HandleMsg(const tN2kMsg& message)
     // the next file if appropriate.
 }
 
+/// Manage the translation and serialisation of the SystemTime message.  This extracts the
+/// real time, and serialises, but also uses the reference time to update the local time reference
+/// point for interpolation of future time stamps.  There are a variety of different time sources
+/// that could generate the SystemTime message, including a local crystal oscillator, which is
+/// usually very poorly regulated.  Messages tagged with this reference source are ignored.
+///
+/// \param t    Estimate of real time associated with the current message
+/// \param msg  NMEA2000 message to be serialised.
+
 void N2kLogger::HandleSystemTime(Timestamp::TimeDatum const& t, const tN2kMsg& msg)
 {
     unsigned char   SID;
@@ -274,6 +378,12 @@ void N2kLogger::HandleSystemTime(Timestamp::TimeDatum const& t, const tN2kMsg& m
     }
 }
 
+/// Manage the translation and serialisation of the Attitude NMEA2000 message.  This breaks out the
+/// attitude data, and then immediately serialises to file.  The timestamp is also serialised.
+///
+/// \param t    Estimate of real time associated with the current message
+/// \param msg  NMEA2000 message to be serialised.
+
 void N2kLogger::HandleAttitude(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
 {
     unsigned char   SID;
@@ -294,6 +404,12 @@ void N2kLogger::HandleAttitude(Timestamp::TimeDatum const& t, tN2kMsg const& msg
     }
 }
 
+/// Manage the translation and serialisation of the Observed Depth NMEA2000 message.  This breaks out
+/// the depth, offset, and maximum depth range, and serialised, along with the timestamp.
+///
+/// \param t    Estimate of real time associated with the current message
+/// \param msg  NMEA2000 message to be serialised.
+
 void N2kLogger::HandleDepth(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
 {
     unsigned char SID;
@@ -313,6 +429,13 @@ void N2kLogger::HandleDepth(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
         m_console.println(t.printable() + ": ERR: Failed to parse water depth packet.");
     }
 }
+
+/// Manage the translation and serialisation of the Course-over-ground/Speed-over-ground
+/// NMEA2000 message (which is often an rapid cycle, rather than 1Hz).  This breaks out
+/// the COG and SOG values, and serialises directly, along with the timestamp.
+///
+/// \param t    Estimate of real time associated with the current message
+/// \param msg  NMEA2000 message to be serialised.
 
 void N2kLogger::HandleCOG(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
 {
@@ -335,6 +458,15 @@ void N2kLogger::HandleCOG(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
         m_console.println(t.printable() + ": ERR: Failed to parse COG/SOG packet.");
     }
 }
+
+/// Manage the translation and serialisation of the GNSS NMEA2000 message.  This provides the
+/// primary position information, optionally corrected if any corrections are available.  The code
+/// unpacks and serialises all of the information, but also uses the time information to set the
+/// time reference information if no other source has been provided before this message.  This
+/// should provide at least a rough estimate of time for other packets being serialised.
+///
+/// \param t    Estimate of real time associated with the current message
+/// \param msg  NMEA2000 message to be serialised.
 
 void N2kLogger::HandleGNSS(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
 {
@@ -384,6 +516,15 @@ void N2kLogger::HandleGNSS(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
     }
 }
 
+/// Manage the translation and serialisation of the Environment NMEA2000 data message.  This
+/// message is officially deprecated, but might still occur.  The code here translates out the temperatue,
+/// humidity, and pressure, and the temperature and humidity sources, and then serialises.  Note that
+/// it's possible that the temperature could be from any of the sources (including ones that we don't
+/// remotely care about), but we log anyway.
+///
+/// \param t    Estimate of real time associated with the current message
+/// \param msg  NMEA2000 message to be serialised.
+
 void N2kLogger::HandleEnvironment(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
 {
     unsigned char SID;
@@ -408,6 +549,14 @@ void N2kLogger::HandleEnvironment(Timestamp::TimeDatum const& t, tN2kMsg const& 
     }
 }
 
+/// Manage the translation and serialisation of the Temperature NMEA2000 message.  This
+/// translates the temperature and source, but only logs the information if it is marked as
+/// coming from water (SeaTemperature) or air (OutsideTemperature) to avoid extra information
+/// from such things as bait wells and refrigerators.
+///
+/// \param t    Estimate of real time associated with the current message
+/// \param msg  NMEA2000 message to be serialised.
+
 void N2kLogger::HandleTemperature(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
 {
     unsigned char   SID;
@@ -430,6 +579,13 @@ void N2kLogger::HandleTemperature(Timestamp::TimeDatum const& t, tN2kMsg const& 
         m_console.println(t.printable() + ": ERR: Failed to parse temperature packet.");
     }
 }
+
+/// Manage the translation and serialisation of the Humidity NMEA2000 message.  This picks
+/// out the humidity information and source, but only serialises if the humidity is from the air
+/// (OutsideHumidity) in order to avoid information about in-cabin measurements.
+///
+/// \param t    Estimate of real time associated with the current message
+/// \param msg  NMEA2000 message to be serialised.
 
 void N2kLogger::HandleHumidity(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
 {
@@ -454,6 +610,13 @@ void N2kLogger::HandleHumidity(Timestamp::TimeDatum const& t, tN2kMsg const& msg
     }
 }
 
+/// Manage the translation and serialisation of the Pressure NMEA2000 message.  This picks out
+/// the pressure and source information, but only serialises if the pressure is from outside (Atmospheric)
+/// to avoid information from other sources (e.g., compressed air) getting into the log.
+///
+/// \param t    Estimate of real time associated with the current message
+/// \param msg  NMEA2000 message to be serialised.
+
 void N2kLogger::HandlePressure(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
 {
     unsigned char       SID;
@@ -477,6 +640,13 @@ void N2kLogger::HandlePressure(Timestamp::TimeDatum const& t, tN2kMsg const& msg
     }
 }
 
+/// Manage the translation and serialisation of the ExtTemperature NMEA2000 message.
+/// This picks out the temperature and source, but only serialises if the temperature is marked
+/// as coming from the water (SeaTemperature) or air (OutsideTemperature).
+///
+/// \param t    Estimate of real time associated with the current message
+/// \param msg  NMEA2000 message to be serialised.
+
 void N2kLogger::HandleExtTemperature(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
 {
     unsigned char   SID;
@@ -499,6 +669,17 @@ void N2kLogger::HandleExtTemperature(Timestamp::TimeDatum const& t, tN2kMsg cons
         m_console.println(t.printable() + ": ERR: Failed to parse temperature packet.");
     }
 }
+
+/// Generate a logical file number for the next log file to be written.  This operates
+/// by walking the current log directory counting files that exist until the upper
+/// limit is reached.  The log directory is created if it does not already exist, and any
+/// standard file that appears in the wrong location is removed.  If all log files exist,
+/// the code re-uses the first file number, over-writing the log file.  The "next" log
+/// file is the first file number that is attempted where a prior log file is not existant
+/// on SD card.  This means that the "next" log file might have lower logical number
+/// than the current or previous one.
+///
+/// \return Logical file number for the next log file to write.
 
 uint32_t N2kLogger::GetNextLogNumber(void)
 {
@@ -524,6 +705,13 @@ uint32_t N2kLogger::GetNextLogNumber(void)
         lognum = 0; // Re-use the first created
     return lognum;
 }
+
+/// Generate a string version for a logical file number.  This converts the logical number
+/// into a filename that can be used to open the file.  This assumes that the log file
+/// directory already exists.
+///
+/// \param log_num  Logical file number to generate
+/// \return String with full path to the log file to create
 
 String N2kLogger::MakeLogName(uint32_t log_num)
 {

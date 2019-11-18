@@ -1,4 +1,4 @@
-/* \file serialisation.h
+/*!\file serialisation.h
  * \brief Simple serialisation of basic types for SD card storage
  *
  * As part of the logging process, we have to put together binary packets
@@ -9,7 +9,8 @@
  * Serialiser class can be used to provide the overall encapsulation of
  * data type, length byte, checksum, etc. as required.
  *
- * 2019-08-25.
+ * Copyright 2019, University of New Hampshire, Center for Coastal and Ocean Mapping
+ * and NOAA-UNH Joint Hydrographic Center.  All Rights Reserved.
  */
 
 #ifndef __SERIALISATION_H__

@@ -1,13 +1,13 @@
-/*
- * \file N2kLogger.h
+/*!\file N2kLogger.h
  * \brief Main code for a NMEA2000 message handler with time, position, depth logging and timestamping
- * 
+ *
  * This code is designed to form a simple data logger for NMEA2000, which keeps track of time and stores
  * position, depth, and some environmental information into the SD card attached to the board.  The goal
  * here is to store sufficient information to make this a useful crowd-sourced bathymetry logging engine,
  * but at the cheapest possible price.
- * 
- * 2019-08-25.
+ *
+ * Copyright 2019, University of New Hampshire, Center for Coastal and Ocean Mapping and
+ * NOAA-UNH Joint Hydrographic Center.  All Rights Reserved.
  */
 
 #ifndef __N2K_LOGGER_H__
@@ -110,7 +110,7 @@ public:
     void CloseLogfile(void);
     
     /// \brief Remove a given log file from the SD card
-    boolean RemoveLogFile(const uint32_t lognum);
+    boolean RemoveLogFile(const uint32_t file_num);
 
     /// \brief Remove all log files currently available (use judiciously!)
     void RemoveAllLogfiles(void);
