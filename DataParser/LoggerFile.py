@@ -1,5 +1,5 @@
-# \file LoggerFile.py
-# \brief Library objects for reading Seabed 2030 data logger files
+## @file LoggerFile.py
+# @brief Library objects for reading Seabed 2030 data logger files
 #
 # The Seabed 2030 low-cost logger generates files from NMEA2000 onto the SD card in
 # fairly efficient binary format, with a timestamp from the local machine.  The code
@@ -10,27 +10,63 @@
 
 import struct
 
-
+## Convert from Kelvin to degrees Celsius
+#
+# Temperature is stored in the NMEA2000 packets as Kelvin, but that isn't terribly useful for end users.  This converts
+# into degrees Celsius so that output is more useable.
+#
+# @param temp   Temperature in Kelvin
+# @return Temperature in degrees Celsius
 def temp_to_celsius(temp):
     return temp - 273.15
 
-
+## Convert from Pascals to millibars
+#
+# Pressure is stored in the NMEA2000 packets as Pascals, but that isn't terribly useful for end users.  This converts
+# into millibars so that output is more useable.
+#
+# @param pressure   Pressure in Pascals
+# @return Pressure in millibars
 def pressure_to_mbar(pressure):
     return pressure / 100.0
 
-
+## Convert from radians to degrees
+#
+# Angles are stored in the NMEA2000 packets as radians, but that isn't terribly useful for end users (at least for
+# display).  This converts into degrees so that output is more useable.
+#
+# @param rads   Angle in radians
+# @return Angle in degrees
 def angle_to_degs(rads):
     return rads*180.0/3.1415926535897932384626433832795
 
-
+## Base class for all data packets that can be read from the binary file
+#
+# This provides a common base class for all of the data packets, and stores the information on the date and time at
+# which the packet was received.
 class DataPacket:
+    ## Initialise the base packet with date and timestamp for the packet reception time
+    #
+    # This simply stores the date and time for the packet reception
+    #
+    # @param self       Pointer to the object
+    # @param date       Days elapsed since 1970-01-01
+    # @param timestamp  Seconds since midnight on the day
     def __init__(self, date, timestamp):
+        ## Date in days since 1970-01-01
         self.date = date
+        ## Time in seconds since midnight on the day in question
         self.timestamp = timestamp
 
+    ## Implement the printable interface for this class, allowing it to be streamed
+    #
+    # This converts to human-readable version of the data packet for the standard streaming output interface.
+    #
+    # @param self   Pointer to the object
     def __str__(self):
         rtn = "[" + str(self.date) + " days, " + str(self.timestamp) + " s.]"
         return rtn
+
 
 class SystemTime(DataPacket):
     def __init__(self, buffer):
@@ -167,15 +203,39 @@ class Pressure(DataPacket):
               + " mBar (source " + str(self.pressureSource) + ")"
         return rtn
 
-
+##  Unpack the serialiser version information packet, and store versions
+#
+# This picks apart the information on the version of the serialiser used to generate the file being read.  This should
+# always be the first packet in the file, and allows the code to adjust readers if necessary in order to read what's
+# coming next.
 class SerialiserVersion(DataPacket):
+    ## Initialise the object using the supplied buffer of binary data
+    #
+    # The buffer should contain eight bytes as two unsigned integers for major and minor software versions
+    #
+    # @param self   Pointer to the object
+    # @param buffer Binary data from file to interpret
     def __init__(self, buffer):
-        (self.major, self.minor) = struct.unpack("<II", buffer)
+        (major, minor) = struct.unpack("<II", buffer)
+        ## Major software version for the serialiser code
+        self.major = major
+        ## Minor software version for the serialiser code
+        self.minor = minor
         DataPacket.__init__(self, 0, 0.0)
 
+    ## Provide the fixed-text string name for this data packet
+    #
+    # This simply reports the human-readable name for the class so that reporting is possible
+    #
+    # @param self   Pointer to the object
     def name(self):
         return "SerialiserVersion"
 
+    ## Implement the printable interface for this class, allowing it to be streamed
+    #
+    # This converts to human-readable version of the data packet for the standard streaming output interface.
+    #
+    # @param self   Pointer to the object
     def __str__(self):
         rtn = DataPacket.__str__(self) + " " + self.name() + ": version = " + str(self.major) + "." + str(self.minor)
         return rtn
