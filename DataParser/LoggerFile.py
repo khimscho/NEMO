@@ -15,8 +15,8 @@ import struct
 # Temperature is stored in the NMEA2000 packets as Kelvin, but that isn't terribly useful for end users.  This converts
 # into degrees Celsius so that output is more useable.
 #
-# @param temp   Temperature in Kelvin
-# @return Temperature in degrees Celsius
+# \param temp   Temperature in Kelvin
+# \return Temperature in degrees Celsius
 def temp_to_celsius(temp):
     return temp - 273.15
 
@@ -25,8 +25,8 @@ def temp_to_celsius(temp):
 # Pressure is stored in the NMEA2000 packets as Pascals, but that isn't terribly useful for end users.  This converts
 # into millibars so that output is more useable.
 #
-# @param pressure   Pressure in Pascals
-# @return Pressure in millibars
+# \param pressure   Pressure in Pascals
+# \return Pressure in millibars
 def pressure_to_mbar(pressure):
     return pressure / 100.0
 
@@ -35,8 +35,8 @@ def pressure_to_mbar(pressure):
 # Angles are stored in the NMEA2000 packets as radians, but that isn't terribly useful for end users (at least for
 # display).  This converts into degrees so that output is more useable.
 #
-# @param rads   Angle in radians
-# @return Angle in degrees
+# \param rads   Angle in radians
+# \return Angle in degrees
 def angle_to_degs(rads):
     return rads*180.0/3.1415926535897932384626433832795
 
@@ -49,9 +49,9 @@ class DataPacket:
     #
     # This simply stores the date and time for the packet reception
     #
-    # @param self       Pointer to the object
-    # @param date       Days elapsed since 1970-01-01
-    # @param timestamp  Seconds since midnight on the day
+    # \param self       Pointer to the object
+    # \param date       Days elapsed since 1970-01-01
+    # \param timestamp  Seconds since midnight on the day
     def __init__(self, date, timestamp):
         ## Date in days since 1970-01-01
         self.date = date
@@ -62,80 +62,244 @@ class DataPacket:
     #
     # This converts to human-readable version of the data packet for the standard streaming output interface.
     #
-    # @param self   Pointer to the object
+    # \param self   Pointer to the object
+    # \return String representation of the object
     def __str__(self):
         rtn = "[" + str(self.date) + " days, " + str(self.timestamp) + " s.]"
         return rtn
 
-
+## Implementation of the SystemTime NMEA2000 packet
+#
+# This retrieves the timestamp, logger elapsed time, and time source for a SystemTime packet serialised into the file.
+#
 class SystemTime(DataPacket):
+    ## Initialise the SystemTime packet with date/time of reception, and logger elapsed time
+    #
+    # This picks out the date and timestamp for the packet (which is the indicated real time in the packet itself), and
+    # then the logger elapsed time and data source (u16, double, u32, u8), total 15B.
+    #
+    # \param self   Pointer to the object
+    # \param buffer Binary data from file to interpret
     def __init__(self, buffer):
-        (date, timestamp, self.elapsed_time, self.data_source) = struct.unpack("<HdIB", buffer)
+        (date, timestamp, elapsed_time, data_source) = struct.unpack("<HdIB", buffer)
+        ## Logger elapsed time (typically milliseconds since boot) for the packet
+        self.elapsed_time = elapsed_time
+        ## Source of the timestamp (see documentation for decoding, but at least GNSS)
+        self.data_source = data_source
         DataPacket.__init__(self, date, timestamp)
 
+    ## Provide the fixed-text string name for this data packet
+    #
+    # This simply reports the human-readable name for the class so that reporting is possible
+    #
+    # \param self   Pointer to the object
+    # \return String with the human-readable name of the packet
     def name(self):
         return "SystemTime"
 
+    ## Implement the printable interface for this class, allowing it to be streamed
+    #
+    # This converts to human-readable version of the data packet for the standard streaming output interface.
+    #
+    # \param self   Pointer to the object
+    # \return String representation of the object
     def __str__(self):
         rtn = DataPacket.__str__(self) + " " + self.name() + ": ellapsed = " + str(self.elapsed_time)\
               + " ms., source = " + str(self.data_source)
         return rtn
 
-
+## Implementation of the Attitude NMEA2000 packet
+#
+# The attitude message contains estimates of roll, pitch, and yaw of the ship, without any indication of where the data
+# is coming from.  Consequently, the data is just reported directly.
 class Attitude(DataPacket):
+    ## Initialise the Attitude packet with reception timestamp, and raw data
+    #
+    # This picks out the date and time of message reception (based on the last known good real time estimate), and the
+    # raw attitude data (u16, double, double, double, double), total 34B.  Attitude values are in radians.
+    #
+    # \param self   Pointer to the object
+    # \param buffer Binary data from file to interpret.
     def __init__(self, buffer):
-        (date, timestamp, self.yaw, self.pitch, self.roll) = struct.unpack("<Hdddd", buffer)
+        (date, timestamp, yaw, pitch, roll) = struct.unpack("<Hdddd", buffer)
+        ## Yaw angle of the ship, radians (+ve clockwise from north)
+        self.yaw = yaw
+        ## Pitch angle of the ship, radians (+ve bow up)
+        self.pitch = pitch
+        ## Roll angle of the ship, radians (+ve port up)
+        self.roll = roll
         DataPacket.__init__(self, date, timestamp)
 
+    ## Provide the fixed-text string name for this data packet
+    #
+    # This simply reports the human-readable name for the class so that reporting is possible
+    #
+    # \param self   Pointer to the object
+    # \return String with the human-readable name of the packet
     def name(self):
         return "Attitude"
 
+    ## Implement the printable interface for this class, allowing it to be streamed
+    #
+    # This converts to human-readable version of the data packet for the standard streaming output interface.
+    #
+    # \param self   Pointer to the object
+    # \return String representation of the object
     def __str__(self):
         rtn = DataPacket.__str__(self) + " " + self.name() + ": yaw = " + str(angle_to_degs(self.yaw))\
               + " deg, pitch = " + str(angle_to_degs(self.pitch))\
               + " deg, roll = " + str(angle_to_degs(self.roll)) + " deg"
         return rtn
 
-
+## Implement the Observed Depth NMEA2000 message
+#
+# The depth message includes the observed depth, the offset that needs to be applied to it either for rise from the keel
+# or waterline, and the maximum depth that can be observed (allowing for some filtering).
 class Depth(DataPacket):
+    ## Initialise the Depth packet with reception timestamp and raw data
+    #
+    # This picks out the date and time of message reception (based on the last known good real time estimate), and the
+    # raw depth, offset, and range data (u16, double, double, double, double) for 34B total.  Depths are in metres
+    #
+    # \param self   Pointer to the object
+    # \param buffer Binary data from file to interpret
     def __init__(self, buffer):
-        (date, timestamp, self.depth, self.offset, self.range) = struct.unpack("<Hdddd", buffer)
+        (date, timestamp, depth, offset, range) = struct.unpack("<Hdddd", buffer)
+        ## Observed depth below transducer, metres
+        self.depth = depth
+        ## Offset for depth, metres.
+        # This is an offset to apply to reference the depth to either the water surface, or the keel.  Positive
+        # values imply that the correction is for water surface to transducer; negative implies transducer to keel
+        self.offset = offset
+        ## Maximum range of observation, metres
+        self.range = range
         DataPacket.__init__(self, date, timestamp)
 
+    ## Provide the fixed-text string name for this data packet
+    #
+    # This simply reports the human-readable name for the class so that reporting is possible
+    #
+    # \param self   Pointer to the object
+    # \return String with the human-readable name of the packet
     def name(self):
         return "Depth"
 
+    ## Implement the printable interface for this class, allowing it to be streamed
+    #
+    # This converts to human-readable version of the data packet for the standard streaming output interface.
+    #
+    # \param self   Pointer to the object
+    # \return String representation of the object
     def __str__(self):
         rtn = DataPacket.__str__(self) + " " + self.name() + ": depth = " + str(self.depth) + "m, offset = "\
               + str(self.offset) + "m, range = " + str(self.range) + "m"
         return rtn
 
-
+## Implement the Course-over-Ground Rapid NMEA2000 message
+#
+# The Course-over-ground/Speed-over-ground message is sent more frequently that most, and contains estimates of the
+# current course and speed.
 class COG(DataPacket):
+    ## Initialise the COG-SOG packet with reception timestamp and raw data
+    #
+    # This picks out the date and time of message reception (based on the last known good real time estimate), and the
+    # course/speed over ground (u16, double, double, double) for 26B total.  Course is in radians, speed in m/s.
+    #
+    # \param self   Pointer to the objet
+    # \param buffer Binary data from file to interpret
     def __init__(self, buffer):
-        (date, timestamp, self.courseOverGround, self.speedOverGround) = struct.unpack("<Hddd", buffer)
+        (date, timestamp, courseOverGround, speedOverGround) = struct.unpack("<Hddd", buffer)
+        ## Course over ground (radians)
+        self.courseOverGround = courseOverGround
+        ## Speed over ground (m/s)
+        self.speedOverGround = speedOverGround
         DataPacket.__init__(self, date, timestamp)
 
+    ## Provide the fixed-text string name for this data packet
+    #
+    # This simply reports the human-readable name for the class so that reporting is possible
+    #
+    # \param self   Pointer to the object
+    # \return String with the human-readable name of the packet
     def name(self):
         return "Course Over Ground"
 
+    ## Implement the printable interface for this class, allowing it to be streamed
+    #
+    # This converts to human-readable version of the data packet for the standard streaming output interface.
+    #
+    # \param self   Pointer to the object
+    # \return String representation of the object
     def __str__(self):
         rtn = DataPacket.__str__(self) + " " + self.name() + ": course over ground = "\
               + str(angle_to_degs(self.courseOverGround)) + " deg, speed over ground = "\
               + str(self.speedOverGround) + " m/s"
         return rtn
 
-
+## Implement the GNSS observation NMEA2000 message
+#
+# The GNSS observation message contains a single GNSS observation from a receiver on the ship (multiple receivers are
+# possible, of course).  This contains all of the usual suspects that would come from a GPGGA message in NMEA0183, but
+# has better information on correctors, and methods of correction, which are preserved here.
 class GNSS(DataPacket):
+    ## Initialise the GNSS packet with real time timestamp and raw data
+    #
+    # This picks out the raw data, including the validity time of the original message, including the latitude,
+    # longitude, altitude, receiver type, receiver method, number of SVs, horizontal DOP, position DOP, geoid sep.,
+    # number of reference stations, reference station type, reference station ID, and correction age, as
+    # (u16, double, double, double, double, u8, u8, u8, double, double, double, u8, u8, u16, double) for
+    # 73B total.  Latitude, longitude are in degrees; altitude, separation are metres; others are integers that are
+    # mapped enum values for the receiver type (GPS, GLONASS, Galileo, etc.) and so on.  See Wiki for definitions.
+    #
+    # \param self   Pointer to the object
+    # \param buffer Binary data from file to interpret
     def __init__(self, buffer):
-        (date, timestamp, self.latitude, self.longitude, self.altitude, self.receiverType, self.receiverMethod,
-         self.numSVs, self.horizontalDOP, self.positionDOP, self.separation, self.numRefStations, self.refStationType,
-         self.refStationID, self.correctionAge) = struct.unpack("<HddddBBBdddBBHd", buffer)
+        (date, timestamp, latitude, longitude, altitude, receiverType, receiverMethod,
+         numSVs, horizontalDOP, positionDOP, separation, numRefStations, refStationType,
+         refStationID, correctionAge) = struct.unpack("<HddddBBBdddBBHd", buffer)
+        ## Latitude of position, degrees
+        self.latitude = latitude
+        ## Longitude of position, degrees
+        self.longitude = longitude
+        ## Altitude of position, metres
+        self.altitude = altitude
+        ## GNSS receiver type (e.g., GPS, GLONASS, Beidou, Galileo, and some combinations)
+        self.receiverType = receiverType
+        ## GNSS receiver method (e.g., C/A, Differential, Float/fixed RTK, etc.)
+        self.receiverMethod = receiverMethod
+        ## Number of SVs in view
+        self.numSVs = numSVs
+        ## Horizontal dilution of precision (unitless)
+        self.horizontalDOP = horizontalDOP
+        ## Position dilution of precision (unitless)
+        self.positionDOP = positionDOP
+        ## Geoid-ellipsoid separation, metres (modeled)
+        self.separation = separation
+        ## Number of reference stations used in corrections
+        self.numRefStations = numRefStations
+        ## Reference station receiver type (as for receiverType)
+        self.refStationType = refStationType
+        ## Reference station ID number
+        self.refStationID = refStationID
+        ## Age of corrections, seconds
+        self.correctionAge = correctionAge
         DataPacket.__init__(self, date, timestamp)
 
+    ## Provide the fixed-text string name for this data packet
+    #
+    # This simply reports the human-readable name for the class so that reporting is possible
+    #
+    # \param self   Pointer to the object
+    # \return String with the human-readable name of the packet
     def name(self):
         return "GNSS"
 
+    ## Implement the printable interface for this class, allowing it to be streamed
+    #
+    # This converts to human-readable version of the data packet for the standard streaming output interface.
+    #
+    # \param self   Pointer to the object
+    # \return String representation of the object
     def __str__(self):
         rtn = DataPacket.__str__(self) + " " + self.name() + ": latitude = " + str(self.latitude) + " deg, longitude = "\
               + str(self.longitude) + " deg, altitude = " + str(self.altitude) + " m, GNSS type = "\
@@ -146,58 +310,184 @@ class GNSS(DataPacket):
               + str(self.refStationID) + ", correction age = " + str(self.correctionAge)
         return rtn
 
-
+## Implement the Environment NMEA2000 message
+#
+# The Environment message was originally used to provide a combination of temperature, humidity, and pressure, but has
+# since been deprecated in favour of individual messages (which also have the benefit of preserving the source information
+# for the pressure data).  These are also supported, but this is provided for backwards compatibility.
 class Environment(DataPacket):
+    ## Initialise the Environment packet
+    #
+    # This picks out the date and time of message reception (based on the last known good real time estimate), and the
+    # temperature (and source), humidity (and source), and pressure information as (u16, double, u8, double, u8, double,
+    # double) for 36B total.  Temperature is Kelvin, humidity is %, pressure is Pascals.  The temperature and humidity
+    # sources are enums (see Wiki for details); some filtering on allowed sources can happen at the logger, so not all
+    # data might make it here from the NMEA2000 bus.
+    #
+    # \param self   Pointer to the object
+    # \param buffer Binary data from file to interpret
     def __init__(self, buffer):
-        (date, timestamp, self.tempSource, self.temperature, self.humiditySource, self.humidity, self.pressure) = struct.unpack("<HdBdBdd", buffer)
+        (date, timestamp, tempSource, temperature, humiditySource, humidity, pressure) = \
+            struct.unpack("<HdBdBdd", buffer)
+        ## Source of temperature information (e.g., inside, outside)
+        self.tempSource = tempSource
+        ## Current temperature, Kelvin
+        self.temperature = temperature
+        ## Source of humidity information (e.g., inside, outside)
+        self.humiditySource = humiditySource
+        ## Relative humidity, percent
+        self.humidity = humidity
+        ## Current pressure, Pascals.
+        # The source information for pressure information is not provided, so presumably this is meant to be
+        # atmospheric pressure, rather than something more general.
+        self.pressure = pressure
         DataPacket.__init__(self, date, timestamp)
 
+    ## Provide the fixed-text string name for this data packet
+    #
+    # This simply reports the human-readable name for the class so that reporting is possible
+    #
+    # \param self   Pointer to the object
+    # \return String with the human-readable name of the packet
     def name(self):
         return "Environment"
 
+    ## Implement the printable interface for this class, allowing it to be streamed
+    #
+    # This converts to human-readable version of the data packet for the standard streaming output interface.
+    #
+    # \param self   Pointer to the object
+    # \return String representation of the object
     def __str__(self):
         rtn = DataPacket.__str__(self) + " " + self.name() + ": temperature = " + str(temp_to_celsius(self.temperature)) + " ºC (source "\
               + str(self.tempSource) + "), humidity = " + str(self.humidity) + "% (source " + str(self.humiditySource) +\
               "), pressure = " + str(pressure_to_mbar(self.pressure)) + " mBar"
         return rtn
 
-
+## Implement the Temperature NMEA2000 message
+#
+# The Temperature message can serve a number of purposes, carrying temperature information for a variety of different
+# sensors on the ship, including things like bait tanks and reefers.  The information is, however, always qualified
+# with a source designator.  Some filtering of messages might happen at the logger, however, which means that not all
+# temperature messages make it to here.
 class Temperature(DataPacket):
+    ## Initialise the Temperature message
+    #
+    # This picks out the date and time of message reception (based on the last known good real time estimate), and the
+    # temperature source and temperature as (u16, double, u8, double) for 19B total.  Temperature source is a mapped
+    # enum (see Wiki for details); temperature is Kelvin, so it's always positive.
+    #
+    # \param self   Pointer to the object
+    # \param buffer Binary data from file to interpret
     def __init__(self, buffer):
-        (date, timestamp, self.tempSource, self.temperature) = struct.unpack("<HdBd", buffer)
+        (date, timestamp, tempSource, temperature) = struct.unpack("<HdBd", buffer)
+        ## Source of temperature information (e.g., water, air, cabin)
+        self.tempSource = tempSource
+        ## Temperature of source, Kelvin
+        self.temperature = temperature
         DataPacket.__init__(self, date, timestamp)
 
+    ## Provide the fixed-text string name for this data packet
+    #
+    # This simply reports the human-readable name for the class so that reporting is possible
+    #
+    # \param self   Pointer to the object
+    # \return String with the human-readable name of the packet
     def name(self):
         return "Temperature"
 
+    ## Implement the printable interface for this class, allowing it to be streamed
+    #
+    # This converts to human-readable version of the data packet for the standard streaming output interface.
+    #
+    # \param self   Pointer to the object
+    # \return String representation of the object
     def __str__(self):
         rtn = DataPacket.__str__(self) + " " + self.name() + ": temperature = " + str(temp_to_celsius(self.temperature))\
               + " ºC (source " + str(self.tempSource) + ")"
         return rtn
 
-
+## Implement the Humidity NMEA2000 message
+#
+# The Humidity message can serve a number of purposes, carrying humidity information for a variety of different sensors
+# on the ship, including interior and exterior.  The information is, however, always qualified with a source designator.
+# Some filtering of messages might happen at the logger, however, which means that not all humidity messages make it
+# to here.
 class Humidity(DataPacket):
+    ## Initialise the Humidty message
+    #
+    # This picks out the date and time of message reception (based on the last known good real time estimate), and the
+    # humidity source and humidity as (u16, double, u8, double) for 19B total.  Humidity source is a mapped enum (see
+    # Wiki for details); humidity is a relative percentage.
+    #
+    # \param self   Pointer to the object
+    # \param buffer Binary data from file to interpret
     def __init__(self, buffer):
-        (date, timestamp, self.humiditySource, self.humidity) = struct.unpack("<HdBd", buffer)
+        (date, timestamp, humiditySource, humidity) = struct.unpack("<HdBd", buffer)
+        ## Source of humidity (e.g., inside, outside)
+        self.humiditySource = humiditySource
+        ## Humidity observation, percent
+        self.humidity = humidity
         DataPacket.__init__(self, date, timestamp)
 
+    ## Provide the fixed-text string name for this data packet
+    #
+    # This simply reports the human-readable name for the class so that reporting is possible
+    #
+    # \param self   Pointer to the object
+    # \return String with the human-readable name of the packet
     def name(self):
         return "Humidity"
 
+    ## Implement the printable interface for this class, allowing it to be streamed
+    #
+    # This converts to human-readable version of the data packet for the standard streaming output interface.
+    #
+    # \param self   Pointer to the object
+    # \return String representation of the object
     def __str__(self):
         rtn = DataPacket.__str__(self) + " " + self.name() + ": humidity = " + str(self.humidity) + " % (source "\
               + str(self.humiditySource) + ")"
         return rtn
 
-
+## Implement the Pressure NMEA2000 message
+#
+# The Pressure message can serve a number of purposes, carrying pressure information for a variety of different sensors
+# on the ship, including atmospheric and compressed air systems.  The information is, however, always qualified with a
+# source designator.  Some filtering of messages might happen at the logger, however, which means that not all pressure
+# messages make it to here.
 class Pressure(DataPacket):
+    ## Initialise the Pressure message
+    #
+    # This picks out the date and time of message reception (based on the last known good real time estimate), and the
+    # pressure source and pressure as (u16, double, u8, double) for 19B total.  Pressure source is a mapped enum (see
+    # Wiki for details); pressure is in Pascals.
+    #
+    # \param self   Pointer to the object
+    # \param buffer Binary data from file to interpret
     def __init__(self, buffer):
-        (date, timestamp, self.pressureSource, self.pressure) = struct.unpack("<HdBd", buffer)
+        (date, timestamp, pressureSource, pressure) = struct.unpack("<HdBd", buffer)
+        ## Source of pressure measurement (e.g., atmospheric, compressed air)
+        self.pressureSource = pressureSource
+        ## Pressure, Pascals
+        self.pressure = pressure
         DataPacket.__init__(self, date, timestamp)
 
+    ## Provide the fixed-text string name for this data packet
+    #
+    # This simply reports the human-readable name for the class so that reporting is possible
+    #
+    # \param self   Pointer to the object
+    # \return String with the human-readable name of the packet
     def name(self):
         return "Pressure"
 
+    ## Implement the printable interface for this class, allowing it to be streamed
+    #
+    # This converts to human-readable version of the data packet for the standard streaming output interface.
+    #
+    # \param self   Pointer to the object
+    # \return String representation of the object
     def __str__(self):
         rtn = DataPacket.__str__(self) + " " + self.name() + ": pressure = " + str(pressure_to_mbar(self.pressure))\
               + " mBar (source " + str(self.pressureSource) + ")"
@@ -213,8 +503,8 @@ class SerialiserVersion(DataPacket):
     #
     # The buffer should contain eight bytes as two unsigned integers for major and minor software versions
     #
-    # @param self   Pointer to the object
-    # @param buffer Binary data from file to interpret
+    # \param self   Pointer to the object
+    # \param buffer Binary data from file to interpret
     def __init__(self, buffer):
         (major, minor) = struct.unpack("<II", buffer)
         ## Major software version for the serialiser code
@@ -227,7 +517,8 @@ class SerialiserVersion(DataPacket):
     #
     # This simply reports the human-readable name for the class so that reporting is possible
     #
-    # @param self   Pointer to the object
+    # \param self   Pointer to the object
+    # \return String with the human-readable name of the packet
     def name(self):
         return "SerialiserVersion"
 
@@ -235,17 +526,37 @@ class SerialiserVersion(DataPacket):
     #
     # This converts to human-readable version of the data packet for the standard streaming output interface.
     #
-    # @param self   Pointer to the object
+    # \param self   Pointer to the object
+    # \return String representation of the object
     def __str__(self):
         rtn = DataPacket.__str__(self) + " " + self.name() + ": version = " + str(self.major) + "." + str(self.minor)
         return rtn
 
-
+## Translate packets out of the binary file, reconstituing as an appropriate class
+#
+# This provides the primary interface for the user to the binary data generated by the logger.  Calling the next_packet
+# method pulls the next packet header, checks for type and size, and then reads the following byte sequence to the
+# required length before translating to an instantiation of the appropriate class.  Unknown packets generate a warning.
 class PacketFactory:
+    ## Initialise the packet factory
+    #
+    # This simple copies the file reference information for the binary data, and resets EOF indicator.
+    #
+    # \param self   Pointer to the object
+    # \param file   Open file object, which must be opened for binary reads
     def __init__(self, file):
+        ## File reference from which to read packets
         self.file = file
+        ## Flag for end-of-file detection
         self.end_of_file = False
 
+    ## Extract the next packet from the binary data file
+    #
+    # This pulls the next packet header from the binary file, interprets the type and size, reads the bytes
+    # corresponding to the packet payload, and the converts to an instantiation of the appropriate class object.
+    #
+    # \param self   Pointer to the object
+    # \return DataPacket-derived object corresponding to the packet, or None if end-of-file or error
     def next_packet(self):
         if self.end_of_file:
             return None
@@ -285,5 +596,11 @@ class PacketFactory:
 
         return rtn
 
+    ## Check for more data being available
+    #
+    # This checks for whether there is more data available in the file.
+    #
+    # \param self   Pointer to the object
+    # \return True if there is more data to read, otherwise False
     def has_more(self):
         return not self.end_of_file

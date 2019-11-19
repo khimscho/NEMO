@@ -156,6 +156,8 @@ Serialiser::Serialiser(File& file)
 ///
 /// \param payload_id   ID number to write to file in order to identify what's coming next
 /// \param payload          Buffer handler to be written to file
+///
+/// \return True if the packet was successfully written to file, otherwise False
 
 bool Serialiser::rawProcess(uint32_t payload_id, Serialisable& payload)
 {
@@ -171,6 +173,8 @@ bool Serialiser::rawProcess(uint32_t payload_id, Serialisable& payload)
 ///
 /// \param payload_id   ID number to write to file in order to identify what's coming next
 /// \param payload          Buffer hanlder to be written to file
+///
+/// \return True if the packet was written to to file, otherwise False
 
 bool Serialiser::Process(uint32_t payload_id, Serialisable& payload)
 {
