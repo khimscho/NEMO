@@ -15,9 +15,9 @@
 
 #include <stdint.h>
 #include <Arduino.h>
-#include <SD.h>
 #include <NMEA2000.h>
 #include "serialisation.h"
+#include "LogManager.h"
 
 /// \class Timestamp
 /// \brief Generate a timestamp for an instant based on elapsed time to last known time
@@ -61,7 +61,10 @@ public:
         void Serialise(Serialisable& target) const;
         
         /// \brief Give the size of the object once serialised
-        uint32_t SerialisationSize(void) const { return sizeof(uint16_t)+sizeof(double); }
+        uint32_t SerialisationSize(void) const
+        {
+            return sizeof(uint16_t)+sizeof(double) + sizeof(uint32_t);
+        }
         
         /// \brief Provide something that's a printable version
         String printable(void) const;
@@ -95,7 +98,7 @@ private:
 class N2kLogger : public tNMEA2000::tMsgHandler {
 public:
     /// \brief Default constructor, given the NMEA2000 object that's doing the data capture
-    N2kLogger(tNMEA2000 *source);
+    N2kLogger(tNMEA2000 *source, logger::Manager& output);
     
     /// \brief Default destructor
     ~N2kLogger(void);
@@ -103,18 +106,6 @@ public:
     /// \brief Message handler for the tNMEA2000::tMsgHandler interface
     void HandleMsg(const tN2kMsg &N2kMsg);
     
-    /// \brief Start a new log file, with the next available number
-    void StartNewLog(void);
-
-    /// \brief Close the current logfile (use judiciously!)
-    void CloseLogfile(void);
-    
-    /// \brief Remove a given log file from the SD card
-    boolean RemoveLogFile(const uint32_t file_num);
-
-    /// \brief Remove all log files currently available (use judiciously!)
-    void RemoveAllLogfiles(void);
-
     /// \brief Generate a software version string, as required by NMEA2000 library
     String SoftwareVersion(void) const;
 
@@ -123,29 +114,9 @@ public:
     
 private:
     bool        m_verbose;          ///< Flag for verbose debug output
-    SDFile      m_outputLog;        ///< Current output log file on the SD card
-    SDFile      m_console;          ///< Log for monitoring of the data stream
     Timestamp   m_timeReference;    ///< Time reference information for timestamping records
-    Serialiser  *m_serialiser;      ///< Object to handle serialisation of data
+    logger::Manager& m_logManager;  ///< Handler for output log files
     
-    /// \brief Find the next log number in sequence that doesn't already exist
-    uint32_t GetNextLogNumber(void);
-    /// \brief Make a filename for the given log file number
-    String  MakeLogName(uint32_t lognum);
-    
-    /// \enum PacketIDs
-    /// \brief Symbolic definition for the packet IDs used to serialise the messages from NMEA2000
-    enum PacketIDs {
-        Pkt_SystemTime = 1,     ///< Real-time information from GNSS (or atomic clock)
-        Pkt_Attitude = 2,       ///< Platform roll, pitch, yaw
-        Pkt_Depth = 3,          ///< Observed depth, offset, and depth range
-        Pkt_COG = 4,            ///< Course and speed over ground
-        Pkt_GNSS = 5,           ///< Position information and metrics
-        Pkt_Environment = 6,    ///< Temperature, Humidity, and Pressure
-        Pkt_Temperature = 7,    ///< Temperature and source
-        Pkt_Humidity = 8,       ///< Humidity and source
-        Pkt_Pressure = 9        ///< Pressure and source
-    };
     /// \brief Translate and serialise the real-time information from GNSS (or atomic clock)
     void HandleSystemTime(Timestamp::TimeDatum const& t, tN2kMsg const& msg);
     /// \brief Translate and serialise the platform attitude information

@@ -48,6 +48,8 @@ public:
     void operator+=(float f);
     /// \brief Add a double-precision floating point number of the output buffer
     void operator+=(double d);
+    /// \brief Add an array of characters (C-style string) to the output buffer
+    void operator+=(const char *p);
     
 private:
     friend class Serialiser;

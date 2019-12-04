@@ -13,6 +13,7 @@
 #ifndef __N0183_LOGGER_H__
 #define __N1083_LOGGER_H__
 
+#include "LogManager.h"
 #include <queue>
 
 namespace nmea {
@@ -131,7 +132,7 @@ private:
 class Logger {
 public:
     /// \brief Default constructor    
-    Logger(Logfile::Logger& output);
+    Logger(logger::Manager& output);
     /// \brief Default destructor
     ~Logger(void);
     
@@ -139,7 +140,7 @@ public:
     void ProcessMessages(void);
     
 private:
-    Logfile::Logger&    m_outputLog;    ///< Serialisation handler for the output file
+    logger::Manager&    m_logManager;   ///< Handler for log files on SD card
     std::queue<Sentence*>   m_fifo;     ///< FIFO for fully assembled messages, ready for output
     MessageAssembler    *m_channel1;    ///< Message handler for channel 1
     MessageAssembler    *m_channel2;    ///< Message hanlder for channel 2

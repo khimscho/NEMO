@@ -10,6 +10,9 @@
  * NOAA-UNH Joint Hydrographic Center.  All Rights Reserved.
  */
 
+#include <string>
+#include <cstring>
+#include "Arduino.h"
 #include "N0183Logger.h"
 
 namespace nmea {
@@ -202,7 +205,7 @@ void Logger::ProcessMessages(void)
         Serialisable s;
         s += (uint64_t)(msg->Timestamp());
         s += msg->Contents();
-        m_outputLog.Record(Logfile::MessageType::NMEA0183, s);
+        m_logManager.Record(logger::Manager::PacketIDs::Pkt_NMEAString, s);
         delete msg;
     }
 }

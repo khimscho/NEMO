@@ -137,6 +137,20 @@ void Serialisable::operator+=(double d)
     m_buffer[m_nData++] = data[7];
 }
 
+/// Serialise an array of characters to the output buffer (i.e., a C-style, zero
+/// terminated, string).
+///
+/// \param p    Pointer to the array to add
+
+void Serialisable::operator+=(const char *p)
+{
+    EnsureSpace(strlen(p));
+    const char *src = p;
+    while (*src != '\0') {
+        m_buffer[m_nData++] = *src++;
+    }
+}
+
 /// Constructor for the serialiser, which writes \a Serialisable objects to file.  The file has
 /// to be opened in binary mode in order for this to work effectively.
 ///

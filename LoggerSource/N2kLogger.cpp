@@ -18,7 +18,6 @@
 
 #include <stdint.h>
 #include <Arduino.h>
-#include <SD.h>
 #include "N2kLogger.h"
 #include "N2kMessages.h"
 
@@ -127,6 +126,7 @@ void Timestamp::TimeDatum::Serialise(Serialisable& s) const
 {
     s += datestamp;
     s += timestamp;
+    s += RawElapsed();
 }
 
 /// Generate a printable version of the estimated real time in the TimeDatum.
@@ -145,8 +145,8 @@ String Timestamp::TimeDatum::printable(void) const
 ///
 /// \param source   Pointer to the NMEA2000 object handling the CAN bus interface.
 
-N2kLogger::N2kLogger(tNMEA2000 *source)
-: tNMEA2000::tMsgHandler(0, source), m_verbose(false), m_serialiser(nullptr)
+N2kLogger::N2kLogger(tNMEA2000 *source, logger::Manager& output)
+: tNMEA2000::tMsgHandler(0, source), m_verbose(false), m_logManager(output)
 {
 }
 
@@ -156,140 +156,7 @@ N2kLogger::N2kLogger(tNMEA2000 *source)
 
 N2kLogger::~N2kLogger(void)
 {
-    delete m_serialiser;
-    if (m_outputLog)
-        m_outputLog.close();
-#if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
-    SDFile console = SD.open("/console.log", FILE_APPEND);
-#else
-    SDFile console = SD.open("/console.log", FILE_WRITE);
-#endif
-    
-    console.println("Stopped logging under control.");
-    console.close();
-}
-
-/// Start logging data to a new log file, generating the next log number in sequence that
-/// hasn't been used within the current data set.  The numbers of the log files are used
-/// starting with zero, so it's possible that the "next" log file has lower number than the
-/// current one.  Note that this doesn't attempt to stop logging to the current file, if that's
-/// happening, and there's only one pointer held for the file.  Therefore, if the system could
-/// already be logging, you should call CloseLogfile() first.
-
-void N2kLogger::StartNewLog(void)
-{
-    Serial.println("Starting new log ...");
-    uint32_t log_num = GetNextLogNumber();
-    Serial.print("Log Number: ");
-    Serial.println(log_num);
-    String filename = MakeLogName(log_num);
-    Serial.print("Log Name: ");
-    Serial.println(filename);
-
-#if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
-    m_console = SD.open("/console.log", FILE_APPEND);
-#else
-    m_console = SD.open("/console.log", FILE_WRITE);
-#endif
-
-    m_outputLog = SD.open(filename, FILE_WRITE);
-    if (m_outputLog) {
-        m_serialiser = new Serialiser(m_outputLog);
-        m_console.println(String("INFO: started logging to ") + filename);
-    } else {
-        m_serialiser = nullptr;
-        m_console.println(String("ERR: Failed to open output log file as ") + filename);
-    }
-    
-    m_console.close();
-    
-    Serial.println("New log file initialisation complete.");
-}
-
-/// Close the current log file, and reset the Serialiser.  This ensures that the output log
-/// file is safely closed, and no other object has reference to the file structure used
-/// for it.
-
-void N2kLogger::CloseLogfile(void)
-{
-    delete m_serialiser;
-    m_serialiser = nullptr;
-    m_outputLog.close();
-}
-
-/// Remove a specific log file from the SD card.  The specification of the filename, etc.
-/// is abstracted out, so that only the file number is required to remove.  Note that the
-/// code here doesn't check that the file exists before attempting to remove it.  Therefore,
-/// it is possible that you might receive a failure code either because the file doesn't exist
-/// or because the remove failed, and you can't tell the difference.
-///
-/// \param file_num Logical file number to remove.
-/// \return True if the file was successfully removed, otherwise False
-
-boolean N2kLogger::RemoveLogFile(uint32_t file_num)
-{
-    String filename = MakeLogName(file_num);
-    boolean rc = SD.remove(filename);
-
-#if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
-    SDFile console = SD.open("/console.log", FILE_APPEND);
-#else
-    SDFile console = SD.open("/console.log", FILE_WRITE);
-#endif
-
-    if (rc) {
-        console.println(String("INFO: erased log file ") + file_num + String(" by user command."));
-    } else {
-        console.println(String("ERR: failed to erase log file ") + file_num + String(" on command."));
-    }
-    console.close();
-    
-    return rc;
-}
-
-/// Remove all log files on the system.  Note that this includes the file that is currently
-/// being written, if there is one ("all" means all).  The logger then automatically starts
-/// a new log file immediately.
-
-void N2kLogger::RemoveAllLogfiles(void)
-{
-    SDFile basedir = SD.open("/logs");
-    SDFile entry = basedir.openNextFile();
-#if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
-    SDFile console = SD.open("/console.log", FILE_APPEND);
-#else
-    SDFile console = SD.open("/console.log", FILE_WRITE);
-#endif
-
-    CloseLogfile();  // All means all ...
-    
-    long file_count = 0, total_files = 0;
-    
-    while (entry) {
-#if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
-        String filename = entry.name();
-#else
-        String filename = String("/logs/") + entry.name();
-#endif
-        entry.close();
-        ++total_files;
-
-        Serial.println("INFO: erasing log file: \"" + filename + "\"");
-        
-        boolean rc = SD.remove(filename);
-        if (rc) {
-            console.println(String("INFO: erased log file ") + filename + String(" by user command."));
-            ++file_count;
-        } else {
-            console.println(String("ERR: failed to erase log file ") + filename + String(" by user command."));
-        }
-        entry = basedir.openNextFile();
-    }
-    basedir.close();
-    console.println(String("INFO: erased ") + file_count + String(" log files of ") + total_files);
-    console.close();
-
-    StartNewLog();
+    m_logManager.Console().println("Stopped NEMA2000 logging under control.");
 }
 
 /// Generate a human-readable version of the logger's version information.  This is a simple
@@ -300,7 +167,8 @@ void N2kLogger::RemoveAllLogfiles(void)
 String N2kLogger::SoftwareVersion(void) const
 {
     String rtn;
-    rtn = String(SoftwareVersionMajor) + "." + String(SoftwareVersionMinor) + "." + String(SoftwareVersionPatch);
+    rtn = String(SoftwareVersionMajor) + "." + String(SoftwareVersionMinor) +
+            "." + String(SoftwareVersionPatch);
     return rtn;
 }
 
@@ -335,9 +203,6 @@ void N2kLogger::HandleMsg(const tN2kMsg& message)
             }
             break;
     }
-    
-    // Check here whether the log file is getting too big, and cycle to
-    // the next file if appropriate.
 }
 
 /// Manage the translation and serialisation of the SystemTime message.  This extracts the
@@ -371,9 +236,10 @@ void N2kLogger::HandleSystemTime(Timestamp::TimeDatum const& t, const tN2kMsg& m
             s += timestamp;
             s += t.RawElapsed();
             s += (uint8_t)source;
-            m_serialiser->Process(Pkt_SystemTime, s);
-            m_console.print("INF: Time update to: ");
-            m_console.println(m_timeReference.printable());
+            m_logManager.Record(logger::Manager::PacketIDs::Pkt_SystemTime, s);
+            m_logManager.Console().print("INF: Time update to: ");
+            m_logManager.Console().println(m_timeReference.printable());
+            m_logManager.Console().flush();
         }
     }
 }
@@ -398,9 +264,11 @@ void N2kLogger::HandleAttitude(Timestamp::TimeDatum const& t, tN2kMsg const& msg
         s += yaw;
         s += pitch;
         s += roll;
-        m_serialiser->Process(Pkt_Attitude, s);
+        m_logManager.Record(logger::Manager::PacketIDs::Pkt_Attitude, s);
     } else {
-        m_console.println(t.printable() + ": ERR: Failed to parse attitude data packet.");
+        m_logManager.Console().println(t.printable() +
+                                       ": ERR: Failed to parse attitude data packet.");
+        m_logManager.Console().flush();
     }
 }
 
@@ -424,9 +292,11 @@ void N2kLogger::HandleDepth(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
         s += depth;
         s += offset;
         s += range;
-        m_serialiser->Process(Pkt_Depth, s);
+        m_logManager.Record(logger::Manager::PacketIDs::Pkt_Depth, s);
     } else {
-        m_console.println(t.printable() + ": ERR: Failed to parse water depth packet.");
+        m_logManager.Console().println(t.printable() +
+                                       ": ERR: Failed to parse water depth packet.");
+        m_logManager.Console().flush();
     }
 }
 
@@ -452,10 +322,11 @@ void N2kLogger::HandleCOG(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
             t.Serialise(s);
             s += cog;
             s += sog;
-            m_serialiser->Process(Pkt_COG, s);
+            m_logManager.Record(logger::Manager::PacketIDs::Pkt_COG, s);
         }
     } else {
-        m_console.println(t.printable() + ": ERR: Failed to parse COG/SOG packet.");
+        m_logManager.Console().println(t.printable() + ": ERR: Failed to parse COG/SOG packet.");
+        m_logManager.Console().flush();
     }
 }
 
@@ -500,19 +371,22 @@ void N2kLogger::HandleGNSS(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
         s += (uint8_t)refStationType;
         s += refStationID;
         s += correctionAge;
-        m_serialiser->Process(Pkt_GNSS, s);
+        m_logManager.Record(logger::Manager::PacketIDs::Pkt_GNSS, s);
         
         if (!m_timeReference.IsValid()) {
             // We haven't yet seen a valid time reference, but the time here is
             // probably OK since it's usually 1Hz.  Therefore we can update if
             // we don't have anything else
             m_timeReference.Update(datestamp, timestamp, t.RawElapsed());
-            m_console.print("INF: Time update to: ");
-            m_console.print(m_timeReference.printable());
-            m_console.println(" from GNSS record.");
+            m_logManager.Console().print("INFO: Time update to: ");
+            m_logManager.Console().print(m_timeReference.printable());
+            m_logManager.Console().println(" from GNSS record.");
+            m_logManager.Console().flush();
         }
     } else {
-        m_console.println(t.printable() + ": ERR: Failed to parse primary GNSS report packet.");
+        m_logManager.Console().println(t.printable() +
+                                       ": ERR: Failed to parse primary GNSS report packet.");
+        m_logManager.Console().flush();
     }
 }
 
@@ -543,9 +417,11 @@ void N2kLogger::HandleEnvironment(Timestamp::TimeDatum const& t, tN2kMsg const& 
         s += (uint8_t)h_source;
         s += humidity;
         s += pressure;
-        m_serialiser->Process(Pkt_Environment, s);
+        m_logManager.Record(logger::Manager::PacketIDs::Pkt_Environment, s);
     } else {
-        m_console.println(t.printable() + ": ERR: Failed to parse environmental parameters packet.");
+        m_logManager.Console().println(t.printable() +
+                                       ": ERR: Failed to parse environmental parameters packet.");
+        m_logManager.Console().flush();
     }
 }
 
@@ -573,10 +449,12 @@ void N2kLogger::HandleTemperature(Timestamp::TimeDatum const& t, tN2kMsg const& 
             t.Serialise(s);
             s += (uint8_t)t_source;
             s += temp;
-            m_serialiser->Process(Pkt_Temperature, s);
+            m_logManager.Record(logger::Manager::PacketIDs::Pkt_Temperature, s);
         }
     } else {
-        m_console.println(t.printable() + ": ERR: Failed to parse temperature packet.");
+        m_logManager.Console().println(t.printable() +
+                                       ": ERR: Failed to parse temperature packet.");
+        m_logManager.Console().flush();
     }
 }
 
@@ -603,10 +481,12 @@ void N2kLogger::HandleHumidity(Timestamp::TimeDatum const& t, tN2kMsg const& msg
             t.Serialise(s);
             s += (uint8_t)h_source;
             s += humidity;
-            m_serialiser->Process(Pkt_Humidity, s);
+            m_logManager.Record(logger::Manager::PacketIDs::Pkt_Humidity, s);
         }
     } else {
-        m_console.println(t.printable() + ": ERR: Failed to parse humidity packet.");
+        m_logManager.Console().println(t.printable() +
+                                       ": ERR: Failed to parse humidity packet.");
+        m_logManager.Console().flush();
     }
 }
 
@@ -633,10 +513,12 @@ void N2kLogger::HandlePressure(Timestamp::TimeDatum const& t, tN2kMsg const& msg
             t.Serialise(s);
             s += (uint8_t)p_source;
             s += pressure;
-            m_serialiser->Process(Pkt_Pressure, s);
+            m_logManager.Record(logger::Manager::PacketIDs::Pkt_Pressure, s);
         }
     } else {
-        m_console.println(t.printable() + ": ERR: Failed to parse pressure packet.");
+        m_logManager.Console().println(t.printable() +
+                                       ": ERR: Failed to parse pressure packet.");
+        m_logManager.Console().flush();
     }
 }
 
@@ -663,59 +545,11 @@ void N2kLogger::HandleExtTemperature(Timestamp::TimeDatum const& t, tN2kMsg cons
             t.Serialise(s);
             s += (uint8_t)t_source;
             s += temp;
-            m_serialiser->Process(Pkt_Temperature, s);
+            m_logManager.Record(logger::Manager::PacketIDs::Pkt_Temperature, s);
         }
     } else {
-        m_console.println(t.printable() + ": ERR: Failed to parse temperature packet.");
+        m_logManager.Console().println(t.printable() +
+                                     ": ERR: Failed to parse temperature packet.");
+        m_logManager.Console().flush();
     }
-}
-
-/// Generate a logical file number for the next log file to be written.  This operates
-/// by walking the current log directory counting files that exist until the upper
-/// limit is reached.  The log directory is created if it does not already exist, and any
-/// standard file that appears in the wrong location is removed.  If all log files exist,
-/// the code re-uses the first file number, over-writing the log file.  The "next" log
-/// file is the first file number that is attempted where a prior log file is not existant
-/// on SD card.  This means that the "next" log file might have lower logical number
-/// than the current or previous one.
-///
-/// \return Logical file number for the next log file to write.
-
-uint32_t N2kLogger::GetNextLogNumber(void)
-{
-    if (!SD.exists("/logs")) {
-        SD.mkdir("/logs");
-    }
-    SDFile dir = SD.open("/logs");
-    if (!dir.isDirectory()) {
-        dir.close();
-        SD.remove("/logs");
-        SD.mkdir("/logs");
-    }
-    
-    uint32_t lognum = 0;
-    while (lognum < 1000) {
-        if (SD.exists(MakeLogName(lognum))) {
-            ++lognum;
-        } else {
-            break;
-        }
-    }
-    if (1000 == lognum)
-        lognum = 0; // Re-use the first created
-    return lognum;
-}
-
-/// Generate a string version for a logical file number.  This converts the logical number
-/// into a filename that can be used to open the file.  This assumes that the log file
-/// directory already exists.
-///
-/// \param log_num  Logical file number to generate
-/// \return String with full path to the log file to create
-
-String N2kLogger::MakeLogName(uint32_t log_num)
-{
-    String filename("/logs/nmea2000.");
-    filename += log_num;
-    return filename;
 }
