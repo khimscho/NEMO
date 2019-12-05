@@ -173,7 +173,7 @@ Serialiser::Serialiser(File& file)
 ///
 /// \return True if the packet was successfully written to file, otherwise False
 
-bool Serialiser::rawProcess(uint32_t payload_id, Serialisable& payload)
+bool Serialiser::rawProcess(uint32_t payload_id, Serialisable const& payload)
 {
     m_file.write((const uint8_t*)&payload_id, sizeof(uint32_t));
     m_file.write((const uint8_t*)&payload.m_nData, sizeof(uint32_t));
@@ -190,7 +190,7 @@ bool Serialiser::rawProcess(uint32_t payload_id, Serialisable& payload)
 ///
 /// \return True if the packet was written to to file, otherwise False
 
-bool Serialiser::Process(uint32_t payload_id, Serialisable& payload)
+bool Serialiser::Process(uint32_t payload_id, Serialisable const& payload)
 {
     if (0 == payload_id) {
         // Reserved for version packet at the start of the file

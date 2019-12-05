@@ -98,7 +98,7 @@ void setup()
   NMEA2000.SetProductInformation(GetSerialNumberString(),
                                 1,
                                 "Seabed 2030 NMEA2000 Logger",
-                                Logger->SoftwareVersion().c_str(),
+                                N2000Logger->SoftwareVersion().c_str(),
                                 LOGGER_HARDWARE_VERSION
                                 );
   NMEA2000.SetDeviceInformation(GetSerialNumber(),
@@ -110,7 +110,7 @@ void setup()
   NMEA2000.EnableForward(false);
   NMEA2000.ExtendTransmitMessages(TransmitMessages);
   NMEA2000.ExtendReceiveMessages(ReceiveMessages);
-  NMEA2000.AttachMsgHandler(Logger);
+  NMEA2000.AttachMsgHandler(N2000Logger);
 
   NMEA2000.Open();
 }
@@ -126,7 +126,7 @@ void setup()
 void loop()
 {
     NMEA2000.ParseMessages();
-    NMEA0183Logger->ProcessMessages();
+    N0183Logger->ProcessMessages();
     LEDs->ProcessFlash();
     CommandProcessor->ProcessCommand();
 }

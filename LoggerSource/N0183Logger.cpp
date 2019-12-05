@@ -10,9 +10,9 @@
  * NOAA-UNH Joint Hydrographic Center.  All Rights Reserved.
  */
 
+#include "Arduino.h"
 #include <string>
 #include <cstring>
-#include "Arduino.h"
 #include "N0183Logger.h"
 
 namespace nmea {
@@ -60,9 +60,11 @@ std::string Sentence::Token(void) const
 }
 
 /// Start the message assembler in the "searching" state, with a blank sentence and empty FIFO.
+///
+/// \param fifo Buffer to use to store completed message strings
 
-MessageAssembler::MessageAssembler(void)
-: m_state(STATE_SEARCHING)
+MessageAssembler::MessageAssembler(std::queue<Sentence*>& fifo)
+: m_state(STATE_SEARCHING), m_fifo(fifo)
 {
     m_current = new Sentence();
 }
@@ -109,6 +111,7 @@ void MessageAssembler::AddCharacter(const char in)
             }
             break;
         case STATE_CAPTURING:
+            unsigned int now;
             switch(in) {
                 case '\n':
                     // The end of the current sentence, so we convert the current sentence
@@ -132,13 +135,13 @@ void MessageAssembler::AddCharacter(const char in)
                     break;
                 case '$':
                     // The start of a new sentence, which is odd ...
-                    auto now = millis();
+                    now = millis();
                     m_current->Reset();
                     m_current->Timestamp(now);
                     m_current->AddCharacter(in);
                     Serial.println("warning: sentence restarted before end of previous one?!");
                     if (m_debugAssembly) {
-                        Serial.println("debug: new sentence started with timestamp " +
+                        Serial.println(String("debug: new sentence started with timestamp ") +
                                        m_current->Timestamp() + " as reset on channel " +
                                        m_channel + ".");
                     }
@@ -188,8 +191,8 @@ const int tx2_pin = 16; ///< UART port 2 transmit pin
 ///
 /// \param output   Reference for the output SD file logger to use
 
-Logger::Logger(Logfile::Logger *output)
-: m_outputLog(output)
+Logger::Logger(logger::Manager *output)
+: m_logManager(output)
 {
     m_channel1 = new MessageAssembler(m_fifo);
     m_channel1->SetChannel(1);

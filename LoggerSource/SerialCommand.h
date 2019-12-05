@@ -14,6 +14,8 @@
 
 #include <Arduino.h>
 #include "N2kLogger.h"
+#include "N0183Logger.h"
+#include "LogManager.h"
 #include "StatusLED.h"
 #include "BluetoothAdapter.h"
 

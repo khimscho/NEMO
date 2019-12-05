@@ -571,7 +571,7 @@ private:
     
     void setAdvertisingName(String const& name)
     {
-        writeNVMString(adv_name_start, name, max_nvm_name_length);
+        writeNVMString(adv_name_start, name, max_nvm_string_length);
     }
     
     /// \brief Implement the interface for getting the Bluetooth server advertising name

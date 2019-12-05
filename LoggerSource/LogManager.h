@@ -13,6 +13,9 @@
 #define __LOG_MANAGER_H__
 
 #include <stdint.h>
+#include <list>
+#include <string>
+#include <utility>
 #include <Arduino.h>
 #include <SD.h>
 #include "serialisation.h"
@@ -42,7 +45,7 @@ public:
     /// \brief Remove all log files currently available (use judiciously!)
     void RemoveAllLogfiles(void);
     
-    typedef tFileEnumeration = std::list<std::pair<std::string, int>>;
+    typedef std::list<std::pair<std::string, int>> tFileEnumeration;
     
     /// \brief Find the names and sizes of all of the available log files
     tFileEnumeration EnumerateLogFiles(void);

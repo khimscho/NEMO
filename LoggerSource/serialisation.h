@@ -75,13 +75,13 @@ public:
     /// \brief Default constructor
     Serialiser(File& f);
     /// \brief Write the payload to file, with header block
-    bool Process(uint32_t payload_id, Serialisable& payload);
+    bool Process(uint32_t payload_id, Serialisable const& payload);
     
 private:
     File&    m_file;    ///< Reference for the file object to serialise into
     
     /// \brief Payload serialiser without user-level validity checks
-    bool rawProcess(uint32_t payload_id, Serialisable& payload);
+    bool rawProcess(uint32_t payload_id, Serialisable const& payload);
 };
 
 #endif

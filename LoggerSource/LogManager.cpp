@@ -8,9 +8,15 @@
  * NOAA/UNH Joint Hydrographic Center.  All Rights Reserved.
  */
 
+#include <string>
+#include <list>
+#include <stdint.h>
+#include <utility>
 #include "LogManager.h"
 
 namespace logger {
+
+const int MAX_LOG_FILE_SIZE = 10*1024*1024; ///< Maximum size of a single log file before swapping
 
 Manager::Manager(void)
 {
@@ -48,10 +54,10 @@ void Manager::StartNewLog(void)
     m_outputLog = SD.open(filename, FILE_WRITE);
     if (m_outputLog) {
         m_serialiser = new Serialiser(m_outputLog);
-        m_console.println(String("INFO: started logging to ") + filename);
+        m_consoleLog.println(String("INFO: started logging to ") + filename);
     } else {
         m_serialiser = nullptr;
-        m_console.println(String("ERR: Failed to open output log file as ") + filename);
+        m_consoleLog.println(String("ERR: Failed to open output log file as ") + filename);
     }
     
     m_consoleLog.flush();
@@ -144,13 +150,13 @@ void Manager::RemoveAllLogfiles(void)
 ///
 /// \return list of pairs of (name, size) data.
 
-tFileEnumeration Manager::EnumerateLogFiles(void)
+Manager::tFileEnumeration Manager::EnumerateLogFiles(void)
 {
-    tFileEnumeration rtn;
+    Manager::tFileEnumeration rtn;
     SDFile logdir = SD.open("/logs");
     SDFile entry = logdir.openNextFile();
     while (entry) {
-        rtn.push_back(std::make_pair<std::string, int>(entry.name(), entry.size()));
+        rtn.push_back(std::make_pair(entry.name(), entry.size()));
         entry.close();
         entry = logdir.openNextFile();
     }
@@ -164,7 +170,7 @@ tFileEnumeration Manager::EnumerateLogFiles(void)
 /// \param pktID    Reference number to save with the packet
 /// \param data Serialisable or derived object with data to write
 
-void Manager::Record(PacketIDs pktID, Serialisable& data)
+void Manager::Record(PacketIDs pktID, Serialisable const& data)
 {
     m_serialiser->Process((uint32_t)pktID, data);
     if (m_outputLog.size() > MAX_LOG_FILE_SIZE) {

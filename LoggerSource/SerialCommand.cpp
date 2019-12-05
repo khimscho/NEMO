@@ -21,7 +21,7 @@
 /// \param logger   Pointer to the logger object to use for access to log files
 /// \param led          Pointer to the status LED controller object
 
-SerialCommand::SerialCommand(nmea::N2k::Logger *CANLogger, nmea::N0183::Logger *serialLogger,
+SerialCommand::SerialCommand(nmea::N2000::Logger *CANLogger, nmea::N0183::Logger *serialLogger,
                              logger::Manager *logManager, StatusLED *led)
 : m_CANLogger(CANLogger), m_serialLogger(serialLogger), m_logManager(logManager), m_led(led)
 {
@@ -47,8 +47,8 @@ void SerialCommand::ReportConsoleLog(void)
 {
     Serial.println("*** Current console log file:");
     m_logManager->Console().seek(0);
-    while (console.available()) {
-        int r = console.read();
+    while (m_logManager->Console().available()) {
+        int r = m_logManager->Console().read();
         Serial.write(r);
         if (m_ble->IsConnected()) {
             m_ble->WriteByte(r);
@@ -66,10 +66,10 @@ void SerialCommand::ReportConsoleLog(void)
 void SerialCommand::ReportLogfileSizes(void)
 {
     Serial.println("Current log file sizes:");
-    logger::Manager::tFileNumeration files(m_logManager->EnumerateLogFiles());
+    logger::Manager::tFileEnumeration files(m_logManager->EnumerateLogFiles());
     auto it = files.begin();
     while (it != files.end()) {
-        String line = "   " + it.first() + "  " + it.second() + " B";
+        String line = String("   ") + it->first.c_str() + "  " + it->second + " B";
         Serial.println(line);
         if (m_ble->IsConnected())
             m_ble->WriteString(line + "\n");
@@ -218,8 +218,8 @@ void SerialCommand::Execute(String const& cmd)
     } else if (cmd.startsWith("erase")) {
         EraseLogfile(cmd.substring(6));
     } else if (cmd == "steplog") {
-        m_logger->CloseLogfile();
-        m_logger->StartNewLog();
+        m_logManager->CloseLogfile();
+        m_logManager->StartNewLog();
     } else if (cmd.startsWith("led")) {
         ModifyLEDState(cmd.substring(4));
     } else if (cmd.startsWith("advertise")) {

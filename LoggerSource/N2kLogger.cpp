@@ -267,7 +267,7 @@ void Logger::HandleAttitude(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
         s += yaw;
         s += pitch;
         s += roll;
-        m_logManager.Record(logger::Manager::PacketIDs::Pkt_Attitude, s);
+        m_logManager->Record(logger::Manager::PacketIDs::Pkt_Attitude, s);
     } else {
         m_logManager->Console().println(t.printable() +
                                        ": ERR: Failed to parse attitude data packet.");
