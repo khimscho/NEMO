@@ -116,7 +116,7 @@ void MessageAssembler::AddCharacter(const char in)
                     m_fifo.push(m_current);
                     m_current = new Sentence();
                     if (m_debugAssembly) {
-                        Serial.println(String("debug: LF on channel " + m_channel +
+                        Serial.println(String("debug: LF on channel ") + m_channel +
                                               " to complete sentence; moved to FIFO");
                     }
                     m_state = STATE_SEARCHING;
@@ -165,6 +165,21 @@ void MessageAssembler::AddCharacter(const char in)
     }
 
 }
+                                       
+#if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
+const int rx1_pin = 12; ///< UART port 1 receive pin number (default for this system, not standard)
+const int tx1_pin = 26; ///< UART port 1 transmit pin number (default for this system, not standard)
+const int rx2_pin = 14; ///< UART port 2 receive pin number (default for this system, not standard)
+const int tx2_pin = 27; ///< UART port 2 transmit pin number (default for this system, not standard)
+#elif defined(__SAM3X8E__)
+// Note that these are the defaults, since there doesn't appear to be a way to adjust on Arduino Due
+const int rx1_pin = 19; ///< UART port 1 receive pin
+const int tx1_pin = 18; ///< UART port 1 transmit pin
+const int rx2_pin = 17; ///< UART port 2 receive pin
+const int tx2_pin = 16; ///< UART port 2 transmit pin
+#else
+#error "No configuration recognised for serial inputs"
+#endif
 
 /// Initialise a logger structure that can be used to handle all logging capabilities for NMEA0183 data on
 /// hardware channels Serial1 and Serial2.  This accumulates data from the serial channels into NMEA0183 sentences,
@@ -173,11 +188,20 @@ void MessageAssembler::AddCharacter(const char in)
 ///
 /// \param output   Reference for the output SD file logger to use
 
-Logger::Logger(Logfile::Logger& output)
+Logger::Logger(Logfile::Logger *output)
 : m_outputLog(output)
 {
     m_channel1 = new MessageAssembler(m_fifo);
+    m_channel1->SetChannel(1);
     m_channel2 = new MessageAssembler(m_fifo);
+    m_channel2->SetChannel(2);
+#if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
+    Serial1.begin(4800, SERIAL_8N1, rx1_pin, tx1_pin);
+    Serial2.begin(4800, SERIAL_8N1, rx2_pin, tx2_pin);
+#elif defined(__SAM3X8E__)
+    Serial1.begin(4800);
+    Serial2.begin(4800);
+#endif
 }
                                        
 Logger::~Logger(void)
@@ -194,10 +218,10 @@ Logger::~Logger(void)
 void Logger::ProcessMessages(void)
 {
     while (Serial1.available()) {
-        m_channel1.AddCharacter(Serial1.read());
+        m_channel1->AddCharacter(Serial1.read());
     }
     while (Serial2.available()) {
-        m_channel2.AddCharacter(Serial2.read());
+        m_channel2->AddCharacter(Serial2.read());
     }
     while (~m_fifo.empty()) {
         Sentence *msg = m_fifo.front();
@@ -205,7 +229,7 @@ void Logger::ProcessMessages(void)
         Serialisable s;
         s += (uint64_t)(msg->Timestamp());
         s += msg->Contents();
-        m_logManager.Record(logger::Manager::PacketIDs::Pkt_NMEAString, s);
+        m_logManager->Record(logger::Manager::PacketIDs::Pkt_NMEAString, s);
         delete msg;
     }
 }

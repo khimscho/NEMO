@@ -21,6 +21,9 @@
 #include "N2kLogger.h"
 #include "N2kMessages.h"
 
+namespace nmea {
+namespace N2000 {
+
 const int SoftwareVersionMajor = 1; ///< Software major version for the logger
 const int SoftwareVersionMinor = 0; ///< Software minor version for the logger
 const int SoftwareVersionPatch = 0; ///< Software patch version for the logger
@@ -145,7 +148,7 @@ String Timestamp::TimeDatum::printable(void) const
 ///
 /// \param source   Pointer to the NMEA2000 object handling the CAN bus interface.
 
-N2kLogger::N2kLogger(tNMEA2000 *source, logger::Manager& output)
+Logger::Logger(tNMEA2000 *source, logger::Manager *output)
 : tNMEA2000::tMsgHandler(0, source), m_verbose(false), m_logManager(output)
 {
 }
@@ -154,9 +157,9 @@ N2kLogger::N2kLogger(tNMEA2000 *source, logger::Manager& output)
 /// and then logs the fact in the console log before completing.  This might take a little time
 /// under some circumstances, but should happen rarely.
 
-N2kLogger::~N2kLogger(void)
+Logger::~Logger(void)
 {
-    m_logManager.Console().println("Stopped NEMA2000 logging under control.");
+    m_logManager->Console().println("Stopped NEMA2000 logging under control.");
 }
 
 /// Generate a human-readable version of the logger's version information.  This is a simple
@@ -164,7 +167,7 @@ N2kLogger::~N2kLogger(void)
 ///
 /// \return String representation of the versioning information for the logger specifically.
 
-String N2kLogger::SoftwareVersion(void) const
+String Logger::SoftwareVersion(void) const
 {
     String rtn;
     rtn = String(SoftwareVersionMajor) + "." + String(SoftwareVersionMinor) +
@@ -179,7 +182,7 @@ String N2kLogger::SoftwareVersion(void) const
 ///
 /// \param message  Reference for the NMEA2000 message received
 
-void N2kLogger::HandleMsg(const tN2kMsg& message)
+void Logger::HandleMsg(const tN2kMsg& message)
 {
     // Everything is going to need a timestamp, so get it once.
     Timestamp::TimeDatum now = m_timeReference.Now();
@@ -214,7 +217,7 @@ void N2kLogger::HandleMsg(const tN2kMsg& message)
 /// \param t    Estimate of real time associated with the current message
 /// \param msg  NMEA2000 message to be serialised.
 
-void N2kLogger::HandleSystemTime(Timestamp::TimeDatum const& t, const tN2kMsg& msg)
+void Logger::HandleSystemTime(Timestamp::TimeDatum const& t, const tN2kMsg& msg)
 {
     unsigned char   SID;
     uint16_t        date;
@@ -236,10 +239,10 @@ void N2kLogger::HandleSystemTime(Timestamp::TimeDatum const& t, const tN2kMsg& m
             s += timestamp;
             s += t.RawElapsed();
             s += (uint8_t)source;
-            m_logManager.Record(logger::Manager::PacketIDs::Pkt_SystemTime, s);
-            m_logManager.Console().print("INF: Time update to: ");
-            m_logManager.Console().println(m_timeReference.printable());
-            m_logManager.Console().flush();
+            m_logManager->Record(logger::Manager::PacketIDs::Pkt_SystemTime, s);
+            m_logManager->Console().print("INF: Time update to: ");
+            m_logManager->Console().println(m_timeReference.printable());
+            m_logManager->Console().flush();
         }
     }
 }
@@ -250,7 +253,7 @@ void N2kLogger::HandleSystemTime(Timestamp::TimeDatum const& t, const tN2kMsg& m
 /// \param t    Estimate of real time associated with the current message
 /// \param msg  NMEA2000 message to be serialised.
 
-void N2kLogger::HandleAttitude(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
+void Logger::HandleAttitude(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
 {
     unsigned char   SID;
     double          yaw, pitch, roll;
@@ -266,9 +269,9 @@ void N2kLogger::HandleAttitude(Timestamp::TimeDatum const& t, tN2kMsg const& msg
         s += roll;
         m_logManager.Record(logger::Manager::PacketIDs::Pkt_Attitude, s);
     } else {
-        m_logManager.Console().println(t.printable() +
+        m_logManager->Console().println(t.printable() +
                                        ": ERR: Failed to parse attitude data packet.");
-        m_logManager.Console().flush();
+        m_logManager->Console().flush();
     }
 }
 
@@ -278,7 +281,7 @@ void N2kLogger::HandleAttitude(Timestamp::TimeDatum const& t, tN2kMsg const& msg
 /// \param t    Estimate of real time associated with the current message
 /// \param msg  NMEA2000 message to be serialised.
 
-void N2kLogger::HandleDepth(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
+void Logger::HandleDepth(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
 {
     unsigned char SID;
     double depth, offset, range;
@@ -292,11 +295,11 @@ void N2kLogger::HandleDepth(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
         s += depth;
         s += offset;
         s += range;
-        m_logManager.Record(logger::Manager::PacketIDs::Pkt_Depth, s);
+        m_logManager->Record(logger::Manager::PacketIDs::Pkt_Depth, s);
     } else {
-        m_logManager.Console().println(t.printable() +
+        m_logManager->Console().println(t.printable() +
                                        ": ERR: Failed to parse water depth packet.");
-        m_logManager.Console().flush();
+        m_logManager->Console().flush();
     }
 }
 
@@ -307,7 +310,7 @@ void N2kLogger::HandleDepth(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
 /// \param t    Estimate of real time associated with the current message
 /// \param msg  NMEA2000 message to be serialised.
 
-void N2kLogger::HandleCOG(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
+void Logger::HandleCOG(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
 {
     unsigned char SID;
     tN2kHeadingReference ref;
@@ -322,11 +325,11 @@ void N2kLogger::HandleCOG(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
             t.Serialise(s);
             s += cog;
             s += sog;
-            m_logManager.Record(logger::Manager::PacketIDs::Pkt_COG, s);
+            m_logManager->Record(logger::Manager::PacketIDs::Pkt_COG, s);
         }
     } else {
-        m_logManager.Console().println(t.printable() + ": ERR: Failed to parse COG/SOG packet.");
-        m_logManager.Console().flush();
+        m_logManager->Console().println(t.printable() + ": ERR: Failed to parse COG/SOG packet.");
+        m_logManager->Console().flush();
     }
 }
 
@@ -339,7 +342,7 @@ void N2kLogger::HandleCOG(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
 /// \param t    Estimate of real time associated with the current message
 /// \param msg  NMEA2000 message to be serialised.
 
-void N2kLogger::HandleGNSS(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
+void Logger::HandleGNSS(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
 {
     unsigned char   SID;
     uint16_t        datestamp;
@@ -371,22 +374,22 @@ void N2kLogger::HandleGNSS(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
         s += (uint8_t)refStationType;
         s += refStationID;
         s += correctionAge;
-        m_logManager.Record(logger::Manager::PacketIDs::Pkt_GNSS, s);
+        m_logManager->Record(logger::Manager::PacketIDs::Pkt_GNSS, s);
         
         if (!m_timeReference.IsValid()) {
             // We haven't yet seen a valid time reference, but the time here is
             // probably OK since it's usually 1Hz.  Therefore we can update if
             // we don't have anything else
             m_timeReference.Update(datestamp, timestamp, t.RawElapsed());
-            m_logManager.Console().print("INFO: Time update to: ");
-            m_logManager.Console().print(m_timeReference.printable());
-            m_logManager.Console().println(" from GNSS record.");
-            m_logManager.Console().flush();
+            m_logManager->Console().print("INFO: Time update to: ");
+            m_logManager->Console().print(m_timeReference.printable());
+            m_logManager->Console().println(" from GNSS record.");
+            m_logManager->Console().flush();
         }
     } else {
-        m_logManager.Console().println(t.printable() +
+        m_logManager->Console().println(t.printable() +
                                        ": ERR: Failed to parse primary GNSS report packet.");
-        m_logManager.Console().flush();
+        m_logManager->Console().flush();
     }
 }
 
@@ -399,7 +402,7 @@ void N2kLogger::HandleGNSS(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
 /// \param t    Estimate of real time associated with the current message
 /// \param msg  NMEA2000 message to be serialised.
 
-void N2kLogger::HandleEnvironment(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
+void Logger::HandleEnvironment(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
 {
     unsigned char SID;
     tN2kTempSource      t_source;
@@ -417,11 +420,11 @@ void N2kLogger::HandleEnvironment(Timestamp::TimeDatum const& t, tN2kMsg const& 
         s += (uint8_t)h_source;
         s += humidity;
         s += pressure;
-        m_logManager.Record(logger::Manager::PacketIDs::Pkt_Environment, s);
+        m_logManager->Record(logger::Manager::PacketIDs::Pkt_Environment, s);
     } else {
-        m_logManager.Console().println(t.printable() +
+        m_logManager->Console().println(t.printable() +
                                        ": ERR: Failed to parse environmental parameters packet.");
-        m_logManager.Console().flush();
+        m_logManager->Console().flush();
     }
 }
 
@@ -433,7 +436,7 @@ void N2kLogger::HandleEnvironment(Timestamp::TimeDatum const& t, tN2kMsg const& 
 /// \param t    Estimate of real time associated with the current message
 /// \param msg  NMEA2000 message to be serialised.
 
-void N2kLogger::HandleTemperature(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
+void Logger::HandleTemperature(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
 {
     unsigned char   SID;
     unsigned char   temp_instance;
@@ -449,12 +452,12 @@ void N2kLogger::HandleTemperature(Timestamp::TimeDatum const& t, tN2kMsg const& 
             t.Serialise(s);
             s += (uint8_t)t_source;
             s += temp;
-            m_logManager.Record(logger::Manager::PacketIDs::Pkt_Temperature, s);
+            m_logManager->Record(logger::Manager::PacketIDs::Pkt_Temperature, s);
         }
     } else {
-        m_logManager.Console().println(t.printable() +
+        m_logManager->Console().println(t.printable() +
                                        ": ERR: Failed to parse temperature packet.");
-        m_logManager.Console().flush();
+        m_logManager->Console().flush();
     }
 }
 
@@ -465,7 +468,7 @@ void N2kLogger::HandleTemperature(Timestamp::TimeDatum const& t, tN2kMsg const& 
 /// \param t    Estimate of real time associated with the current message
 /// \param msg  NMEA2000 message to be serialised.
 
-void N2kLogger::HandleHumidity(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
+void Logger::HandleHumidity(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
 {
     unsigned char       SID;
     unsigned char       humidity_instance;
@@ -481,12 +484,12 @@ void N2kLogger::HandleHumidity(Timestamp::TimeDatum const& t, tN2kMsg const& msg
             t.Serialise(s);
             s += (uint8_t)h_source;
             s += humidity;
-            m_logManager.Record(logger::Manager::PacketIDs::Pkt_Humidity, s);
+            m_logManager->Record(logger::Manager::PacketIDs::Pkt_Humidity, s);
         }
     } else {
-        m_logManager.Console().println(t.printable() +
+        m_logManager->Console().println(t.printable() +
                                        ": ERR: Failed to parse humidity packet.");
-        m_logManager.Console().flush();
+        m_logManager->Console().flush();
     }
 }
 
@@ -497,7 +500,7 @@ void N2kLogger::HandleHumidity(Timestamp::TimeDatum const& t, tN2kMsg const& msg
 /// \param t    Estimate of real time associated with the current message
 /// \param msg  NMEA2000 message to be serialised.
 
-void N2kLogger::HandlePressure(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
+void Logger::HandlePressure(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
 {
     unsigned char       SID;
     unsigned char       pressure_instance;
@@ -513,12 +516,12 @@ void N2kLogger::HandlePressure(Timestamp::TimeDatum const& t, tN2kMsg const& msg
             t.Serialise(s);
             s += (uint8_t)p_source;
             s += pressure;
-            m_logManager.Record(logger::Manager::PacketIDs::Pkt_Pressure, s);
+            m_logManager->Record(logger::Manager::PacketIDs::Pkt_Pressure, s);
         }
     } else {
-        m_logManager.Console().println(t.printable() +
+        m_logManager->Console().println(t.printable() +
                                        ": ERR: Failed to parse pressure packet.");
-        m_logManager.Console().flush();
+        m_logManager->Console().flush();
     }
 }
 
@@ -529,7 +532,7 @@ void N2kLogger::HandlePressure(Timestamp::TimeDatum const& t, tN2kMsg const& msg
 /// \param t    Estimate of real time associated with the current message
 /// \param msg  NMEA2000 message to be serialised.
 
-void N2kLogger::HandleExtTemperature(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
+void Logger::HandleExtTemperature(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
 {
     unsigned char   SID;
     unsigned char   temp_instance;
@@ -545,11 +548,14 @@ void N2kLogger::HandleExtTemperature(Timestamp::TimeDatum const& t, tN2kMsg cons
             t.Serialise(s);
             s += (uint8_t)t_source;
             s += temp;
-            m_logManager.Record(logger::Manager::PacketIDs::Pkt_Temperature, s);
+            m_logManager->Record(logger::Manager::PacketIDs::Pkt_Temperature, s);
         }
     } else {
-        m_logManager.Console().println(t.printable() +
+        m_logManager->Console().println(t.printable() +
                                      ": ERR: Failed to parse temperature packet.");
-        m_logManager.Console().flush();
+        m_logManager->Console().flush();
     }
+}
+
+}
 }

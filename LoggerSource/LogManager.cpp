@@ -139,6 +139,25 @@ void Manager::RemoveAllLogfiles(void)
     StartNewLog();
 }
 
+/// Make a list of all of the files that exist on the SD card in the log directory, along with their
+/// sizes.  This is generally used to work out which files can be transferred to the client application.
+///
+/// \return list of pairs of (name, size) data.
+
+tFileEnumeration Manager::EnumerateLogFiles(void)
+{
+    tFileEnumeration rtn;
+    SDFile logdir = SD.open("/logs");
+    SDFile entry = logdir.openNextFile();
+    while (entry) {
+        rtn.push_back(std::make_pair<std::string, int>(entry.name(), entry.size()));
+        entry.close();
+        entry = logdir.openNextFile();
+    }
+    logdir.close();
+    return rtn;
+}
+
 /// Record a packet into the current output file, and check on size (making a new file if
 /// required).
 ///

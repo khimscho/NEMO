@@ -19,6 +19,9 @@
 #include "serialisation.h"
 #include "LogManager.h"
 
+namespace nmea {
+namespace N2000 {
+
 /// \class Timestamp
 /// \brief Generate a timestamp for an instant based on elapsed time to last known time
 ///
@@ -88,20 +91,20 @@ private:
     unsigned long m_elapsedTimeAtDatum; ///< Internal clock elapsed time at last known datum
 };
 
-/// \class N2kLogger
-/// \brief Encapsulate N2K message handler and SD logger
+/// \class Logger
+/// \brief Encapsulate N2K message handler
 ///
 /// This provides a tNMEA2000::tMsgHandler sub-class that manages the messages required for the CSB
 /// data logger, and writes the translated messages to SD card for later capture.  The code is heavily
 /// based on the example N2K->0183 converter that comes as an example with the NMEA2000 library.
 
-class N2kLogger : public tNMEA2000::tMsgHandler {
+class Logger : public tNMEA2000::tMsgHandler {
 public:
     /// \brief Default constructor, given the NMEA2000 object that's doing the data capture
-    N2kLogger(tNMEA2000 *source, logger::Manager& output);
+    Logger(tNMEA2000 *source, logger::Manager *output);
     
     /// \brief Default destructor
-    ~N2kLogger(void);
+    ~Logger(void);
     
     /// \brief Message handler for the tNMEA2000::tMsgHandler interface
     void HandleMsg(const tN2kMsg &N2kMsg);
@@ -115,7 +118,7 @@ public:
 private:
     bool        m_verbose;          ///< Flag for verbose debug output
     Timestamp   m_timeReference;    ///< Time reference information for timestamping records
-    logger::Manager& m_logManager;  ///< Handler for output log files
+    logger::Manager *m_logManager;  ///< Handler for output log files
     
     /// \brief Translate and serialise the real-time information from GNSS (or atomic clock)
     void HandleSystemTime(Timestamp::TimeDatum const& t, tN2kMsg const& msg);
@@ -138,5 +141,8 @@ private:
     /// \brief Translate and serialise a pressure observation
     void HandlePressure(Timestamp::TimeDatum const& t, tN2kMsg const& msg);
 };
+
+}
+}
 
 #endif

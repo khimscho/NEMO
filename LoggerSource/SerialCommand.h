@@ -10,6 +10,8 @@
  */
 
 #ifndef __SERIAL_COMMAND_H__
+#define __SERIAL_COMMAND_H__
+
 #include <Arduino.h>
 #include "N2kLogger.h"
 #include "StatusLED.h"
@@ -32,7 +34,8 @@
 class SerialCommand {
 public:
     /// \brief Default constructor for the command processor
-    SerialCommand(N2kLogger *logger, StatusLED *led);
+    SerialCommand(nmea::N2000::Logger *canLogger, nmea::N0183::Logger *serialLogger,
+                  logger::Manager *logManager, StatusLED *led);
     /// \brief Default destructor
     ~SerialCommand();
     
@@ -40,7 +43,9 @@ public:
     void ProcessCommand(void);
     
 private:
-    N2kLogger           *m_logger;  ///< Pointer for the logger object to use
+    nmea::N2000::Logger *m_CANLogger;       ///< Pointer for the logger object to use
+    nmea::N0183::Logger *m_serialLogger;    ///< Pointer for the NMEA0183 message handler
+    logger::Manager     *m_logManager;       ///< Object to write to SD files and console log
     StatusLED           *m_led;     ///< Pointer for the status LED controller
     BluetoothAdapter    *m_ble;     ///< Pointer for the BLE interface
     

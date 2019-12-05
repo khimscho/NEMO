@@ -43,9 +43,11 @@ const unsigned long ReceiveMessages[] PROGMEM =
    0
   }; ///< List if messages that the logger expects to receive
 
-N2kLogger     *Logger = NULL;			///< Pointer for the primary logger object
-StatusLED     *LEDs = NULL;				///< Pointer to the status LED manager object
-SerialCommand *CommandProcessor = NULL;	///< Pointer for the command processor object
+nmea::N2000::Logger *N2000Logger = nullptr;     ///< Pointer for NMEA2000 CANbus logger object
+nmea::N0183::Logger *N0183Logger = nullptr;     ///< Pointer for serial NMEA data logger object
+logger::Manager     *logManager = nullptr;      ///< SD log file manager object
+StatusLED           *LEDs = nullptr;			///< Pointer to the status LED manager object
+SerialCommand       *CommandProcessor = nullptr;///< Pointer for the command processor object
 
 /// \brief Primary setup code for the logger
 ///
@@ -57,9 +59,15 @@ SerialCommand *CommandProcessor = NULL;	///< Pointer for the command processor o
 void setup()
 {
   Serial.begin(115200);
+  
+  Serial.println("Configuring logger manager ...");
+  logManager = new logger::Manager();
 
-  Serial.println("Configuring logger ...");
-  Logger = new N2kLogger(&NMEA2000);
+  Serial.println("Configuring NEMA2000 logger ...");
+  N2000Logger = new nmea::N2000::Logger(&NMEA2000, logManager);
+  
+  Serial.println("Configuring NMEA0183 logger (and configuring serial ports)...");
+  N0183Logger = new nmea::N0183::Logger(logManager);
 
   Serial.println("Configuring LED indicators ...");
   LEDs = new StatusLED();
@@ -68,7 +76,7 @@ void setup()
   LEDs->SetStatus(StatusLED::Status::sINITIALISING);
 
   Serial.println("Configuring command processor ...");
-  CommandProcessor = new SerialCommand(Logger, LEDs);
+  CommandProcessor = new SerialCommand(N2000Logger, N0183Logger, logManager, LEDs);
 
   Serial.println("Initialising SD card interface ...");
   
@@ -83,9 +91,10 @@ void setup()
   }
   LEDs->SetStatus(StatusLED::Status::sNORMAL);
 
+  Serial.println("Starting log manager interface to SD card ...");
+  logManager->StartNewLog();
+  
   Serial.println("Starting NMEA2000 bus interface ...");
-  Logger->StartNewLog();
-
   NMEA2000.SetProductInformation(GetSerialNumberString(),
                                 1,
                                 "Seabed 2030 NMEA2000 Logger",
@@ -117,6 +126,7 @@ void setup()
 void loop()
 {
     NMEA2000.ParseMessages();
+    NMEA0183Logger->ProcessMessages();
     LEDs->ProcessFlash();
     CommandProcessor->ProcessCommand();
 }

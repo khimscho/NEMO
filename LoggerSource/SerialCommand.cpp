@@ -21,8 +21,9 @@
 /// \param logger   Pointer to the logger object to use for access to log files
 /// \param led          Pointer to the status LED controller object
 
-SerialCommand::SerialCommand(N2kLogger *logger, StatusLED *led)
-: m_logger(logger), m_led(led)
+SerialCommand::SerialCommand(nmea::N2k::Logger *CANLogger, nmea::N0183::Logger *serialLogger,
+                             logger::Manager *logManager, StatusLED *led)
+: m_CANLogger(CANLogger), m_serialLogger(serialLogger), m_logManager(logManager), m_led(led)
 {
     BluetoothFactory factory;
     m_ble = factory.Create();
@@ -45,23 +46,16 @@ SerialCommand::~SerialCommand()
 void SerialCommand::ReportConsoleLog(void)
 {
     Serial.println("*** Current console log file:");
-    SDFile console = SD.open("/console.log");
-    if (console) {
-        while (console.available()) {
-            int r = console.read();
-            Serial.write(r);
-            if (m_ble->IsConnected()) {
-                m_ble->WriteByte(r);
-                delay(5);
-            }
+    m_logManager->Console().seek(0);
+    while (console.available()) {
+        int r = console.read();
+        Serial.write(r);
+        if (m_ble->IsConnected()) {
+            m_ble->WriteByte(r);
+            delay(5);
         }
-        console.close();
-        Serial.println("*** Current console log end.");
-    } else {
-        Serial.println("ERR: failed to open console log for reporting.");
-        if (m_ble->IsConnected())
-            m_ble->WriteString("ERR: failed to open console log for reporting.");
     }
+    Serial.println("*** Current console log end.");
 }
 
 /// Report the sizes of all of the log files that exist in the /logs directory on
@@ -72,17 +66,14 @@ void SerialCommand::ReportConsoleLog(void)
 void SerialCommand::ReportLogfileSizes(void)
 {
     Serial.println("Current log file sizes:");
-    SDFile logdir = SD.open("/logs");
-    SDFile entry = logdir.openNextFile();
-    while (entry) {
-        String line = "  " + entry.name() + "  " + entry.size() + " B";
-        entry.close();
+    logger::Manager::tFileNumeration files(m_logManager->EnumerateLogFiles());
+    auto it = files.begin();
+    while (it != files.end()) {
+        String line = "   " + it.first() + "  " + it.second() + " B";
         Serial.println(line);
         if (m_ble->IsConnected())
             m_ble->WriteString(line + "\n");
-        entry = logdir.openNextFile();
     }
-    logdir.close();
 }
 
 /// Report the version string for the current logger implementation.  This also goes out on
@@ -90,7 +81,7 @@ void SerialCommand::ReportLogfileSizes(void)
 
 void SerialCommand::ReportSoftwareVersion(void)
 {
-    String ver(m_logger->SoftwareVersion());
+    String ver(m_CANLogger->SoftwareVersion());
     Serial.println("Software version: " + ver);
     if (m_ble->IsConnected())
         m_ble->WriteString(ver + "\n");
@@ -108,7 +99,7 @@ void SerialCommand::EraseLogfile(String const& filenum)
 {
     if (filenum == "all") {
         Serial.println("Erasing all log files ...");
-        m_logger->RemoveAllLogfiles();
+        m_logManager->RemoveAllLogfiles();
         Serial.println("All log files erased.");
         if (m_ble->IsConnected())
             m_ble->WriteString(F("All log files erased.\n"));
@@ -116,7 +107,7 @@ void SerialCommand::EraseLogfile(String const& filenum)
         long file_num;
         file_num = filenum.toInt();
         Serial.println(String("Erasing log file ") + file_num);
-        if (m_logger->RemoveLogFile(file_num)) {
+        if (m_logManager->RemoveLogFile(file_num)) {
             String msg = String("Log file ") + file_num + String(" erased.");
             Serial.println(msg);
             if (m_ble->IsConnected())
@@ -197,9 +188,9 @@ void SerialCommand::SetBluetoothName(String const& name)
 void SerialCommand::SetVerboseMode(String const& mode)
 {
     if (mode == "on") {
-        m_logger->SetVerbose(true);
+        m_CANLogger->SetVerbose(true);
     } else if (mode == "off") {
-        m_logger->SetVerbose(false);
+        m_CANLogger->SetVerbose(false);
     } else {
         Serial.println("ERR: verbose mode not recognised.");
     }

@@ -132,7 +132,7 @@ private:
 class Logger {
 public:
     /// \brief Default constructor    
-    Logger(logger::Manager& output);
+    Logger(logger::Manager *output);
     /// \brief Default destructor
     ~Logger(void);
     
@@ -140,7 +140,7 @@ public:
     void ProcessMessages(void);
     
 private:
-    logger::Manager&    m_logManager;   ///< Handler for log files on SD card
+    logger::Manager    *m_logManager;   ///< Handler for log files on SD card
     std::queue<Sentence*>   m_fifo;     ///< FIFO for fully assembled messages, ready for output
     MessageAssembler    *m_channel1;    ///< Message handler for channel 1
     MessageAssembler    *m_channel2;    ///< Message hanlder for channel 2

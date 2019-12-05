@@ -42,6 +42,11 @@ public:
     /// \brief Remove all log files currently available (use judiciously!)
     void RemoveAllLogfiles(void);
     
+    typedef tFileEnumeration = std::list<std::pair<std::string, int>>;
+    
+    /// \brief Find the names and sizes of all of the available log files
+    tFileEnumeration EnumerateLogFiles(void);
+    
     /// \enum PacketIDs
     /// \brief Symbolic definition for the packet IDs used to serialise the messages from NMEA2000
     enum PacketIDs {
