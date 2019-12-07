@@ -13,14 +13,13 @@
 #define __LOG_MANAGER_H__
 
 #include <stdint.h>
-#include <list>
-#include <string>
-#include <utility>
 #include <Arduino.h>
 #include <SD.h>
 #include "serialisation.h"
 
 namespace logger {
+
+const int MaxLogFiles = 1000; ///< Maximum number of log files that we will create
 
 /// \class Manager
 /// \brief Handle log file access, creation, and deletion
@@ -44,11 +43,12 @@ public:
 
     /// \brief Remove all log files currently available (use judiciously!)
     void RemoveAllLogfiles(void);
+
+    /// \brief Count the number of log files on the system
+    int CountLogFiles(int filenumbers[MaxLogFiles]);
     
-    typedef std::list<std::pair<std::string, int>> tFileEnumeration;
-    
-    /// \brief Find the names and sizes of all of the available log files
-    tFileEnumeration EnumerateLogFiles(void);
+    /// \brief Extract information on a single log file
+    void EnumerateLogFile(int lognumber, String& filename, int& filesize);
     
     /// \enum PacketIDs
     /// \brief Symbolic definition for the packet IDs used to serialise the messages from NMEA2000

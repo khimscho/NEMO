@@ -145,23 +145,43 @@ void Manager::RemoveAllLogfiles(void)
     StartNewLog();
 }
 
-/// Make a list of all of the files that exist on the SD card in the log directory, along with their
-/// sizes.  This is generally used to work out which files can be transferred to the client application.
+/// Count the number of log files on the SD card, so that the client can enumerate them
+/// and report to the user.
 ///
-/// \return list of pairs of (name, size) data.
+/// \return Number of files on the SD card
 
-Manager::tFileEnumeration Manager::EnumerateLogFiles(void)
+int Manager::CountLogFiles(int filenumbers[MaxLogFiles])
 {
-    Manager::tFileEnumeration rtn;
+    int file_count = 0;
+    
     SDFile logdir = SD.open("/logs");
     SDFile entry = logdir.openNextFile();
     while (entry) {
-        rtn.push_back(std::make_pair(entry.name(), entry.size()));
+        filenumbers[file_count] = String(entry.name()).substring(15).toInt();
+        ++file_count;
         entry.close();
         entry = logdir.openNextFile();
     }
     logdir.close();
-    return rtn;
+    return file_count;
+}
+
+/// Make a list of all of the files that exist on the SD card in the log directory, along with their
+/// sizes.  This is generally used to work out which files can be transferred to the client application.
+///
+/// \param lognumber  Number of the file to look up
+/// \param filename   Name of the file
+/// \param filesize   Size of the specified file in bytes (or -1 if file doesn't exist)
+
+void Manager::EnumerateLogFile(int lognumber, String& filename, int& filesize)
+{
+    filename = MakeLogName(lognumber);
+    SDFile f = SD.open(filename);
+    if (f) {
+        filesize = f.size();
+    } else {
+        filesize = -1;
+    }
 }
 
 /// Record a packet into the current output file, and check on size (making a new file if
@@ -205,14 +225,14 @@ uint32_t Manager::GetNextLogNumber(void)
     }
     
     uint32_t lognum = 0;
-    while (lognum < 1000) {
+    while (lognum < MaxLogFiles) {
         if (SD.exists(MakeLogName(lognum))) {
             ++lognum;
         } else {
             break;
         }
     }
-    if (1000 == lognum)
+    if (MaxLogFiles == lognum)
         lognum = 0; // Re-use the first created
     return lognum;
 }

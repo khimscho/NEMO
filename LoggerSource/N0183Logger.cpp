@@ -17,6 +17,10 @@
 
 namespace nmea {
 namespace N0183 {
+  
+const int SoftwareVersionMajor = 1; ///< Software major version for the logger
+const int SoftwareVersionMinor = 0; ///< Software minor version for the logger
+const int SoftwareVersionPatch = 0; ///< Software patch version for the logger
 
 /// Validate the sentence, making sure that it meets the requirements to be a NMEA0183 message.  For
 /// this, it has to contain only printable characters, it has to start with a "$", and end with a valid checksum
@@ -53,9 +57,9 @@ bool Sentence::Valid(void) const
 ///
 /// \return string of the recognition characters.
 
-std::string Sentence::Token(void) const
+String Sentence::Token(void) const
 {
-    std::string s = std::string(m_sentence).substr(1,5);
+    String s = String(m_sentence).substring(1,6);
     return s;
 }
 
@@ -63,15 +67,13 @@ std::string Sentence::Token(void) const
 ///
 /// \param fifo Buffer to use to store completed message strings
 
-MessageAssembler::MessageAssembler(std::queue<Sentence*>& fifo)
-: m_state(STATE_SEARCHING), m_fifo(fifo)
+MessageAssembler::MessageAssembler(void)
+: m_state(STATE_SEARCHING), m_readPoint(0), m_writePoint(0)
 {
-    m_current = new Sentence();
 }
 
 MessageAssembler::~MessageAssembler(void)
 {
-    delete m_current;
 }
 
 /// Take the next character from the input stream, and add to the current sentence, keeping track of the
@@ -88,13 +90,13 @@ void MessageAssembler::AddCharacter(const char in)
             if (in == '$') {
                 // This is the start of a string, so get the timestamp, and stash
                 auto now = millis();
-                m_current->Reset();
-                m_current->Timestamp(now);
-                m_current->AddCharacter(in);
+                m_current.Reset();
+                m_current.Timestamp(now);
+                m_current.AddCharacter(in);
                 m_state = STATE_CAPTURING;
                 if (m_debugAssembly) {
                     Serial.println(String("debug: sentence started with timestamp ") +
-                                   m_current->Timestamp() + " on channel " + m_channel +
+                                   m_current.Timestamp() + " on channel " + m_channel +
                                    "; changing to CAPTURING.");
                 }
             } else {
@@ -115,9 +117,9 @@ void MessageAssembler::AddCharacter(const char in)
             switch(in) {
                 case '\n':
                     // The end of the current sentence, so we convert the current sentence
-                    // onto the FIFO.  Note that we don't store the carriage return.
-                    m_fifo.push(m_current);
-                    m_current = new Sentence();
+                    // onto the ring buffer.  Note that we don't store the carriage return.
+                    m_buffer[m_writePoint] = m_current;
+                    m_writePoint = (m_writePoint + 1) % RingBufferLength;
                     if (m_debugAssembly) {
                         Serial.println(String("debug: LF on channel ") + m_channel +
                                               " to complete sentence; moved to FIFO");
@@ -136,19 +138,19 @@ void MessageAssembler::AddCharacter(const char in)
                 case '$':
                     // The start of a new sentence, which is odd ...
                     now = millis();
-                    m_current->Reset();
-                    m_current->Timestamp(now);
-                    m_current->AddCharacter(in);
+                    m_current.Reset();
+                    m_current.Timestamp(now);
+                    m_current.AddCharacter(in);
                     Serial.println("warning: sentence restarted before end of previous one?!");
                     if (m_debugAssembly) {
                         Serial.println(String("debug: new sentence started with timestamp ") +
-                                       m_current->Timestamp() + " as reset on channel " +
+                                       m_current.Timestamp() + " as reset on channel " +
                                        m_channel + ".");
                     }
                     break;
                 default:
                     // The next character of the current sentence
-                    if (!m_current->AddCharacter(in)) {
+                    if (!m_current.AddCharacter(in)) {
                         // Ran out of buffer space, so return to searching.  Note that we don't need to
                         // reset the current buffer, because the next sentence starting will do so.
                         m_state = STATE_SEARCHING;
@@ -166,7 +168,22 @@ void MessageAssembler::AddCharacter(const char in)
             m_state = STATE_SEARCHING;
             break;
     }
+}
 
+/// Pull the next sentence out of the ring buffer (as a pointer to the location of the message),
+/// and update the buffer.  A new sentence only exists if there's data; if there's nothing left,
+/// a null pointer is returned.
+///
+/// \return Pointer to the next sentence, or nullptr
+
+Sentence const *MessageAssembler::NextSentence(void)
+{
+    if (m_readPoint == m_writePoint) return nullptr;
+    
+    Sentence const *rtn = m_buffer + m_readPoint;
+    m_readPoint = (m_readPoint + 1) % RingBufferLength;
+
+    return rtn;
 }
                                        
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
@@ -194,10 +211,8 @@ const int tx2_pin = 16; ///< UART port 2 transmit pin
 Logger::Logger(logger::Manager *output)
 : m_logManager(output)
 {
-    m_channel1 = new MessageAssembler(m_fifo);
-    m_channel1->SetChannel(1);
-    m_channel2 = new MessageAssembler(m_fifo);
-    m_channel2->SetChannel(2);
+    m_channel[0].SetChannel(1);
+    m_channel[1].SetChannel(2);
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
     Serial1.begin(4800, SERIAL_8N1, rx1_pin, tx1_pin);
     Serial2.begin(4800, SERIAL_8N1, rx2_pin, tx2_pin);
@@ -209,8 +224,6 @@ Logger::Logger(logger::Manager *output)
                                        
 Logger::~Logger(void)
 {
-    delete m_channel1;
-    delete m_channel2;
 }
 
 /// Handle as many characters as are waiting on the serial channels, using the assemblers to build them
@@ -220,21 +233,33 @@ Logger::~Logger(void)
 
 void Logger::ProcessMessages(void)
 {
+    Sentence const *sentence;
     while (Serial1.available()) {
-        m_channel1->AddCharacter(Serial1.read());
+        m_channel[0].AddCharacter(Serial1.read());
     }
     while (Serial2.available()) {
-        m_channel2->AddCharacter(Serial2.read());
+        m_channel[1].AddCharacter(Serial2.read());
     }
-    while (~m_fifo.empty()) {
-        Sentence *msg = m_fifo.front();
-        m_fifo.pop();
-        Serialisable s;
-        s += (uint64_t)(msg->Timestamp());
-        s += msg->Contents();
-        m_logManager->Record(logger::Manager::PacketIDs::Pkt_NMEAString, s);
-        delete msg;
+    for (int channel = 0; channel < ChannelCount; ++channel) {
+        while ((sentence = m_channel[channel].NextSentence()) != nullptr) {
+            Serialisable s;
+            s += (uint64_t)(sentence->Timestamp());
+            s += sentence->Contents();
+            m_logManager->Record(logger::Manager::PacketIDs::Pkt_NMEAString, s);
+        }
     }
+}
+
+/// Assemble a logger version string
+///
+/// \return Printable version of the version information
+
+String Logger::SoftwareVersion(void) const
+{
+    String rtn;
+    rtn = String(SoftwareVersionMajor) + "." + String(SoftwareVersionMinor) +
+            "." + String(SoftwareVersionPatch);
+    return rtn;
 }
 
 }

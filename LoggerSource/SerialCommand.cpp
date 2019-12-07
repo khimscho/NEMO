@@ -66,10 +66,13 @@ void SerialCommand::ReportConsoleLog(void)
 void SerialCommand::ReportLogfileSizes(void)
 {
     Serial.println("Current log file sizes:");
-    logger::Manager::tFileEnumeration files(m_logManager->EnumerateLogFiles());
-    auto it = files.begin();
-    while (it != files.end()) {
-        String line = String("   ") + it->first.c_str() + "  " + it->second + " B";
+    int     filenumber[logger::MaxLogFiles];
+    int     file_count = m_logManager->CountLogFiles(filenumber);
+    String  filename;
+    int     filesize;
+    for (int f = 0; f < file_count; ++f) {
+        m_logManager->EnumerateLogFile(filenumber[f], filename, filesize);
+        String line = String("    ") + filename + " " + filesize + " B";
         Serial.println(line);
         if (m_ble->IsConnected())
             m_ble->WriteString(line + "\n");
@@ -81,10 +84,15 @@ void SerialCommand::ReportLogfileSizes(void)
 
 void SerialCommand::ReportSoftwareVersion(void)
 {
-    String ver(m_CANLogger->SoftwareVersion());
-    Serial.println("Software version: " + ver);
+    String ver;
+    ver = m_CANLogger->SoftwareVersion();
+    Serial.println("NMEA2000 Software version: " + ver);
     if (m_ble->IsConnected())
-        m_ble->WriteString(ver + "\n");
+        m_ble->WriteString(String("NMEA2000: ") + ver + "\n");
+    ver = m_serialLogger->SoftwareVersion();
+    Serial.println("NMEA0183 Software version: " + ver);
+    if (m_ble->IsConnected())
+        m_ble->WriteString(String("NMEA0183: ") + ver + "\n");
 }
 
 /// Erase one, or all, of the log files currently on the SD card.  If the string is "all", all

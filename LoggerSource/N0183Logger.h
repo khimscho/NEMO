@@ -14,7 +14,6 @@
 #define __N1083_LOGGER_H__
 
 #include "LogManager.h"
-#include <queue>
 
 namespace nmea {
 namespace N0183 {
@@ -29,7 +28,7 @@ namespace N0183 {
 
 class Sentence {
 public:
-    static const int MAX_SENTENCE_LENGTH = 1024; ///< Maximum is probably order 100 characters; this is safe
+    static const int MAX_SENTENCE_LENGTH = 128; ///< Maximum is probably order 100 characters; this is safe
     
     /// \brief Default constructor, just resetting the buffer insertion point
     Sentence(void)
@@ -81,7 +80,7 @@ public:
     bool Valid(void) const;
     
     /// \brief Provide the recognition token from the start of the sentence
-    std::string Token(void) const;
+    String Token(void) const;
     
 private:
     unsigned long   m_timestamp;    ///< Timestamp associated with the "$" that started the sentence
@@ -99,7 +98,7 @@ private:
 class MessageAssembler {
 public:
     /// \brief Default constructor
-    MessageAssembler(std::queue<Sentence*>& fifo);
+    MessageAssembler(void);
     /// \brief Default destructor
     ~MessageAssembler(void);
     /// \brief Set the channel indicator for reporting
@@ -108,17 +107,24 @@ public:
     void AddCharacter(const char c);
     /// \brief Set debugging state for message assembly
     inline void SetDebugging(const bool state) { m_debugAssembly = state; }
+    /// \brief Copy out the next available sentence from the ring buffer
+    Sentence const *NextSentence(void);
     
 private:
     enum State {
         STATE_SEARCHING,
         STATE_CAPTURING
     };
-    State                   m_state;    ///< Current state of the message being assembled
-    Sentence                *m_current; ///< Sentence currently being assembled
-    std::queue<Sentence*>&  m_fifo;     ///< Buffer for sentences being held for use
-    int                     m_channel;  ///< Channel indicator for messages
-    bool                    m_debugAssembly;    ///< Flag for debug message construction
+
+    static const int RingBufferLength = 10;///< Maximum number of sentences we'll attempt to buffer
+    
+    State     m_state;                    ///< Current state of the message being assembled
+    Sentence  m_current;                  ///< Sentence currently being assembled
+    int       m_readPoint;                ///< Ring buffer read position
+    int       m_writePoint;               ///< Ring buffer write position
+    Sentence  m_buffer[RingBufferLength]; ///< Buffer for sentences being held for use
+    int       m_channel;                  ///< Channel indicator for messages
+    bool      m_debugAssembly;            ///< Flag for debug message construction
 };
 
 /// \class Logger
@@ -138,12 +144,14 @@ public:
     
     /// \brief Process any characters that have arrived
     void ProcessMessages(void);
+
+    /// \brief Generate a version string for the logger
+    String SoftwareVersion(void) const;
     
 private:
-    logger::Manager    *m_logManager;   ///< Handler for log files on SD card
-    std::queue<Sentence*>   m_fifo;     ///< FIFO for fully assembled messages, ready for output
-    MessageAssembler    *m_channel1;    ///< Message handler for channel 1
-    MessageAssembler    *m_channel2;    ///< Message hanlder for channel 2
+    static const int ChannelCount = 2;            ///< Number of channels that we manage
+    logger::Manager    *m_logManager;             ///< Handler for log files on SD card
+    MessageAssembler    m_channel[ChannelCount];  ///< Message handler for two channels
 };
 
 }
