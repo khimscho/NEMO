@@ -52,11 +52,13 @@ class DataPacket:
     # \param self       Pointer to the object
     # \param date       Days elapsed since 1970-01-01
     # \param timestamp  Seconds since midnight on the day
-    def __init__(self, date, timestamp):
+    def __init__(self, date, timestamp, elapsed):
         ## Date in days since 1970-01-01
         self.date = date
         ## Time in seconds since midnight on the day in question
         self.timestamp = timestamp
+        ## Time in milliseconds since boot (reference time)
+        self.elapsed = elapsed
 
     ## Implement the printable interface for this class, allowing it to be streamed
     #
@@ -65,7 +67,7 @@ class DataPacket:
     # \param self   Pointer to the object
     # \return String representation of the object
     def __str__(self):
-        rtn = "[" + str(self.date) + " days, " + str(self.timestamp) + " s.]"
+        rtn = "[" + str(self.date) + " days, " + str(self.timestamp) + " s., " + str(self.elapsed) + " ms elapsed]"
         return rtn
 
 ## Implementation of the SystemTime NMEA2000 packet
@@ -82,11 +84,9 @@ class SystemTime(DataPacket):
     # \param buffer Binary data from file to interpret
     def __init__(self, buffer):
         (date, timestamp, elapsed_time, data_source) = struct.unpack("<HdIB", buffer)
-        ## Logger elapsed time (typically milliseconds since boot) for the packet
-        self.elapsed_time = elapsed_time
         ## Source of the timestamp (see documentation for decoding, but at least GNSS)
         self.data_source = data_source
-        DataPacket.__init__(self, date, timestamp)
+        DataPacket.__init__(self, date, timestamp, elapsed_time)
 
     ## Provide the fixed-text string name for this data packet
     #
@@ -104,8 +104,7 @@ class SystemTime(DataPacket):
     # \param self   Pointer to the object
     # \return String representation of the object
     def __str__(self):
-        rtn = DataPacket.__str__(self) + " " + self.name() + ": ellapsed = " + str(self.elapsed_time)\
-              + " ms., source = " + str(self.data_source)
+        rtn = DataPacket.__str__(self) + " " + self.name() + ":  source = " + str(self.data_source)
         return rtn
 
 ## Implementation of the Attitude NMEA2000 packet
@@ -121,14 +120,14 @@ class Attitude(DataPacket):
     # \param self   Pointer to the object
     # \param buffer Binary data from file to interpret.
     def __init__(self, buffer):
-        (date, timestamp, yaw, pitch, roll) = struct.unpack("<Hdddd", buffer)
+        (date, timestamp, elapsed_time, yaw, pitch, roll) = struct.unpack("<HdIddd", buffer)
         ## Yaw angle of the ship, radians (+ve clockwise from north)
         self.yaw = yaw
         ## Pitch angle of the ship, radians (+ve bow up)
         self.pitch = pitch
         ## Roll angle of the ship, radians (+ve port up)
         self.roll = roll
-        DataPacket.__init__(self, date, timestamp)
+        DataPacket.__init__(self, date, timestamp, elapsed_time)
 
     ## Provide the fixed-text string name for this data packet
     #
@@ -164,7 +163,7 @@ class Depth(DataPacket):
     # \param self   Pointer to the object
     # \param buffer Binary data from file to interpret
     def __init__(self, buffer):
-        (date, timestamp, depth, offset, range) = struct.unpack("<Hdddd", buffer)
+        (date, timestamp, elapsed_time, depth, offset, range) = struct.unpack("<HdIddd", buffer)
         ## Observed depth below transducer, metres
         self.depth = depth
         ## Offset for depth, metres.
@@ -173,7 +172,7 @@ class Depth(DataPacket):
         self.offset = offset
         ## Maximum range of observation, metres
         self.range = range
-        DataPacket.__init__(self, date, timestamp)
+        DataPacket.__init__(self, date, timestamp, elapsed_time)
 
     ## Provide the fixed-text string name for this data packet
     #
@@ -208,12 +207,12 @@ class COG(DataPacket):
     # \param self   Pointer to the objet
     # \param buffer Binary data from file to interpret
     def __init__(self, buffer):
-        (date, timestamp, courseOverGround, speedOverGround) = struct.unpack("<Hddd", buffer)
+        (date, timestamp, elapsed_time, courseOverGround, speedOverGround) = struct.unpack("<HdIdd", buffer)
         ## Course over ground (radians)
         self.courseOverGround = courseOverGround
         ## Speed over ground (m/s)
         self.speedOverGround = speedOverGround
-        DataPacket.__init__(self, date, timestamp)
+        DataPacket.__init__(self, date, timestamp, elapsed_time)
 
     ## Provide the fixed-text string name for this data packet
     #
@@ -254,9 +253,9 @@ class GNSS(DataPacket):
     # \param self   Pointer to the object
     # \param buffer Binary data from file to interpret
     def __init__(self, buffer):
-        (date, timestamp, latitude, longitude, altitude, receiverType, receiverMethod,
+        (date, timestamp, elapsed_time, latitude, longitude, altitude, receiverType, receiverMethod,
          numSVs, horizontalDOP, positionDOP, separation, numRefStations, refStationType,
-         refStationID, correctionAge) = struct.unpack("<HddddBBBdddBBHd", buffer)
+         refStationID, correctionAge) = struct.unpack("<HdIdddBBBdddBBHd", buffer)
         ## Latitude of position, degrees
         self.latitude = latitude
         ## Longitude of position, degrees
@@ -283,7 +282,7 @@ class GNSS(DataPacket):
         self.refStationID = refStationID
         ## Age of corrections, seconds
         self.correctionAge = correctionAge
-        DataPacket.__init__(self, date, timestamp)
+        DataPacket.__init__(self, date, timestamp, elapsed_time)
 
     ## Provide the fixed-text string name for this data packet
     #
@@ -327,8 +326,8 @@ class Environment(DataPacket):
     # \param self   Pointer to the object
     # \param buffer Binary data from file to interpret
     def __init__(self, buffer):
-        (date, timestamp, tempSource, temperature, humiditySource, humidity, pressure) = \
-            struct.unpack("<HdBdBdd", buffer)
+        (date, timestamp, elapsed_time, tempSource, temperature, humiditySource, humidity, pressure) = \
+            struct.unpack("<HdIBdBdd", buffer)
         ## Source of temperature information (e.g., inside, outside)
         self.tempSource = tempSource
         ## Current temperature, Kelvin
@@ -341,7 +340,7 @@ class Environment(DataPacket):
         # The source information for pressure information is not provided, so presumably this is meant to be
         # atmospheric pressure, rather than something more general.
         self.pressure = pressure
-        DataPacket.__init__(self, date, timestamp)
+        DataPacket.__init__(self, date, timestamp, elapsed_time)
 
     ## Provide the fixed-text string name for this data packet
     #
@@ -380,12 +379,12 @@ class Temperature(DataPacket):
     # \param self   Pointer to the object
     # \param buffer Binary data from file to interpret
     def __init__(self, buffer):
-        (date, timestamp, tempSource, temperature) = struct.unpack("<HdBd", buffer)
+        (date, timestamp, elapsed_time, tempSource, temperature) = struct.unpack("<HdIBd", buffer)
         ## Source of temperature information (e.g., water, air, cabin)
         self.tempSource = tempSource
         ## Temperature of source, Kelvin
         self.temperature = temperature
-        DataPacket.__init__(self, date, timestamp)
+        DataPacket.__init__(self, date, timestamp, elapsed_time)
 
     ## Provide the fixed-text string name for this data packet
     #
@@ -423,12 +422,12 @@ class Humidity(DataPacket):
     # \param self   Pointer to the object
     # \param buffer Binary data from file to interpret
     def __init__(self, buffer):
-        (date, timestamp, humiditySource, humidity) = struct.unpack("<HdBd", buffer)
+        (date, timestamp, elapsed_time, humiditySource, humidity) = struct.unpack("<HdIBd", buffer)
         ## Source of humidity (e.g., inside, outside)
         self.humiditySource = humiditySource
         ## Humidity observation, percent
         self.humidity = humidity
-        DataPacket.__init__(self, date, timestamp)
+        DataPacket.__init__(self, date, timestamp, elapsed_time)
 
     ## Provide the fixed-text string name for this data packet
     #
@@ -466,12 +465,12 @@ class Pressure(DataPacket):
     # \param self   Pointer to the object
     # \param buffer Binary data from file to interpret
     def __init__(self, buffer):
-        (date, timestamp, pressureSource, pressure) = struct.unpack("<HdBd", buffer)
+        (date, timestamp, elapsed_time, pressureSource, pressure) = struct.unpack("<HdIBd", buffer)
         ## Source of pressure measurement (e.g., atmospheric, compressed air)
         self.pressureSource = pressureSource
         ## Pressure, Pascals
         self.pressure = pressure
-        DataPacket.__init__(self, date, timestamp)
+        DataPacket.__init__(self, date, timestamp, elapsed_time)
 
     ## Provide the fixed-text string name for this data packet
     #
@@ -493,6 +492,47 @@ class Pressure(DataPacket):
               + " mBar (source " + str(self.pressureSource) + ")"
         return rtn
 
+## Implement the NMEA0183 serial data message
+#
+# As an extension, the logger can (if the hardware is populated) record data from two separate RS-422 NMEA0183
+# data streams, and timestamp in the same manner as the rest of the data.  The code encapsulates the entire message
+# in this packet, rather than trying to have a separate packet for each data string type (at least for now).
+class SerialString(DataPacket):
+    ## Initialise the SerialString message
+    #
+    # This picks out the date and time of message reception (based on the last known good real time estimate), and the
+    # serial string.
+    #
+    # \param self   Pointer to the object
+    # \param buffer Binary data from file to interpret
+    def __init__(self, buffer):
+        string_length = len(buffer) - 8
+        convert_string = "<Q" + str(string_length) + "s"
+        (elapsed_time, payload) = struct.unpack(convert_string, buffer)
+        ## Serial data encapsulated in the packet
+        self.payload = payload
+        DataPacket.__init__(self, 0, 0, elapsed_time)
+
+    ## Provide the fixed-text string name for this data packet
+    #
+    # This simply reports the human-readable name for the class so that reporting is possible
+    #
+    # \param self   Pointer to the object
+    # \return String with the human-readable name of the packet
+    def name(self):
+        return "SerialString"
+
+    ## Implement the printable interface for this class, allowing it to be streamed
+    #
+    # This converts to human-readable version of the data packet for the standard streaming output interface.
+    #
+    # \param self   Pointer to the object
+    # \return String representation of the object
+    def __str__(self):
+        rtn = DataPacket.__str__(self) + " " + self.name() + ": payload = " + str(self.payload) + ")"
+        return rtn
+
+
 ##  Unpack the serialiser version information packet, and store versions
 #
 # This picks apart the information on the version of the serialiser used to generate the file being read.  This should
@@ -511,7 +551,7 @@ class SerialiserVersion(DataPacket):
         self.major = major
         ## Minor software version for the serialiser code
         self.minor = minor
-        DataPacket.__init__(self, 0, 0.0)
+        DataPacket.__init__(self, 0, 0.0, 0)
 
     ## Provide the fixed-text string name for this data packet
     #
@@ -590,8 +630,10 @@ class PacketFactory:
             rtn = Humidity(buffer)
         elif pkt_id == 9:
             rtn = Pressure(buffer)
+        elif pkt_id == 10:
+            rtn = SerialString(buffer)
         else:
-            print("Unknown packet with ID " + pkt_id + " in input stream; ignored.")
+            print("Unknown packet with ID " + str(pkt_id) + " in input stream; ignored.")
             rtn = None
 
         return rtn
