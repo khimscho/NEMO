@@ -68,7 +68,7 @@ String Sentence::Token(void) const
 /// \param fifo Buffer to use to store completed message strings
 
 MessageAssembler::MessageAssembler(void)
-: m_state(STATE_SEARCHING), m_readPoint(0), m_writePoint(0)
+: m_state(STATE_SEARCHING), m_readPoint(0), m_writePoint(0), m_channel(-1), m_debugAssembly(false)
 {
 }
 
@@ -209,7 +209,7 @@ const int tx2_pin = 16; ///< UART port 2 transmit pin
 /// \param output   Reference for the output SD file logger to use
 
 Logger::Logger(logger::Manager *output)
-: m_logManager(output)
+: m_logManager(output), m_verbose(false)
 {
     m_channel[0].SetChannel(1);
     m_channel[1].SetChannel(2);
@@ -242,6 +242,9 @@ void Logger::ProcessMessages(void)
     }
     for (int channel = 0; channel < ChannelCount; ++channel) {
         while ((sentence = m_channel[channel].NextSentence()) != nullptr) {
+            if (m_verbose) {
+                Serial.println(String("debug: logging ") + sentence->Contents());
+            }
             Serialisable s;
             s += (uint64_t)(sentence->Timestamp());
             s += sentence->Contents();
@@ -260,6 +263,18 @@ String Logger::SoftwareVersion(void) const
     rtn = String(SoftwareVersionMajor) + "." + String(SoftwareVersionMinor) +
             "." + String(SoftwareVersionPatch);
     return rtn;
+}
+
+/// Set the verbose reporting status of the logger (and the message assemblers)
+///
+/// \param verbose  Set to true for detailed information, or false for quiet
+
+void Logger::SetVerbose(bool verbose)
+{
+    m_verbose = verbose;
+    for (int ch = 0; ch < ChannelCount; ++ch) {
+        m_channel[ch].SetDebugging(verbose);
+    }
 }
 
 }

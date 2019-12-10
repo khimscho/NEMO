@@ -147,9 +147,13 @@ public:
 
     /// \brief Generate a version string for the logger
     String SoftwareVersion(void) const;
+
+    /// \brief Set debugging status
+    void SetVerbose(bool verbose);
     
 private:
     static const int ChannelCount = 2;            ///< Number of channels that we manage
+    bool                m_verbose;                ///< Verbose status for the logger
     logger::Manager    *m_logManager;             ///< Handler for log files on SD card
     MessageAssembler    m_channel[ChannelCount];  ///< Message handler for two channels
 };

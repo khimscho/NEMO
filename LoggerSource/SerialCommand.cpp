@@ -197,8 +197,10 @@ void SerialCommand::SetVerboseMode(String const& mode)
 {
     if (mode == "on") {
         m_CANLogger->SetVerbose(true);
+        m_serialLogger->SetVerbose(true);
     } else if (mode == "off") {
         m_CANLogger->SetVerbose(false);
+        m_serialLogger->SetVerbose(false);
     } else {
         Serial.println("ERR: verbose mode not recognised.");
     }
