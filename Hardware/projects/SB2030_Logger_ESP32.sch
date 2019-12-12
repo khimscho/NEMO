@@ -10042,13 +10042,6 @@ Source: http://eshop.phoenixcontact.com .. 1751280.pdf</description>
 <junction x="208.28" y="86.36"/>
 </segment>
 </net>
-<net name="RX2" class="0">
-<segment>
-<label x="99.06" y="88.9" size="1.778" layer="95" xref="yes"/>
-<pinref part="U1" gate="G$1" pin="IO26"/>
-<wire x1="86.36" y1="88.9" x2="99.06" y2="88.9" width="0.1524" layer="91"/>
-</segment>
-</net>
 <net name="N$22" class="0">
 <segment>
 <pinref part="D2" gate="G$1" pin="1"/>
@@ -10066,11 +10059,20 @@ Source: http://eshop.phoenixcontact.com .. 1751280.pdf</description>
 </net>
 <net name="RX1" class="0">
 <segment>
-<pinref part="U1" gate="G$1" pin="IO27"/>
-<wire x1="86.36" y1="86.36" x2="96.774" y2="86.36" width="0.1524" layer="91"/>
-<wire x1="96.774" y1="86.36" x2="96.774" y2="85.344" width="0.1524" layer="91"/>
-<wire x1="96.774" y1="85.344" x2="99.06" y2="85.344" width="0.1524" layer="91"/>
-<label x="99.06" y="85.344" size="1.778" layer="95" xref="yes"/>
+<pinref part="U1" gate="G$1" pin="IO13"/>
+<wire x1="86.36" y1="116.84" x2="88.9" y2="116.84" width="0.1524" layer="91"/>
+<wire x1="88.9" y1="116.84" x2="88.9" y2="152.4" width="0.1524" layer="91"/>
+<wire x1="88.9" y1="152.4" x2="93.98" y2="152.4" width="0.1524" layer="91"/>
+<label x="93.98" y="152.4" size="1.778" layer="95" xref="yes"/>
+</segment>
+</net>
+<net name="RX2" class="0">
+<segment>
+<pinref part="U1" gate="G$1" pin="IO14"/>
+<wire x1="86.36" y1="114.3" x2="91.44" y2="114.3" width="0.1524" layer="91"/>
+<wire x1="91.44" y1="114.3" x2="91.44" y2="147.32" width="0.1524" layer="91"/>
+<wire x1="91.44" y1="147.32" x2="93.98" y2="147.32" width="0.1524" layer="91"/>
+<label x="93.98" y="147.32" size="1.778" layer="95" xref="yes"/>
 </segment>
 </net>
 </nets>
