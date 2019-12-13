@@ -111,6 +111,8 @@ public:
     
     /// \brief Generate a software version string, as required by NMEA2000 library
     String SoftwareVersion(void) const;
+    /// \brief Report software version information for the NMEA2000 logger
+    static void SoftwareVersion(uint16_t& major, uint16_t& minor, uint16_t& patch);
 
     /// \brief Set verbose logging state
     void SetVerbose(bool verb) { m_verbose = verb; }

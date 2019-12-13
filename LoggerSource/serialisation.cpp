@@ -13,6 +13,8 @@
 #include <stdint.h>
 #include <SD.h>
 #include "serialisation.h"
+#include "N2kLogger.h"
+#include "N0183Logger.h"
 
 /// Constructor for a serialisable buffer of data.  The buffer is allocated to the \a size_hint but
 /// can grow as new data is added if required.  Expanding a buffer is expensive, so it's wise to
@@ -159,9 +161,23 @@ void Serialisable::operator+=(const char *p)
 Serialiser::Serialiser(File& file)
 : m_file(file)
 {
-    Serialisable version(8);
-    version += (uint32_t)SerialiserVersionMajor;
-    version += (uint32_t)SerialiserVersionMinor;
+    uint16_t major, minor, patch;
+    
+    Serialisable version(16);
+    
+    version += (uint16_t)SerialiserVersionMajor;
+    version += (uint16_t)SerialiserVersionMinor;
+    
+    nmea::N2000::Logger::SoftwareVersion(major, minor, patch);
+    version += major;
+    version += minor;
+    version += patch;
+    
+    nmea::N0183::Logger::SoftwareVersion(major, minor, patch);
+    version += major;
+    version += minor;
+    version += patch;
+    
     rawProcess(0, version);
 }
 

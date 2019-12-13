@@ -175,6 +175,20 @@ String Logger::SoftwareVersion(void) const
     return rtn;
 }
 
+/// Report the versioning information for the logger, primarily so that it can be written
+/// into the log file to allow the reader to adapt to the contents during read.
+///
+/// \param major    Major software version
+/// \param minor    Minor software version
+/// \param patch    Patch level/build level
+
+void Logger::SoftwareVersion(uint16_t& major, uint16_t& minor, uint16_t& patch)
+{
+    major = SoftwareVersionMajor;
+    minor = SoftwareVersionMinor;
+    patch = SoftwareVersionPatch;
+}
+
 /// Implementation of the callback method required by the NMEA2000 handler to take care
 /// of messages received on the NMEA2000 bus.  Processing here is simply a matter of getting
 /// a good time stamp as quickly as possible, and then handing over parsing of the message to

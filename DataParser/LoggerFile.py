@@ -507,7 +507,7 @@ class SerialString(DataPacket):
     # \param buffer Binary data from file to interpret
     def __init__(self, buffer):
         string_length = len(buffer) - 8
-        convert_string = "<Q" + str(string_length) + "s"
+        convert_string = "<I" + str(string_length) + "s"
         (elapsed_time, payload) = struct.unpack(convert_string, buffer)
         ## Serial data encapsulated in the packet
         self.payload = payload
@@ -546,11 +546,16 @@ class SerialiserVersion(DataPacket):
     # \param self   Pointer to the object
     # \param buffer Binary data from file to interpret
     def __init__(self, buffer):
-        (major, minor) = struct.unpack("<II", buffer)
+        (major, minor, n2000_major, n2000_minor, n2000_patch, n0183_major, n0183_minor, n0183_patch) = \
+            struct.unpack("<IIHHHHHH", buffer)
         ## Major software version for the serialiser code
         self.major = major
         ## Minor software version for the serialiser code
         self.minor = minor
+        ## NMEA2000 software version information
+        self.nmea2000_version = str(n2000_major) + "." + str(n2000_minor) + "." + str(n2000_patch)
+        ## NMEA0183 software version information
+        self.nmea0183_version = str(n0183_major) + "." + str(n0183_minor) + "." + str(n0183_patch)
         DataPacket.__init__(self, 0, 0.0, 0)
 
     ## Provide the fixed-text string name for this data packet

@@ -246,7 +246,7 @@ void Logger::ProcessMessages(void)
                 Serial.println(String("debug: logging ") + sentence->Contents());
             }
             Serialisable s;
-            s += (uint64_t)(sentence->Timestamp());
+            s += (uint32_t)(sentence->Timestamp());
             s += sentence->Contents();
             m_logManager->Record(logger::Manager::PacketIDs::Pkt_NMEAString, s);
         }
@@ -263,6 +263,20 @@ String Logger::SoftwareVersion(void) const
     rtn = String(SoftwareVersionMajor) + "." + String(SoftwareVersionMinor) +
             "." + String(SoftwareVersionPatch);
     return rtn;
+}
+
+/// Report the versioning information for the logger, primarily so that it can be written
+/// into the log file to allow the reader to adapt to the contents during read.
+///
+/// \param major    Major software version
+/// \param minor    Minor software version
+/// \param patch    Patch level/build level
+
+void Logger::SoftwareVersion(uint16_t& major, uint16_t& minor, uint16_t& patch)
+{
+    major = SoftwareVersionMajor;
+    minor = SoftwareVersionMinor;
+    patch = SoftwareVersionPatch;
 }
 
 /// Set the verbose reporting status of the logger (and the message assemblers)

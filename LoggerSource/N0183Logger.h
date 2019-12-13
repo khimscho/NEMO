@@ -147,6 +147,8 @@ public:
 
     /// \brief Generate a version string for the logger
     String SoftwareVersion(void) const;
+    /// \brief Report the version information for the NMEA0183 logger
+    static void SoftwareVersion(uint16_t& major, uint16_t& minor, uint16_t& patch);
 
     /// \brief Set debugging status
     void SetVerbose(bool verbose);
