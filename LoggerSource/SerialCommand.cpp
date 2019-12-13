@@ -206,6 +206,23 @@ void SerialCommand::SetVerboseMode(String const& mode)
     }
 }
 
+/// Shut down the logger for safe removal of power (typically as part of the power monitoring)
+/// so that the log files are completed before the power goes off.  This code shuts down the
+/// current log file, and the console file, and then just busy waits for the power to go down.
+
+void SerialCommand::Shutdown(void)
+{
+    m_logManager->CloseLogfile();
+    Serial.println("info: Stopping under control for powerdown");
+    m_logManager->Console().println("info: Stopping under control for powerdown.");
+    m_logManager->CloseConsole();
+    while (true) {
+        delay(1000);
+    }
+    // Intentionally never completes - this is where the code halts
+    // for power-down.
+}
+
 /// Execute the command strings received from the serial interface(s).  This tests the
 /// string for known commands, and passes on the options from the string (if any) to
 /// the particular methods used for command implementation.  Note that this interface
@@ -238,6 +255,8 @@ void SerialCommand::Execute(String const& cmd)
         ReportIdentificationString();
     } else if (cmd.startsWith("setid")) {
         SetIdentificationString(cmd.substring(6));
+    } else if (cmd == "stop") {
+        Shutdown();
     } else {
         Serial.print("Command not recognised: ");
         Serial.println(cmd);

@@ -69,6 +69,8 @@ private:
     void SetBluetoothName(String const& name);
     /// \brief Turn on/off verbose information on messages received
     void SetVerboseMode(String const& mode);
+    /// \brief Shut down logging for safe power removal
+    void Shutdown(void);
     
     /// \brief Check for commands, and execute them if found
     void Execute(String const& cmd);
