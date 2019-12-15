@@ -253,9 +253,13 @@ class GNSS(DataPacket):
     # \param self   Pointer to the object
     # \param buffer Binary data from file to interpret
     def __init__(self, buffer):
-        (date, timestamp, elapsed_time, latitude, longitude, altitude, receiverType, receiverMethod,
-         numSVs, horizontalDOP, positionDOP, separation, numRefStations, refStationType,
-         refStationID, correctionAge) = struct.unpack("<HdIdddBBBdddBBHd", buffer)
+        (sys_date, sys_timestamp, sys_elapsed, date, timestamp, latitude, longitude, altitude,
+         receiverType, receiverMethod, numSVs, horizontalDOP, positionDOP, separation, numRefStations, refStationType,
+         refStationID, correctionAge) = struct.unpack("<HdIHddddBBBdddBBHd", buffer)
+        ## In-message date (days since epoch)
+        self.date = date
+        ## In-message timestamp (seconds since midnight)
+        self.timestamp = timestamp
         ## Latitude of position, degrees
         self.latitude = latitude
         ## Longitude of position, degrees
@@ -282,7 +286,7 @@ class GNSS(DataPacket):
         self.refStationID = refStationID
         ## Age of corrections, seconds
         self.correctionAge = correctionAge
-        DataPacket.__init__(self, date, timestamp, elapsed_time)
+        DataPacket.__init__(self, sys_date, sys_timestamp, sys_elapsed)
 
     ## Provide the fixed-text string name for this data packet
     #
@@ -300,13 +304,15 @@ class GNSS(DataPacket):
     # \param self   Pointer to the object
     # \return String representation of the object
     def __str__(self):
-        rtn = DataPacket.__str__(self) + " " + self.name() + ": latitude = " + str(self.latitude) + " deg, longitude = "\
-              + str(self.longitude) + " deg, altitude = " + str(self.altitude) + " m, GNSS type = "\
-              + str(self.receiverType) + ", GNSS method = " + str(self.receiverMethod) + ", num. SVs = "\
-              + str(self.numSVs) + ", horizontal DOP = " + str(self.horizontalDOP) + ", position DOP = "\
-              + str(self.positionDOP) + ", Geoid separation = " + str(self.separation) + "m, number of ref. stations = "\
-              + str(self.numRefStations) + ", ref. station type = " + str(self.refStationType) + ", ref. station ID = "\
-              + str(self.refStationID) + ", correction age = " + str(self.correctionAge)
+        rtn = DataPacket.__str__(self) + " " + self.name() + ": in-message date = " + str(self.date) + " days, "\
+              + "in-message time = " + str(self.timestamp) + " s.,  latitude = " + str(self.latitude)\
+              + " deg, longitude = " + str(self.longitude) + " deg, altitude = " + str(self.altitude)\
+              + " m, GNSS type = " + str(self.receiverType) + ", GNSS method = " + str(self.receiverMethod)\
+              + ", num. SVs = " + str(self.numSVs) + ", horizontal DOP = " + str(self.horizontalDOP)\
+              + ", position DOP = " + str(self.positionDOP) + ", Geoid separation = " + str(self.separation)\
+              + "m, number of ref. stations = " + str(self.numRefStations)\
+              + ", ref. station type = " + str(self.refStationType) + ", ref. station ID = " + str(self.refStationID)\
+              + ", correction age = " + str(self.correctionAge)
         return rtn
 
 ## Implement the Environment NMEA2000 message
@@ -506,7 +512,7 @@ class SerialString(DataPacket):
     # \param self   Pointer to the object
     # \param buffer Binary data from file to interpret
     def __init__(self, buffer):
-        string_length = len(buffer) - 8
+        string_length = len(buffer) - 4
         convert_string = "<I" + str(string_length) + "s"
         (elapsed_time, payload) = struct.unpack(convert_string, buffer)
         ## Serial data encapsulated in the packet
@@ -529,7 +535,7 @@ class SerialString(DataPacket):
     # \param self   Pointer to the object
     # \return String representation of the object
     def __str__(self):
-        rtn = DataPacket.__str__(self) + " " + self.name() + ": payload = " + str(self.payload) + ")"
+        rtn = DataPacket.__str__(self) + " " + self.name() + ": payload = " + str(self.payload)
         return rtn
 
 
@@ -547,7 +553,7 @@ class SerialiserVersion(DataPacket):
     # \param buffer Binary data from file to interpret
     def __init__(self, buffer):
         (major, minor, n2000_major, n2000_minor, n2000_patch, n0183_major, n0183_minor, n0183_patch) = \
-            struct.unpack("<IIHHHHHH", buffer)
+            struct.unpack("<HHHHHHHH", buffer)
         ## Major software version for the serialiser code
         self.major = major
         ## Minor software version for the serialiser code
@@ -574,7 +580,8 @@ class SerialiserVersion(DataPacket):
     # \param self   Pointer to the object
     # \return String representation of the object
     def __str__(self):
-        rtn = DataPacket.__str__(self) + " " + self.name() + ": version = " + str(self.major) + "." + str(self.minor)
+        rtn = DataPacket.__str__(self) + " " + self.name() + ": version = " + str(self.major) + "." + str(self.minor) +\
+                " with NMEA2000 version " + self.nmea2000_version + " and NMEA0183 version " + self.nmea0183_version;
         return rtn
 
 ## Translate packets out of the binary file, reconstituing as an appropriate class

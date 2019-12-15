@@ -377,7 +377,8 @@ void Logger::HandleGNSS(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
     if (ParseN2kGNSS(msg, SID, datestamp, timestamp, latitude, longitude, altitude,
                      rec_type, rec_method, nSvs, hdop, pdop, sep, nRefStations,
                      refStationType, refStationID, correctionAge)) {
-        Serialisable s(2*sizeof(uint16_t) + 8*sizeof(double) + 5);
+        Serialisable s(t.SerialisationSize() + 2*sizeof(uint16_t) + 8*sizeof(double) + 5);
+        t.Serialise(s); // Put in the standard timestamp, as well as the in-message one.
         s += datestamp; s += timestamp;
         s += latitude; s += longitude; s += altitude;
         s += (uint8_t)rec_type; s += (uint8_t)rec_method;
