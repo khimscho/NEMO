@@ -21,10 +21,13 @@ const int MAX_LOG_FILE_SIZE = 10*1024*1024; ///< Maximum size of a single log fi
 Manager::Manager(void)
 {
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
-    m_consoleLog = SD.open("/console.log", FILE_APPEND);
+    m_consoleLog = SD.open("console.log", FILE_APPEND);
 #else
-    m_consoleLog = SD.open("/console.log", FILE_WRITE);
+    m_consoleLog = SD.open("console.log", FILE_WRITE);
 #endif
+    m_consoleLog.println("info: booted logger, appending to console log.");
+    m_consoleLog.flush();
+    Serial.println("info: started console log.");
 }
 
 Manager::~Manager(void)
@@ -249,6 +252,17 @@ String Manager::MakeLogName(uint32_t log_num)
     String filename("/logs/nmea2000.");
     filename += log_num;
     return filename;
+}
+
+void Manager::DumpConsoleLog(void)
+{
+    m_consoleLog.close();
+    m_consoleLog = SD.open("console.log", FILE_READ);
+    while (m_consoleLog.available()) {
+        Serial.print(m_consoleLog.read());
+    }
+    m_consoleLog.close();
+    m_consoleLog = SD.open("console.log", FILE_APPEND);
 }
 
 }

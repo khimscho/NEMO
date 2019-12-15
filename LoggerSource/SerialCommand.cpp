@@ -46,6 +46,8 @@ SerialCommand::~SerialCommand()
 void SerialCommand::ReportConsoleLog(void)
 {
     Serial.println("*** Current console log file:");
+/*    Serial.println(String("*** Console log file size = ") + m_logManager->Console().size() + " B.");
+    size_t pos = m_logManager->Console().position();
     m_logManager->Console().seek(0);
     while (m_logManager->Console().available()) {
         int r = m_logManager->Console().read();
@@ -55,6 +57,9 @@ void SerialCommand::ReportConsoleLog(void)
             delay(5);
         }
     }
+    m_logManager->Console().seek(pos); // Default is SEEK_SET
+*/
+    m_logManager->DumpConsoleLog();
     Serial.println("*** Current console log end.");
 }
 

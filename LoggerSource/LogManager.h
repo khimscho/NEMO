@@ -72,6 +72,8 @@ public:
     SDFile& Console(void) { return m_consoleLog; }
     /// \brief Close the console file prior to shutdown
     void CloseConsole(void) { m_consoleLog.close(); }
+    /// \brief Dump console log to serial
+    void DumpConsoleLog(void);
 
 private:
     SDFile      m_consoleLog;       ///< File on which to write console information
