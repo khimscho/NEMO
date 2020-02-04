@@ -3,3 +3,6 @@ ArduinoSupport
 ExampleData
 systemdoc
 Documents
+*.b\#*
+*.s\#*
+
