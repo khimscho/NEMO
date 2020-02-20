@@ -89,7 +89,7 @@ private:
 class BluetoothFactory {
 public:
     /// \brief Create a Bluetooth adapter according to the prevailing hardware
-    BluetoothAdapter *Create(void);
+    static BluetoothAdapter *Create(void);
 };
 
 #endif

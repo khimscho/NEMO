@@ -71,6 +71,14 @@ private:
     void SetVerboseMode(String const& mode);
     /// \brief Shut down logging for safe power removal
     void Shutdown(void);
+    /// \brief Set the WiFi SSID string
+    void SetWiFiSSID(String const& ssid);
+    /// \brief Get the WiFi SSID string
+    void GetWiFiSSID(void);
+    /// \brief Set the WiFi password string
+    void SetWiFiPassword(String const& password);
+    /// \brief Get the WiFi password string
+    void GetWiFiPassword(void);
     
     /// \brief Check for commands, and execute them if found
     void Execute(String const& cmd);

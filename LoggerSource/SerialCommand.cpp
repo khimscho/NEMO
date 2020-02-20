@@ -12,21 +12,24 @@
 #include <Arduino.h>
 #include <SD.h>
 #include "BluetoothAdapter.h"
+#include "WiFiAdapter.h"
 #include "SerialCommand.h"
 
 /// Default constructor for the SerialCommand object.  This stores the pointers for the logger and
 /// status LED controllers for reference, and then generates a BLE service object.  This turns on
 /// advertising for the BLE UART service, allowing for data to the sent and received over the air.
 ///
-/// \param logger   Pointer to the logger object to use for access to log files
-/// \param led          Pointer to the status LED controller object
+/// \param CANLogger    Pointer to the NMEA2000 data source
+/// \param serialLogger Pointer to the NMEA0183 data source
+/// \param logManager   Pointer to the object used to access the log files
+/// \param led      Pointer to the status LED controller object
 
 SerialCommand::SerialCommand(nmea::N2000::Logger *CANLogger, nmea::N0183::Logger *serialLogger,
                              logger::Manager *logManager, StatusLED *led)
 : m_CANLogger(CANLogger), m_serialLogger(serialLogger), m_logManager(logManager), m_led(led)
 {
-    BluetoothFactory factory;
-    m_ble = factory.Create();
+    m_ble = BluetoothFactory.Create();
+    m_wifi = WiFiFactory.Create();
 }
 
 /// Default destructor for the SerialCommand object.  This deallocates the BLE service object,
@@ -35,6 +38,7 @@ SerialCommand::SerialCommand(nmea::N2000::Logger *CANLogger, nmea::N0183::Logger
 
 SerialCommand::~SerialCommand()
 {
+    delete m_wifi;
     delete m_ble;
 }
 
@@ -228,6 +232,47 @@ void SerialCommand::Shutdown(void)
     // for power-down.
 }
 
+/// Specify the SSID string to use for the WiFi interface.
+///
+/// \param ssid SSID to use for the WiFi, when activated
+
+void SerialCommand::SetWiFiSSID(String const& ssid)
+{
+    m_wifi->SetSSID(ssid);
+}
+
+/// Report the SSID for the WiFi on the output channel(s)
+
+void SerialCommand::GetWiFiSSID(void)
+{
+    String ssid = m_wifi->GetSSID();
+    Serial.print("WiFi SSID: ");
+    Serial.println(ssid);
+    if (m_ble->IsConnected())
+        m_ble->WriteString(ssid);
+}
+
+/// Specify the password to use for clients attempting to connect to the WiFi access
+/// point offered by the module.
+///
+/// \param password Pre-shared password to expect from the client
+
+void SerialCommand::SetWiFiPassword(String const& password)
+{
+    m_wifi->SetPassword(password);
+}
+
+/// Report the pre-shared password for the WiFi access point.
+
+void SerialCommand::GetWiFiPassword(void)
+{
+    String password = m_wifi->GetPassword();
+    Serial.print("WiFi Password: ");
+    Serial.println(password);
+    if (m_ble->IsConnected())
+        m_ble->WriteString(password);
+}
+
 /// Execute the command strings received from the serial interface(s).  This tests the
 /// string for known commands, and passes on the options from the string (if any) to
 /// the particular methods used for command implementation.  Note that this interface
@@ -262,6 +307,16 @@ void SerialCommand::Execute(String const& cmd)
         SetIdentificationString(cmd.substring(6));
     } else if (cmd == "stop") {
         Shutdown();
+    } else if (cmd.startsWith("ssid")) {
+        if (cmd.length() == 4)
+            GetWiFiSSID();
+        else
+            SetWiFiSSID(cmd.substring(5));
+    } else if (cmd.startsWith("password")) {
+        if (cmd.length() == 8)
+            GetWiFiPassword();
+        else
+            SetWiFiPassword(cmd.substring(9));
     } else {
         Serial.print("Command not recognised: ");
         Serial.println(cmd);
@@ -293,6 +348,15 @@ void SerialCommand::ProcessCommand(void)
         Serial.print(cmd);
         Serial.println("\"");
 
+        Execute(cmd);
+    }
+    if (m_wifi->IsConnected() && m_wifi->DataAvailable()) {
+        String cmd = m_wifi->ReceivedString();
+        
+        Serial.print("Found WiFi command: \"");
+        Serial.print(cmd);
+        Serial.println("\n");
+        
         Execute(cmd);
     }
 }

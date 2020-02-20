@@ -13,17 +13,13 @@
 #include <Arduino.h>
 
 #include "BluetoothAdapter.h"
+#include "ParamStore.h"
 
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
 
 #include <queue>
 
-// If compiling on the ESP32, we use the internal Bluetooth modem, and use
-// the flash memory file system for persistent data on the advertising name
-// and identification string.
-
-#include "FS.h"
-#include "SPIFFS.h"
+// If compiling on the ESP32, we use the internal Bluetooth modem.
 
 #include <BLEDevice.h>
 #include <BLEServer.h>
@@ -203,13 +199,12 @@ public:
     /// the BLE server for Nordic Semi-style UART service.
     
     ESP32Adapter(void)
-    : m_started(false), m_server(NULL), m_service(NULL), m_txCharacteristic(NULL),
-      m_rxCallbacks(NULL)
+    : m_started(false), m_paramStore(nullptr), m_server(NULL), m_service(NULL),
+      m_txCharacteristic(NULL), m_rxCallbacks(NULL)
     {
-        if (!SPIFFS.begin(true)) {
-            // "true" here forces a format of the FFS if it isn't already
-            // formatted (which will cause it to initially fail).
-            Serial.println("ERR: SPIFFS Mount failed.");
+        if ((m_paramStore = ParamStoreFactory.Create()) == nullptr) {
+            Serial.println("ERR: failed to start parameter store object.");
+            return;
         }
         
         // We now need to bring up the BLE server with notification on
@@ -250,11 +245,13 @@ public:
             delete m_txCharacteristic;
             delete m_service;
             delete m_server;
+            delete m_paramStore;
         }
     }
     
 private:
     bool                m_started;  ///< Flag: interface has been started
+    ParamStore          *m_paramStore;  ///< Pointer to the parameter store manager
     BLEServer           *m_server;  ///< Pointer to the BLE server object
     BLEService          *m_service; ///< Pointer to the UART service
     BLECharacteristic   *m_txCharacteristic;    ///< Transmit characteristic for the BLE UART
@@ -270,12 +267,10 @@ private:
     
     void setIdentificationString(String const& id)
     {
-        File f = SPIFFS.open("/modid.txt", FILE_WRITE);
-        if (!f) {
+        if (!m_paramStore->SetKey("modid", id)) {
             Serial.println("ERR: module identification string file failed to write.");
             return;
         }
-        f.println(id);
     }
     
     /// \brief Get the user-unique identification string from the module
@@ -287,13 +282,12 @@ private:
     
     String getIdentificationString(void) const
     {
-        File f = SPIFFS.open("/modid.txt");
-        if (!f) {
+        String value;
+        if (!m_paramStore->GetKey("modid", value)) {
             Serial.println("ERR: failed to find identification string file for module.");
-            return String("UNKNOWN");
+            value = "UNKNOWN";
         }
-        String rtn = f.readString();
-        return rtn;
+        return value;
     }
 
     /// \brief Set the BLE advertising name for the server
@@ -307,12 +301,10 @@ private:
     
     void setAdvertisingName(String const& name)
     {
-        File f = SPIFFS.open("/modname.txt", FILE_WRITE);
-        if (!f) {
+        if (!m_paramStore->SetKey("modname", name)) {
             Serial.println("ERR: module advertising name file failed to write.");
             return;
         }
-        f.println(name);
     }
     
     /// \brief Get the BLE advertising name for the server
@@ -324,12 +316,12 @@ private:
     
     String getAdvertisingName(void) const
     {
-        File f = SPIFFS.open("/modname.txt");
-        if (!f) {
-            return String("SB2030");
+        String value;
+        if (!m_paramStore->GetKey("modname", value)) {
+            Serial.println("ERR: failed to find advertising name string file for module.");
+            value = "SB2030";
         }
-        String rtn = f.readString();
-        return rtn;
+        return value;
     }
     
     /// \brief Determine whether the interface has a client connected
@@ -451,8 +443,11 @@ public:
     /// delay until the module resets.
     
     AdafruitAdapter(void)
-    : m_started(false)
+    : m_started(false), m_connected(false), m_paramStore(nullptr)
     {
+        if ((m_paramStore = ParamStoreFactory.Create()) == nullptr) {
+            return;
+        }
         if (!ble.begin(true)) {
             return;
         }
@@ -478,65 +473,13 @@ public:
         ble.setMode(BLUEFRUIT_MODE_COMMAND);
         ble.disconnect();
         ble.end();
+        delete m_paramStore;
     }
     
 private:
     bool    m_started;      ///< BLE interface is started and running
     bool    m_connected;    ///< BLE interface has been connected at the other end
-    
-    /// Maximum length of any string written to the NVM memory on the module
-    const int max_nvm_string_length = 32;
-    
-    /// NVM byte offset for the start of the module user-unique identification string
-    const int id_string_start = 0;
-    /// NVM byte offset for the start of the BLE server advertising name
-    const int adv_name_start = id_string_start + 4 + max_nvm_string_length;
-
-    /// \brief Write a string at a given offset into the BLE module's NVM
-    ///
-    /// The Adafruit BLE Friend has limited non-volatile memory, which we can use to
-    /// store the persistent strings that we need for identification and advertising name.
-    /// This provides the mechanism to write this information.
-    ///
-    /// \param offset   Byte offset into the NVM at which to start the write
-    /// \param s    String to write to NVM
-    /// \param max_length   Maximum length of NVM space to use for write
-    
-    void writeNVMString(int offset, String const& s, int max_length) const
-    {
-        String write_str;
-        
-        if (s.length() < max_length)
-            write_str = s;
-        else
-            write_str = s.substring(0, max_length);
-        
-        ble.writeNVM(offset, write_str.length());
-        ble.writeNVM(offset+4, (uint8_t const*)(write_str.c_str()), write_str.length());
-    }
-    
-    /// \brief Read a string at a given offset from the BLE module's NVM
-    ///
-    /// This reads a string from the non-volatile memory of the Adafruit Bluetooth LE module.  This
-    /// is used to persist the information about user-unique identification and BLE advertising strings
-    /// over reboots of the module.  The code assumes that the first word of the NVM at the offset
-    /// contains the length of the string following.
-    ///
-    /// \param offset   Byte offset in the NVM at which to read
-    /// \return String read from the NVM
-    
-    String readNVMString(int offset) const
-    {
-        int32_t length;
-        uint8_t buffer[max_nvm_string_length+1];
-        String rtn;
-        
-        ble.readNVM(offset, &length);
-        ble.readNVM(offset+4, buffer, length);
-        buffer[length] = '\0';
-        
-        return String((const char*)buffer);
-    }
+    ParamStore  *m_paramStore;  ///< Pointer to the parameter storage module
     
     /// \brief Implement the interface for writing the user-unique identification string
     ///
@@ -547,7 +490,9 @@ private:
     
     void setIdentificationString(String const& id)
     {
-        writeNVMString(id_string_start, id, max_nvm_string_length);
+        if (!m_paramStore->SetKey("idstring", id)) {
+            Serial.println("ERR: failed to write identification string.");
+        }
     }
     
     /// \brief Implement the interface for reading the user-unique identification string
@@ -559,7 +504,12 @@ private:
     
     String getIdentificationString(void) const
     {
-        return readNVMString(id_string_start);
+        String value;
+        if (!m_paramStore->GetKey("idstring", value)) {
+            Serial.println("ERR: failed to read identification string.");
+            value = "UNKNOWN";
+        }
+        return value;
     }
 
     /// \brief Implement the interface for setting the Bluetooth server advertising name
@@ -571,7 +521,9 @@ private:
     
     void setAdvertisingName(String const& name)
     {
-        writeNVMString(adv_name_start, name, max_nvm_string_length);
+        if (!m_paramStore->SetKey("adname", name)) {
+            Serial.println("ERR: failed to write advertising name.");
+        }
     }
     
     /// \brief Implement the interface for getting the Bluetooth server advertising name
@@ -583,7 +535,12 @@ private:
     
     String getAdvertisingName(void) const
     {
-        return readNVMString(adv_name_start);
+        String value;
+        if (!m_paramStore->GetKey("adname", value)) {
+            Serial.println("ERR: failed to read advertising name string.");
+            value = "UNKNOWN";
+        }
+        return value;
     }
     
     /// \brief Implement the interface for connection detection
