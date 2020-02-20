@@ -21,6 +21,12 @@ public:
     bool Startup(void);
     void Shutdown(void);
     
+    bool IsConnected(void);
+    bool DataAvailable(void);
+    String ReceivedString(void);
+    
+    bool TransferFile(String const& filename);
+    
     String GetSSID(void);
     void SetSSID(String const& ssid);
     String GetPassword(void);
@@ -29,6 +35,13 @@ public:
 private:
     virtual bool start(void) = 0;
     virtual void stop(void) = 0;
+    
+    virtual bool isConnected(void) = 0;
+    virtual bool dataCount(void) = 0;
+    virtual String readBuffer(void) = 0;
+    
+    virtual bool sendLogFile(String const& filename) = 0;
+    
     virtual void set_ssid(String const& ssid) = 0;
     virtual String get_ssid(void) = 0;
     virtual void set_password(String const& password) = 0;

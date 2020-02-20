@@ -40,6 +40,22 @@ private:
     {
         
     }
+    bool isConnected(void)
+    {
+        
+    }
+    bool dataCount(void)
+    {
+        
+    }
+    String readBuffer(void)
+    {
+        
+    }
+    bool sendLogFile(String const& filename)
+    {
+        
+    }
     void set_ssid(String const& ssid)
     {
         if (!m_paramStore->SetKey("ssid", ssid)) {
@@ -76,6 +92,10 @@ private:
 
 bool WiFiAdapter::Startup(void) { return start(); }
 void WiFiAdapter::Stop(void) { stop(); }
+bool WiFiAdapter::IsConnected(void) { return IsConnected(); }
+bool WiFiAdapter::DataAvailable(void) { return dataCount() > 0; }
+String WiFiAdapter::ReceivedString(void) { return readBuffer(); }
+bool WiFiAdapter::TransferFile(String const& fileaname) { return sendLogFile(filename); }
 String WiFiAdapter::GetSSID(void) { return get_ssid(); }
 void WiFiAdapter::SetSSID(String const& ssid) { return set_ssid(ssid); }
 String WiFiAdapter::GetPassword(void) { return get_password(); }
