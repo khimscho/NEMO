@@ -112,8 +112,8 @@ private:
             while (f.available()) {
                 m_client.write(f.read());
             }
+            f.close();
         }
-        f.close();
         return true;
     }
     void set_ssid(String const& ssid)
