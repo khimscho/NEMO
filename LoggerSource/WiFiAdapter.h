@@ -11,6 +11,8 @@
 #ifndef __WIFI_ADAPTER_H__
 #define __WIFI_ADAPTER_H__
 
+#include <WiFi.h>
+
 /// \class WiFiAdapter
 /// \brief Abstract base class for WiFi access
 
@@ -31,6 +33,7 @@ public:
     void SetSSID(String const& ssid);
     String GetPassword(void);
     void SetPassword(String const& password);
+    String GetServerAddress(void);
     
 private:
     virtual bool start(void) = 0;
@@ -46,6 +49,8 @@ private:
     virtual String get_ssid(void) = 0;
     virtual void set_password(String const& password) = 0;
     virtual String get_password(void) = 0;
+    virtual void set_address(IPAddress const& address) = 0;
+    virtual String get_address(void) = 0;
 };
 
 /// \class WiFiAdapterFactory

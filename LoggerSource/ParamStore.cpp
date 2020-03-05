@@ -91,6 +91,8 @@ private:
             value = 2;
         else if (key == "password")
             value = 3;
+        else if (key == "ipaddress")
+            value = 4;
         return value;
     }
     
