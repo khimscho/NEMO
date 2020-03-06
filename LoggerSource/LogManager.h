@@ -73,7 +73,9 @@ public:
     /// \brief Close the console file prior to shutdown
     void CloseConsole(void) { m_consoleLog.close(); }
     /// \brief Dump console log to serial
-    void DumpConsoleLog(void);
+    void DumpConsoleLog(Stream& output);
+    /// \brief Send a log file to a particular output stream
+    void TransferLogFile(int file_num, Stream& output);
 
 private:
     SDFile      m_consoleLog;       ///< File on which to write console information

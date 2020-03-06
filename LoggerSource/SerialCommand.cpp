@@ -46,8 +46,10 @@ SerialCommand::~SerialCommand()
 /// on the output serial stream, and the BLE stream if there is something connected to it.  Sending
 /// things to the BLE stream can be slow since there needs to be a delay between packets to avoid
 /// congestion on the stack.
+///
+/// \param src  Stream by which the command arrived
 
-void SerialCommand::ReportConsoleLog(void)
+void SerialCommand::ReportConsoleLog(CommandSource src)
 {
     Serial.println("*** Current console log file:");
 /*    Serial.println(String("*** Console log file size = ") + m_logManager->Console().size() + " B.");
@@ -63,45 +65,54 @@ void SerialCommand::ReportConsoleLog(void)
     }
     m_logManager->Console().seek(pos); // Default is SEEK_SET
 */
-    m_logManager->DumpConsoleLog();
+    switch (src) {
+        case CommandSource::Serial:
+            m_logManager->DumpConsoleLog(Serial);
+            break;
+        case CommandSource::Blueooth:
+            Serial.println("ERR: cannot output console log on BLE.");
+            break;
+        case CommandSource::Wireless:
+            m_logManager->DumpConsoleLog(m_wifi->Client());
+            break;
+        default:
+            Serial.println("ERR: command source not recognised.");
+            break;
+    }
     Serial.println("*** Current console log end.");
 }
 
 /// Report the sizes of all of the log files that exist in the /logs directory on
 /// the attached SD card.  This incidentally reports all of the log files that are
-/// ready for transfer.  The report also goes out on the BLE UART if there's a client
-/// connected.
+/// ready for transfer.  The report goes out onto the Stream associated with
+/// the source of the command.
+///
+/// \param src  Stream by which the command arrived
 
-void SerialCommand::ReportLogfileSizes(void)
+void SerialCommand::ReportLogfileSizes(CommandSource src)
 {
-    Serial.println("Current log file sizes:");
+    EmitMessage("Current log file sizes:\n", src);
+    
     int     filenumber[logger::MaxLogFiles];
     int     file_count = m_logManager->CountLogFiles(filenumber);
     String  filename;
     int     filesize;
     for (int f = 0; f < file_count; ++f) {
         m_logManager->EnumerateLogFile(filenumber[f], filename, filesize);
-        String line = String("    ") + filename + " " + filesize + " B";
-        Serial.println(line);
-        if (m_ble->IsConnected())
-            m_ble->WriteString(line + "\n");
+        String line = String("    ") + filename + " " + filesize + " B\n";
+        EmitMessage(line, src);
     }
 }
 
 /// Report the version string for the current logger implementation.  This also goes out on
 /// the BLE interface if there's a client connected.
+///
+/// \param src  Stream by which the command arrived
 
-void SerialCommand::ReportSoftwareVersion(void)
+void SerialCommand::ReportSoftwareVersion(CommandSource src)
 {
-    String ver;
-    ver = m_CANLogger->SoftwareVersion();
-    Serial.println("NMEA2000 Software version: " + ver);
-    if (m_ble->IsConnected())
-        m_ble->WriteString(String("NMEA2000: ") + ver + "\n");
-    ver = m_serialLogger->SoftwareVersion();
-    Serial.println("NMEA0183 Software version: " + ver);
-    if (m_ble->IsConnected())
-        m_ble->WriteString(String("NMEA0183: ") + ver + "\n");
+    EmitMessage(String("NMEA2000: ") + m_CANLogger->SoftwareVersion() + "\n");
+    EmitMessage(String("NMEA0183: ") + m_serialLogger->SoftwareVersion() + "\n");
 }
 
 /// Erase one, or all, of the log files currently on the SD card.  If the string is "all", all
@@ -111,29 +122,24 @@ void SerialCommand::ReportSoftwareVersion(void)
 /// there is a client connected.
 ///
 /// \param filenum  String representation of the file number of the log file to remove, or "all"
+/// \param src      Stream by which the command arrived
 
-void SerialCommand::EraseLogfile(String const& filenum)
+void SerialCommand::EraseLogfile(String const& filenum, CommandSource src)
 {
     if (filenum == "all") {
-        Serial.println("Erasing all log files ...");
+        EmitMessage("Erasing all log files ...", src);
         m_logManager->RemoveAllLogfiles();
-        Serial.println("All log files erased.");
-        if (m_ble->IsConnected())
-            m_ble->WriteString(F("All log files erased.\n"));
+        EmitMessage("All log files erased.");
     } else {
         long file_num;
         file_num = filenum.toInt();
-        Serial.println(String("Erasing log file ") + file_num);
+        EmitMessage(String("Erasing log file ") + file_num + "\n", src);
         if (m_logManager->RemoveLogFile(file_num)) {
-            String msg = String("Log file ") + file_num + String(" erased.");
-            Serial.println(msg);
-            if (m_ble->IsConnected())
-                m_ble->WriteString(msg + "\n");
+            String msg = String("Log file ") + file_num + String(" erased.\n");
+            EmitMessage(msg, src);
         } else {
-            String msg = String("Failed to erase log file ") + file_num;
-            Serial.println(msg);
-            if (m_ble->IsConnected())
-                m_ble->WriteString(msg + "\n");
+            String msg = String("Failed to erase log file ") + file_num + "\n";
+            EmitMessage(msg, src);
         }
     }
 }
@@ -164,13 +170,13 @@ void SerialCommand::ModifyLEDState(String const& command)
 /// a unique ID that can be used to identify the logger, but the firmware does not enforce any
 /// particular structure for the string.  The output goes to the BLE UART service if there is a
 /// client connected.
+///
+/// \param src      Stream by which the command arrived
 
-void SerialCommand::ReportIdentificationString(void)
+void SerialCommand::ReportIdentificationString(CommandSource src)
 {
-    Serial.print("Module identification string: ");
-    Serial.println(m_ble->LoggerIdentifier());
-    if (m_ble->IsConnected())
-        m_ble->WriteString(m_ble->LoggerIdentifier());
+    if (src == CommandSource::Serial) EmitMessage("Module identification string: ", src);
+    EmitMessage(m_ble->LoggerIdentifier() + "\n", src);
 }
 
 /// Set the identification string for the logger.  This is expected to be a unique ID that can be
@@ -242,14 +248,14 @@ void SerialCommand::SetWiFiSSID(String const& ssid)
 }
 
 /// Report the SSID for the WiFi on the output channel(s)
+///
+/// \param src      Stream by which the command arrived
 
-void SerialCommand::GetWiFiSSID(void)
+void SerialCommand::GetWiFiSSID(CommandSource src)
 {
     String ssid = m_wifi->GetSSID();
-    Serial.print("WiFi SSID: ");
-    Serial.println(ssid);
-    if (m_ble->IsConnected())
-        m_ble->WriteString(ssid);
+    if (src != CommandSource::Bluetooth) EmitMessage("WiFi SSID: ", src);
+    EmitMessage(ssid, src);
 }
 
 /// Specify the password to use for clients attempting to connect to the WiFi access
@@ -263,14 +269,66 @@ void SerialCommand::SetWiFiPassword(String const& password)
 }
 
 /// Report the pre-shared password for the WiFi access point.
+///
+/// \param src      Stream by which the command arrived
 
-void SerialCommand::GetWiFiPassword(void)
+void SerialCommand::GetWiFiPassword(CommandSource src)
 {
     String password = m_wifi->GetPassword();
-    Serial.print("WiFi Password: ");
-    Serial.println(password);
-    if (m_ble->IsConnected())
-        m_ble->WriteString(password);
+    if (src != CommandSource::Bluetooth) EmitMessage("WiFi Password: ", src);
+    EmitMessage(password, src);
+}
+
+/// Turn the WiFi interface on and off, as required by the user
+///
+/// \param  command     The remnant of the command string from the user
+/// \param  src     Stream by which the command arrived
+
+void SerialCommand::ManageWireless(String const& command, CommandSource src)
+{
+    if (command == "on") {
+        if (m_wifi->Startup()) {
+            if (src != CommandSource::Bluetooth)
+                EmitMessage("WiFi started on ", src);
+            EmitMessage(m_wifi->GetServerAddress(), src);
+        } else {
+            EmitMessage("ERR: WiFi startup failed.", src);
+        }
+    } else if (command == "off") {
+        if (m_wifi->Shutdown()) {
+            EmitMessage("WiFi stopped.", src);
+        } else {
+            EmitMessage("ERR: WiFi shutdown failed.", src);
+        }
+    } else {
+        Serial.println("ERR: wireless management command not recognised.");
+    }
+}
+
+/// Send a log file to the client (so long as it isn't on BLE, which is way too slow!).  This sends
+/// plain binary 8-bit data to the client, which needs to know how to deal with that.  This
+/// generally means it really only works on the WiFi connection.
+///
+/// \param filenum      Log file number to transfer
+/// \param src      Stream by which the command arrived.
+
+void SerialCommand::TransferLogFile(String const& filenum, CommandSource src)
+{
+    int file_number = filenum.toInt();
+    switch (src) {
+        case CommandSource::Serial:
+            m_logManager->TransferLogFile(file_number, Serial);
+            break;
+        case CommandSource::Bluetooth:
+            EmitMessage("ERR: not available.\n", src);
+            break;
+        case CommandSource::Wireless:
+            m_logManager->TransferLogFile(file_number, m_wifi->Client());
+            break;
+        default:
+            Serial.println("ERR: command source not recognised.");
+            break;
+    }
 }
 
 /// Execute the command strings received from the serial interface(s).  This tests the
@@ -281,19 +339,20 @@ void SerialCommand::GetWiFiPassword(void)
 /// app, and therefore it shouldn't need to be particularly strong.
 ///
 /// \param cmd  String with the user command to execute.
+/// \param src      Stream by which the command arrived
 
-void SerialCommand::Execute(String const& cmd)
+void SerialCommand::Execute(String const& cmd, CommandSource src)
 {
     if (cmd == "log") {
-        ReportConsoleLog();
+        ReportConsoleLog(src);
     } else if (cmd == "sizes") {
-        ReportLogfileSizes();
+        ReportLogfileSizes(src);
     } else if (cmd == "version") {
-        ReportSoftwareVersion();
+        ReportSoftwareVersion(src);
     } else if (cmd.startsWith("verbose")) {
         SetVerboseMode(cmd.substring(8));
     } else if (cmd.startsWith("erase")) {
-        EraseLogfile(cmd.substring(6));
+        EraseLogfile(cmd.substring(6), src);
     } else if (cmd == "steplog") {
         m_logManager->CloseLogfile();
         m_logManager->StartNewLog();
@@ -302,21 +361,25 @@ void SerialCommand::Execute(String const& cmd)
     } else if (cmd.startsWith("advertise")) {
         SetBluetoothName(cmd.substring(10));
     } else if (cmd.startsWith("identify")) {
-        ReportIdentificationString();
+        ReportIdentificationString(src);
     } else if (cmd.startsWith("setid")) {
         SetIdentificationString(cmd.substring(6));
     } else if (cmd == "stop") {
         Shutdown();
     } else if (cmd.startsWith("ssid")) {
         if (cmd.length() == 4)
-            GetWiFiSSID();
+            GetWiFiSSID(src);
         else
             SetWiFiSSID(cmd.substring(5));
     } else if (cmd.startsWith("password")) {
         if (cmd.length() == 8)
-            GetWiFiPassword();
+            GetWiFiPassword(src);
         else
             SetWiFiPassword(cmd.substring(9));
+    } else if (cmd.startsWith("wireless")) {
+        ManageWireless(cmd.substring(9), src);
+    } else if (cmd.startsWith("transfer")) {
+        TransferLogFile(cmd.substring(9), src);
     } else {
         Serial.print("Command not recognised: ");
         Serial.println(cmd);
@@ -339,7 +402,7 @@ void SerialCommand::ProcessCommand(void)
         Serial.print(cmd);
         Serial.println("\"");
 
-        Execute(cmd);
+        Execute(cmd, CommandSource::Serial);
     }
     if (m_ble->IsConnected() && m_ble->DataAvailable()) {
         String cmd = m_ble->ReceivedString();
@@ -348,7 +411,7 @@ void SerialCommand::ProcessCommand(void)
         Serial.print(cmd);
         Serial.println("\"");
 
-        Execute(cmd);
+        Execute(cmd, CommandSource::Bluetooth);
     }
     if (m_wifi->IsConnected() && m_wifi->DataAvailable()) {
         String cmd = m_wifi->ReceivedString();
@@ -357,6 +420,30 @@ void SerialCommand::ProcessCommand(void)
         Serial.print(cmd);
         Serial.println("\n");
         
-        Execute(cmd);
+        Execute(cmd, CommandSource::Wireless);
+    }
+}
+
+/// Generate a message on the output stream associated with the source given.
+///
+/// \param  msg     Message to output
+/// \param  src     Source of the input command that generated this message
+
+void SerialCommand::EmitMessage(String const& msg, CommandSource src)
+{
+    switch (src) {
+        case CommandSource::Serial:
+            Serial.print(msg);
+            break;
+        case CommandSource::Bluetooth:
+            if (m_ble->IsConnected())
+                m_ble->WriteString(msg);
+            break;
+        case CommandSource::Wireless:
+            m_wifi->Client().print(msg);
+            break;
+        default:
+            Serial.println("ERR: command source not recognised.");
+            break;
     }
 }

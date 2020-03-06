@@ -254,15 +254,25 @@ String Manager::MakeLogName(uint32_t log_num)
     return filename;
 }
 
-void Manager::DumpConsoleLog(void)
+void Manager::DumpConsoleLog(Stream& output)
 {
     m_consoleLog.close();
     m_consoleLog = SD.open("console.log", FILE_READ);
     while (m_consoleLog.available()) {
-        Serial.print(m_consoleLog.read());
+        output.write(m_consoleLog.read());
     }
     m_consoleLog.close();
     m_consoleLog = SD.open("console.log", FILE_APPEND);
+}
+
+void Manager::TransferLogFile(int file_num, Stream& output)
+{
+    String filename(MakeLogName(file_num));
+    SDFile f = SD.open(filename, FILE_READ);
+    while (f.available()) {
+        output.write(f.read());
+    }
+    f.close();
 }
 
 }

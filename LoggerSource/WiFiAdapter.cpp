@@ -161,6 +161,11 @@ private:
         }
         return value;
     }
+    
+    Stream& get_client_stream(void)
+    {
+        return m_client;
+    }
 };
 
 #endif
@@ -176,6 +181,7 @@ void WiFiAdapter::SetSSID(String const& ssid) { return set_ssid(ssid); }
 String WiFiAdapter::GetPassword(void) { return get_password(); }
 void WiFiAdapter::SetPassword(String const& password) { set_password(password); }
 String WiFiAdapter::GetServerAddress(void) { return get_address(); }
+Stream& WiFiAdapter::Client(void) { return get_client_stream(); }
 
 WiFiAdapter *WiFiAdapterFactory::Create(void)
 {

@@ -35,6 +35,8 @@ public:
     void SetPassword(String const& password);
     String GetServerAddress(void);
     
+    Stream& Client(void);
+    
 private:
     virtual bool start(void) = 0;
     virtual void stop(void) = 0;
@@ -51,6 +53,8 @@ private:
     virtual String get_password(void) = 0;
     virtual void set_address(IPAddress const& address) = 0;
     virtual String get_address(void) = 0;
+    
+    virtual Stream& get_client_stream(void) = 0;
 };
 
 /// \class WiFiAdapterFactory
