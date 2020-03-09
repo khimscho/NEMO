@@ -202,7 +202,7 @@ public:
     : m_started(false), m_paramStore(nullptr), m_server(NULL), m_service(NULL),
       m_txCharacteristic(NULL), m_rxCallbacks(NULL)
     {
-        if ((m_paramStore = ParamStoreFactory.Create()) == nullptr) {
+        if ((m_paramStore = ParamStoreFactory::Create()) == nullptr) {
             Serial.println("ERR: failed to start parameter store object.");
             return;
         }

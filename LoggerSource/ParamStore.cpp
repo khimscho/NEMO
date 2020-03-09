@@ -145,7 +145,7 @@ bool ParamStore::GetKey(String const& key, String& value)
     return get_key(key, value);
 }
 
-ParamStoreFactory::Create(void)
+ParamStore *ParamStoreFactory::Create(void)
 {
     ParamStore *obj;
     

@@ -49,9 +49,9 @@ public:
     /// \brief Identify the source of the command being processed
     
     enum CommandSource {
-        Serial,     ///< The USB serial connection to a monitoring computer
-        Bluetooth,  ///< Bluetooth LE connection from a mobile client
-        Wireless    ///< WiFi socket from a client
+        SerialPort,     ///< The USB serial connection to a monitoring computer
+        BluetoothPort,  ///< Bluetooth LE connection from a mobile client
+        WirelessPort    ///< WiFi socket from a client
     };
     
 private:

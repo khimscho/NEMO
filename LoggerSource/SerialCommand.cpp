@@ -28,8 +28,8 @@ SerialCommand::SerialCommand(nmea::N2000::Logger *CANLogger, nmea::N0183::Logger
                              logger::Manager *logManager, StatusLED *led)
 : m_CANLogger(CANLogger), m_serialLogger(serialLogger), m_logManager(logManager), m_led(led)
 {
-    m_ble = BluetoothFactory.Create();
-    m_wifi = WiFiFactory.Create();
+    m_ble = BluetoothFactory::Create();
+    m_wifi = WiFiAdapterFactory::Create();
 }
 
 /// Default destructor for the SerialCommand object.  This deallocates the BLE service object,
@@ -66,13 +66,13 @@ void SerialCommand::ReportConsoleLog(CommandSource src)
     m_logManager->Console().seek(pos); // Default is SEEK_SET
 */
     switch (src) {
-        case CommandSource::Serial:
+        case CommandSource::SerialPort:
             m_logManager->DumpConsoleLog(Serial);
             break;
-        case CommandSource::Blueooth:
+        case CommandSource::BluetoothPort:
             Serial.println("ERR: cannot output console log on BLE.");
             break;
-        case CommandSource::Wireless:
+        case CommandSource::WirelessPort:
             m_logManager->DumpConsoleLog(m_wifi->Client());
             break;
         default:
@@ -111,8 +111,8 @@ void SerialCommand::ReportLogfileSizes(CommandSource src)
 
 void SerialCommand::ReportSoftwareVersion(CommandSource src)
 {
-    EmitMessage(String("NMEA2000: ") + m_CANLogger->SoftwareVersion() + "\n");
-    EmitMessage(String("NMEA0183: ") + m_serialLogger->SoftwareVersion() + "\n");
+    EmitMessage(String("NMEA2000: ") + m_CANLogger->SoftwareVersion() + String("\n"), src);
+    EmitMessage(String("NMEA0183: ") + m_serialLogger->SoftwareVersion() + String("\n"), src);
 }
 
 /// Erase one, or all, of the log files currently on the SD card.  If the string is "all", all
@@ -129,11 +129,11 @@ void SerialCommand::EraseLogfile(String const& filenum, CommandSource src)
     if (filenum == "all") {
         EmitMessage("Erasing all log files ...", src);
         m_logManager->RemoveAllLogfiles();
-        EmitMessage("All log files erased.");
+        EmitMessage("All log files erased.", src);
     } else {
         long file_num;
         file_num = filenum.toInt();
-        EmitMessage(String("Erasing log file ") + file_num + "\n", src);
+        EmitMessage(String("Erasing log file ") + file_num + String("\n"), src);
         if (m_logManager->RemoveLogFile(file_num)) {
             String msg = String("Log file ") + file_num + String(" erased.\n");
             EmitMessage(msg, src);
@@ -175,7 +175,7 @@ void SerialCommand::ModifyLEDState(String const& command)
 
 void SerialCommand::ReportIdentificationString(CommandSource src)
 {
-    if (src == CommandSource::Serial) EmitMessage("Module identification string: ", src);
+    if (src == CommandSource::SerialPort) EmitMessage("Module identification string: ", src);
     EmitMessage(m_ble->LoggerIdentifier() + "\n", src);
 }
 
@@ -254,7 +254,7 @@ void SerialCommand::SetWiFiSSID(String const& ssid)
 void SerialCommand::GetWiFiSSID(CommandSource src)
 {
     String ssid = m_wifi->GetSSID();
-    if (src != CommandSource::Bluetooth) EmitMessage("WiFi SSID: ", src);
+    if (src != CommandSource::BluetoothPort) EmitMessage("WiFi SSID: ", src);
     EmitMessage(ssid, src);
 }
 
@@ -275,7 +275,7 @@ void SerialCommand::SetWiFiPassword(String const& password)
 void SerialCommand::GetWiFiPassword(CommandSource src)
 {
     String password = m_wifi->GetPassword();
-    if (src != CommandSource::Bluetooth) EmitMessage("WiFi Password: ", src);
+    if (src != CommandSource::BluetoothPort) EmitMessage("WiFi Password: ", src);
     EmitMessage(password, src);
 }
 
@@ -288,18 +288,15 @@ void SerialCommand::ManageWireless(String const& command, CommandSource src)
 {
     if (command == "on") {
         if (m_wifi->Startup()) {
-            if (src != CommandSource::Bluetooth)
+            if (src != CommandSource::BluetoothPort)
                 EmitMessage("WiFi started on ", src);
             EmitMessage(m_wifi->GetServerAddress(), src);
         } else {
             EmitMessage("ERR: WiFi startup failed.", src);
         }
     } else if (command == "off") {
-        if (m_wifi->Shutdown()) {
-            EmitMessage("WiFi stopped.", src);
-        } else {
-            EmitMessage("ERR: WiFi shutdown failed.", src);
-        }
+        m_wifi->Shutdown();
+        EmitMessage("WiFi stopped.", src);
     } else {
         Serial.println("ERR: wireless management command not recognised.");
     }
@@ -316,13 +313,13 @@ void SerialCommand::TransferLogFile(String const& filenum, CommandSource src)
 {
     int file_number = filenum.toInt();
     switch (src) {
-        case CommandSource::Serial:
+        case CommandSource::SerialPort:
             m_logManager->TransferLogFile(file_number, Serial);
             break;
-        case CommandSource::Bluetooth:
+        case CommandSource::BluetoothPort:
             EmitMessage("ERR: not available.\n", src);
             break;
-        case CommandSource::Wireless:
+        case CommandSource::WirelessPort:
             m_logManager->TransferLogFile(file_number, m_wifi->Client());
             break;
         default:
@@ -402,7 +399,7 @@ void SerialCommand::ProcessCommand(void)
         Serial.print(cmd);
         Serial.println("\"");
 
-        Execute(cmd, CommandSource::Serial);
+        Execute(cmd, CommandSource::SerialPort);
     }
     if (m_ble->IsConnected() && m_ble->DataAvailable()) {
         String cmd = m_ble->ReceivedString();
@@ -411,7 +408,7 @@ void SerialCommand::ProcessCommand(void)
         Serial.print(cmd);
         Serial.println("\"");
 
-        Execute(cmd, CommandSource::Bluetooth);
+        Execute(cmd, CommandSource::BluetoothPort);
     }
     if (m_wifi->IsConnected() && m_wifi->DataAvailable()) {
         String cmd = m_wifi->ReceivedString();
@@ -420,7 +417,7 @@ void SerialCommand::ProcessCommand(void)
         Serial.print(cmd);
         Serial.println("\n");
         
-        Execute(cmd, CommandSource::Wireless);
+        Execute(cmd, CommandSource::WirelessPort);
     }
 }
 
@@ -432,14 +429,14 @@ void SerialCommand::ProcessCommand(void)
 void SerialCommand::EmitMessage(String const& msg, CommandSource src)
 {
     switch (src) {
-        case CommandSource::Serial:
+        case CommandSource::SerialPort:
             Serial.print(msg);
             break;
-        case CommandSource::Bluetooth:
+        case CommandSource::BluetoothPort:
             if (m_ble->IsConnected())
                 m_ble->WriteString(msg);
             break;
-        case CommandSource::Wireless:
+        case CommandSource::WirelessPort:
             m_wifi->Client().print(msg);
             break;
         default:

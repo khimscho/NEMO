@@ -11,6 +11,7 @@
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <WiFIAP.h>
+#include <SD.h>
 
 #include "WiFiAdapter.h"
 #include "ParamStore.h"
@@ -27,7 +28,7 @@ public:
     ESP32WiFiAdapter(void)
     : m_paramStore(nullptr), m_server(nullptr)
     {
-        if ((m_paramStore = ParamStoreFactory.Create()) == nullptr) {
+        if ((m_paramStore = ParamStoreFactory::Create()) == nullptr) {
             return;
         }
     }
@@ -48,9 +49,9 @@ private:
             Serial.println("ERR: failed to start WiFi server.");
             return false;
         }
-        WiFi.softAP(get_ssid(), get_password());
+        WiFi.softAP(get_ssid().c_str(), get_password().c_str());
         IPAddress server_address = WiFi.softAPIP();
-        set_address(server_address.toString());
+        set_address(server_address);
         m_server->begin();
     }
     void stop(void)
@@ -148,7 +149,7 @@ private:
     }
     void set_address(IPAddress const& address)
     {
-        if (!m_paramStore->SetKey("ipaddress", address)) {
+        if (!m_paramStore->SetKey("ipaddress", address.toString())) {
             Serial.println("ERR: failed to set WiFI IP address on module.");
         }
     }
@@ -171,11 +172,11 @@ private:
 #endif
 
 bool WiFiAdapter::Startup(void) { return start(); }
-void WiFiAdapter::Stop(void) { stop(); }
+void WiFiAdapter::Shutdown(void) { stop(); }
 bool WiFiAdapter::IsConnected(void) { return IsConnected(); }
 bool WiFiAdapter::DataAvailable(void) { return dataCount() > 0; }
 String WiFiAdapter::ReceivedString(void) { return readBuffer(); }
-bool WiFiAdapter::TransferFile(String const& fileaname) { return sendLogFile(filename); }
+bool WiFiAdapter::TransferFile(String const& filename) { return sendLogFile(filename); }
 String WiFiAdapter::GetSSID(void) { return get_ssid(); }
 void WiFiAdapter::SetSSID(String const& ssid) { return set_ssid(ssid); }
 String WiFiAdapter::GetPassword(void) { return get_password(); }
