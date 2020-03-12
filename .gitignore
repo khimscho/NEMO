@@ -1,3 +1,4 @@
+# Specific files and directories for this project that we should be ignoring
 DataParser/.idea
 ArduinoSupport
 ExampleData
@@ -5,4 +6,34 @@ systemdoc
 Documents
 *.b\#*
 *.s\#*
+DataParser/__pycache__
 
+# Below are standard files for macOS development with XCode 11 that we should be ignoring
+# See https://thoughtbot.com/blog/xcode-and-git-bridging-the-gap
+
+# OS X Finder
+.DS_Store
+
+# XCode per-user config
+*.mode1
+*.mode1v3
+*.mode2v3
+*.perspective
+*.perspectivev3
+*.pbxuser
+*.xcworkspace
+xcuserdata
+xcshareddata
+
+# Build products
+build/
+*.o
+*.LinkFileList
+*.hmap
+
+# Automatic backup files
+*~.nib/
+*.swp
+*~
+*.dat
+*.dep

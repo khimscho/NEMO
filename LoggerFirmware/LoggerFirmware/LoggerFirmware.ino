@@ -1,14 +1,89 @@
+///
+/// @mainpage	LoggerFirmware
+///
+/// @details	ESP32-based data logger for Seabed 2030
+/// @n
+/// @n
+/// @n @a		Developed with [embedXcode+](https://embedXcode.weebly.com)
+///
+/// @author		Brian Calder
+/// @author		CCOM/JHC
+/// @date		2020-03-09 18:19
+/// @version	1.0.0
+///
+/// @copyright	(c) University of New Hampshire, Center for Coastal and Ocean Mapping, 2020
+/// @copyright	All rights reserved
+///
+/// @see		ReadMe.txt for references
+///
+
+
+///
+/// @file		LoggerFirmware.ino
+/// @brief		Main sketch
+///
+/// @n @a		Developed with [embedXcode+](https://embedXcode.weebly.com)
+///
+/// @author		Brian Calder
+/// @author		CCOM/JHC
+/// @date		2020-03-09 18:19
+/// @version	1.0.0
+///
+/// @copyright	(c) University of New Hampshire, Center for Coastal and Ocean Mapping, 2020
+/// @copyright	All rights reserved
+///
+/// @see		ReadMe.txt for references
+/// @n
+///
+
 /*!\file nmea2000_logger.ino
- * \brief Arduino sketch for the NMEA2000 depth/position logger with network time
- * 
- * This provides the Ardunio-style interface to a NMEA2000 network data logger that's
- * suitable for recording data for Volunteer Geographic Information collection at sea
- * (in keeping with IHO Crowdsourced Bathymetry Working Group recommendations as defined
- * in IHO publication B-12).
- * 
- * Copyright 2019, University of New Hampshire, Center for Coastal and Ocean Mapping.
- * All Rights Reserved.
- */
+* \brief Arduino sketch for the NMEA2000 depth/position logger with network time
+*
+* This provides the Ardunio-style interface to a NMEA2000 network data logger that's
+* suitable for recording data for Volunteer Geographic Information collection at sea
+* (in keeping with IHO Crowdsourced Bathymetry Working Group recommendations as defined
+* in IHO publication B-12).
+*
+* Copyright 2019, University of New Hampshire, Center for Coastal and Ocean Mapping.
+* All Rights Reserved.
+*/
+
+// Core library for code-sense - IDE-based
+// !!! Help: http://bit.ly/2AdU7cu
+#if defined(WIRING) // Wiring specific
+#include "Wiring.h"
+#elif defined(MAPLE_IDE) // Maple specific
+#include "WProgram.h"
+#elif defined(ROBOTIS) // Robotis specific
+#include "libpandora_types.h"
+#include "pandora.h"
+#elif defined(MPIDE) // chipKIT specific
+#include "WProgram.h"
+#elif defined(DIGISPARK) // Digispark specific
+#include "Arduino.h"
+#elif defined(ENERGIA) // LaunchPad specific
+#include "Energia.h"
+#elif defined(LITTLEROBOTFRIENDS) // LittleRobotFriends specific
+#include "LRF.h"
+#elif defined(MICRODUINO) // Microduino specific
+#include "Arduino.h"
+#elif defined(TEENSYDUINO) // Teensy specific
+#include "Arduino.h"
+#elif defined(REDBEARLAB) // RedBearLab specific
+#include "Arduino.h"
+#elif defined(RFDUINO) // RFduino specific
+#include "Arduino.h"
+#elif defined(SPARK) || defined(PARTICLE) // Particle / Spark specific
+#include "application.h"
+#elif defined(ESP8266) // ESP8266 specific
+#include "Arduino.h"
+#elif defined(ARDUINO) // Arduino 1.0 and 1.5 specific
+#include "Arduino.h"
+#else // error
+#error Platform not defined
+#endif // end IDE
+
+// Set parameters
 
 #include <SD.h>
 #include <NMEA2000_CAN.h> /* This auto-generates the NMEA2000 global for bus control */
@@ -46,7 +121,7 @@ const unsigned long ReceiveMessages[] PROGMEM =
 nmea::N2000::Logger *N2000Logger = nullptr;     ///< Pointer for NMEA2000 CANbus logger object
 nmea::N0183::Logger *N0183Logger = nullptr;     ///< Pointer for serial NMEA data logger object
 logger::Manager     *logManager = nullptr;      ///< SD log file manager object
-StatusLED           *LEDs = nullptr;			///< Pointer to the status LED manager object
+StatusLED           *LEDs = nullptr;            ///< Pointer to the status LED manager object
 SerialCommand       *CommandProcessor = nullptr;///< Pointer for the command processor object
 
 /// \brief Primary setup code for the logger
