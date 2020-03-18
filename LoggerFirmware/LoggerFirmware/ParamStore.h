@@ -28,7 +28,9 @@ public:
     bool GetKey(String const& key, String& value);
     
 private:
+    /// \brief Sub-class implementation of the mechanics to set a key to a value.
     virtual bool set_key(String const& key, String const& value) = 0;
+    /// \brief Sub-class implementation of the mecahnics to get a value for a key.
     virtual bool get_key(String const& key, String& value) = 0;
 };
 
@@ -37,6 +39,7 @@ private:
 
 class ParamStoreFactory {
 public:
+    /// \brief Create an implementation of a ParamStore appropriate for the current hardware.
     static ParamStore *Create(void);
 };
 

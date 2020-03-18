@@ -21,7 +21,7 @@ namespace N0183 {
 /// \class Sentence
 /// \brief Assemble a NMEA0183 sentence from character input on serial line
 ///
-/// A standard NMEA0183 sentence begins with "$" and ends with <CR><LF>, including a checksum
+/// A standard NMEA0183 sentence begins with "$" and ends with [CR][LF], including a checksum
 /// at the end.  This structure allows this information to be accumulated as the characters arrive on the
 /// input serial stream (by definition RS-422), and buffers the sentences until the user can read them.  A
 /// timestamp is generated for the first "$" in each string, and stored with the string.

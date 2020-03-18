@@ -147,6 +147,7 @@ String Timestamp::TimeDatum::printable(void) const
 /// the base class (with the pointer to the NMEA2000 source handler).
 ///
 /// \param source   Pointer to the NMEA2000 object handling the CAN bus interface.
+/// \param output   Log manager that handles the details of where the log files live, and work
 
 Logger::Logger(tNMEA2000 *source, logger::Manager *output)
 : tNMEA2000::tMsgHandler(0, source), m_verbose(false), m_logManager(output)

@@ -20,6 +20,11 @@
 /// \brief Implement a key-value pair object in flash storage on the SPIFFS module in the ESP32
 class SPIFSParamStore : public ParamStore {
 public:
+    /// Default constructor for the sub-class, which brings up the SPIFFS system, which causes the
+    /// file-system part of the flash memory to be formatted if it hasn't been already.  This may take a
+    /// little extra time when this is first called.  Since this is likely to be when the system is brought up
+    /// in manufacturing, it shouldn't be too much of a problem.
+    
     SPIFSParamStore(void)
     {
         if (!SPIFFS.begin(true)) {
@@ -28,11 +33,21 @@ public:
             Serial.println("ERR: SPIFFS mount failed.");
         }
     }
+    
+    /// Empty default destructor to allow for sub-classing if required.
+    
     virtual ~SPIFSParamStore(void)
     {
-        
     }
+    
 private:
+    /// Set a key-value pair by constructing a file with the name of the key in the SPIFFS file-system
+    /// space, and writing the value into it.
+    ///
+    /// \param key      Recognition name for the value to store.
+    /// \param value    Data to write for the key.
+    /// \return True if the file was created and written successfully, otherwise false.
+    
     bool set_key(String const& key, String const& value)
     {
         File f = SPIFFS.open(key, FILE_WRITE);
@@ -44,6 +59,14 @@ private:
         f.close();
         return true;
     }
+    
+    /// Get the value of a key-value pair by looking for the file corresponding to the key name in the
+    /// SPIFFS file-system, and reading the contents.
+    ///
+    /// \param key  Recognition name for the value to retrieve
+    /// \param value    Reference for where to store the value retrieved.
+    /// \return True if the value was successfully retrieved, otherwise false.
+    
     bool get_key(String const& key, String& value)
     {
         File f = SPIFFS.open(key, FILE_READ);
@@ -68,18 +91,30 @@ private:
 /// \brief Implement a key-value pair object in the Adafruit BLE module NVM
 class BLEParamStore : public ParamStore {
 public:
+    /// Default constructor for storage of key-value parameters in the BLE module NVM.
+    /// This doesn't have anything to do, since it is assumed that the BLE module will already
+    /// have been instantiated before this call is made.
+    
     BLEParamStore(void)
     {
-        
     }
+    
+    /// Empty default destructor to allow for sub-classing if required.
+    
     virtual ~BLEParamStore(void)
     {
-        
     }
+    
 private:
-    /// Maximum length of any string written to the NVM memory on the module
-    const int max_nvm_string_length = 28;
+    const int max_nvm_string_length = 28; ///< Maximum length of any string written to the NVM memory on the module
 
+    /// Match a known-string key-name with the placement location in memory for the value
+    /// associated.  This recognises a limited number of key names, but the string has to be
+    /// exact: no partial matching is done.
+    ///
+    /// \param key  Name to convert to a number
+    /// \return Placement location for the key, or -1 if the key name is not recognised.
+    
     int match_key(String const& key)
     {
         int value = -1;
@@ -95,6 +130,14 @@ private:
             value = 4;
         return value;
     }
+    
+    /// Set a key-value pair in the BLE module NVRAM.  This attempts to match the key name in the list of known parameter
+    /// keys, and sets the value if possible.  Note that the \a max_nvm_string_length constant sets the maximum length for
+    /// any value to be set; anything over this limit is simply ignored.
+    ///
+    /// \param key  Name of the key to set
+    /// \param value    Value to set for the string name
+    /// \return True if the key was successfully set, otherwise false.
     
     bool set_key(String const& key, String const& value)
     {
@@ -114,6 +157,13 @@ private:
         return true;
     }
     
+    /// Retrieve the value associated with a given key from the BLE module NVRAM.  This attempts to match the key name
+    /// in the list of known parameter keys, and retrieves the value if possible.  Note that the value string is limited to a fixed
+    /// maximum length (set by the \a max_nvm_string_length) and therefore may not be what you set in some cases.
+    ///
+    /// \param key  Recognition name for the value to retrieve
+    /// \param value    Reference for where to store the value retrieved.
+    /// \return True if the value was retrieved correctly, otherwise false.
     bool get_key(String const& key, String& value)
     {
         int refnum = match_key(key);
@@ -135,15 +185,32 @@ private:
 
 #endif
 
+/// Base class call-through to the sub-class implementation to set the given key-value pair.
+///
+/// \param key  Name of the key to set
+/// \param value    Value to set for the string name
+/// \return True if the key was successfully set, otherwise false.
+
 bool ParamStore::SetKey(String const& key, String const& value)
 {
     return set_key(key, value);
 }
 
+/// Base class call-through to the sub-class implementation to get the given key-value pair.
+///
+/// \param key  Recognition name for the value to retrieve
+/// \param value    Reference for where to store the value retrieved.
+/// \return True if the value was retrieved correctly, otherwise false.
+
 bool ParamStore::GetKey(String const& key, String& value)
 {
     return get_key(key, value);
 }
+
+/// Factory method to generate the appropriate implementation of the ParamStore object for the
+/// current hardware module.  The sub-class is up-cast to the base object on return.
+///
+/// \return Up-cast pointer to the ParamStore implementation for the hardware.
 
 ParamStore *ParamStoreFactory::Create(void)
 {

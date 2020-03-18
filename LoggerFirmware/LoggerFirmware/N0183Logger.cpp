@@ -64,8 +64,6 @@ String Sentence::Token(void) const
 }
 
 /// Start the message assembler in the "searching" state, with a blank sentence and empty FIFO.
-///
-/// \param fifo Buffer to use to store completed message strings
 
 MessageAssembler::MessageAssembler(void)
 : m_state(STATE_SEARCHING), m_readPoint(0), m_writePoint(0), m_channel(-1), m_debugAssembly(false)
