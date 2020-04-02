@@ -136,9 +136,9 @@ void GeneratePosition(unsigned long now)
     double minutes;
     int hemisphere;
     format_angle(current_latitude, &degrees, &minutes, &hemisphere);
-    pos += sprintf(msg + pos, "%02d%09.6lf%c,", degrees, minutes, hemisphere == 1 ? 'N' : 'S');
+    pos += sprintf(msg + pos, "%02d%09.6lf,%c,", degrees, minutes, hemisphere == 1 ? 'N' : 'S');
     format_angle(current_longitude, &degrees, &minutes, &hemisphere);
-    pos += sprintf(msg + pos, "%03d%09.6lf%c,", degrees, minutes, hemisphere == 1 ? 'E' : 'W');
+    pos += sprintf(msg + pos, "%03d%09.6lf,%c,", degrees, minutes, hemisphere == 1 ? 'E' : 'W');
     pos += sprintf(msg + pos, "3,12,1.0,-19.5,M,22.5,M,0.0,0000*");
     int chksum = compute_checksum(msg);
     sprintf(msg + pos, "%02X\r\n", chksum);

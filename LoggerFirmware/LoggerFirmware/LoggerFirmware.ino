@@ -36,7 +36,7 @@
 /// @n
 ///
 
-/*!\file nmea2000_logger.ino
+/*!\file LoggerFirmware.ino
 * \brief Arduino sketch for the NMEA2000 depth/position logger with network time
 *
 * This provides the Ardunio-style interface to a NMEA2000 network data logger that's
