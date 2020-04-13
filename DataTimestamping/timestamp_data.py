@@ -139,8 +139,8 @@ while source.has_more():
                     if use_zda:
                         timestamp = pkt.elapsed
                         reftime = dt.datetime.combine(msg.datestamp, msg.timestamp)
-                        time_table_t = timestamp
-                        time_table_reftime = reftime.timestamp()
+                        time_table_t.append(timestamp)
+                        time_table_reftime.append(reftime.timestamp())
                 if isinstance(msg, nmea.GGA):
                     # Convert all of the elements first to make sure we have valid conversion
                     timestamp = pkt.elapsed
