@@ -7,6 +7,8 @@ Documents
 *.b\#*
 *.s\#*
 DataParser/__pycache__
+LoggerFirmware/LoggerFirmware/html
+LoggerFirmware/LoggerFirmware/latex
 
 # Below are standard files for macOS development with XCode 11 that we should be ignoring
 # See https://thoughtbot.com/blog/xcode-and-git-bridging-the-gap
@@ -25,6 +27,9 @@ DataParser/__pycache__
 xcuserdata
 xcshareddata
 
+# Python IDE files
+.idea
+
 # Build products
 build/
 *.o
@@ -37,3 +42,5 @@ build/
 *~
 *.dat
 *.dep
+AWS/AWS-invite.eml
+AWS/Repo-information.eml
