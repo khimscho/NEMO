@@ -12,6 +12,7 @@
 #ifndef __NMEA0183_SIMULATOR_H__
 #define __NMEA0183_SIMULATOR_H__
 
+void GenerateZDA(unsigned long now);
 void GenerateDepth(unsigned long now);
 void GeneratePosition(unsigned long now);
 

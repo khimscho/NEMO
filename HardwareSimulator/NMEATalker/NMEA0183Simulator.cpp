@@ -19,12 +19,16 @@ float gset;
  
 unsigned long target_depth_time = 0;
 unsigned long target_position_time = 0;
-unsigned long last_position_time = 0;
+unsigned long target_zda_time = 0;
+//unsigned long last_position_time = 0;
+unsigned long last_zda_time = 0;
 
 double current_depth = 10.0;            /* Depth in metres */
 double measurement_uncertainty = 0.06;  /* Depth sounder measurement uncertainty, std. dev. */
 double depth_random_walk = 0.02;        /* Standard deviation, metres change in one second */
 
+int current_year = 2020;        /* Current year for the simulation */
+int current_day_of_year = 0;    /* Current day of the year (a.k.a. Julian Day) for the simulation */
 int current_hours = 0;        /* Current time of day, hours past midnight */
 int current_minutes = 0;      /* Current time of day, minutes past the hour */
 double current_seconds = 0.0; /* Current time of day, seconds past the minute */
@@ -63,7 +67,7 @@ double unit_normal(void)
 int compute_checksum(const char *msg)
 {
     int chk = 0;
-    int len = strlen(msg);
+    int len = (int)strlen(msg);
     for (int i = 1; i < len-1; ++i) {
         chk ^= msg[i];
     }
@@ -117,19 +121,6 @@ void GeneratePosition(unsigned long now)
         last_latitude_reversal = now;
     }
 
-    unsigned int delta = now - last_position_time;
-    current_seconds += delta/1000.0;
-    if (current_seconds >= 60.0) {
-        current_minutes++;
-        current_seconds -= 60.0;
-        if (current_minutes >= 60) {
-            current_hours++;
-            current_minutes = 0;
-            if (current_hours >= 24)
-                current_hours = 0;
-        }
-    }
-
     char msg[255];
     int pos = sprintf(msg, "$GPGGA,%02d%02d%06.3f,", current_hours, current_minutes, current_seconds);
     int degrees;
@@ -145,8 +136,89 @@ void GeneratePosition(unsigned long now)
 
     String txt = "Sending GGA: ";
     Serial.print(txt + msg);
-    last_position_time = millis();
     Serial2.print(msg);
     
     target_position_time = now + 1000;
+}
+
+void ToDayMonth(int year, int year_day, int& month, int& day)
+{
+    unsigned     leap;
+    static unsigned months[12] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+    
+    /* Determine whether this is a leap year.  Leap years in the Gregorian
+     * calendar are years divisible by four, unless they are also a century
+     * year, except when the century is also divisible by 400.  Thus 1900 is
+     * not a leap year (although it is divisible by 4), but 2000 is, because
+     * it is divisible by 4 and 400).
+     */
+    if ((year%4) == 0) {
+            /* Potentially a leap year, check for century year */
+            if ((year%100) == 0) {
+                    /* Century year, check for 400 years */
+                    if ((year%400) == 0)
+                            leap = 1;
+                    else
+                            leap = 0;
+            } else
+                    leap = 1;
+    } else
+            leap = 0;
+    day = year_day + 1; // External is [0, 364], but we assume here [1, 365]
+    
+    months[1] += leap;      /* Correct February */
+    
+    /* Compute month by reducing days until we have less than the next months
+     * total number of days.
+     */
+    month = 0;
+    while (day > months[month]) {
+            day -= months[month];
+            ++month;
+    }
+    ++month; // External is [1, 12] but here it's [0, 11]
+    
+    months[1] -= leap;      /* Uncorrect February */
+}
+
+void GenerateZDA(unsigned long now)
+{
+    if (now < target_zda_time) return;
+    
+    unsigned long delta = now - last_zda_time;
+    current_seconds += delta/1000.0;
+    if (current_seconds >= 60.0) {
+        current_minutes++;
+        current_seconds -= 60.0;
+        if (current_minutes >= 60) {
+            current_hours++;
+            current_minutes = 0;
+            if (current_hours >= 24) {
+                current_day_of_year++;
+                current_hours = 0;
+                if (current_day_of_year > 365) {
+                    current_year++;
+                    current_day_of_year = 0;
+                }
+            }
+        }
+    }
+    
+    char msg[255];
+    int day, month;
+    
+    // We track day-of-year (a.k.a. Julian Day), so we need to convert to day/month for output
+    ToDayMonth(current_year, current_day_of_year, month, day);
+    int pos = sprintf(msg, "$GPZDA,%02d%02d%06.3lf,%02d,%02d,%04d,00,00*",
+                      current_hours, current_minutes, current_seconds,
+                      day, month, current_year);
+    int chksum = compute_checksum(msg);
+    sprintf(msg + pos, "%02X\r\n", chksum);
+
+    String txt = "Sending ZDA: ";
+    Serial.print(txt + msg);
+    last_zda_time = millis();
+    Serial2.print(msg);
+    
+    target_zda_time = now + 1000;
 }

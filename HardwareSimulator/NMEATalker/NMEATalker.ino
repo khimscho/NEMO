@@ -93,6 +93,7 @@ void loop()
 {
     // Process NMEA0183 messages, if it's the right time
     unsigned long now = millis();
+    GenerateZDA(now);
     GenerateDepth(now);
     GeneratePosition(now);
 
