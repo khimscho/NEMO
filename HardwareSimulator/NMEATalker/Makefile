@@ -21,13 +21,22 @@
 # !!! Help: http://bit.ly/2hYLBDC
 # default = 0 = none
 #
+# ESP32 : common = [A] ArduinoOTA AsyncUDP AzureIoT [B] BLE 
+#   BluetoothSerial [D] DNSServer [E] EEPROM ESP32 ESPmDNS 
+#   [F] FFat FS [H] HTTPClient HTTPUpdate [N] NetBIOS 
+#   [P] Preferences [S] SD SD_MMC SPI SPIFFS SimpleBLE 
+#   [T] Ticker [U] Update [W] WebServer WiFi 
+#   WiFiClientSecure Wire 
+#
 APP_LIBS_LIST = 0
 
 # List user's libraries here
 # !!! Help: http://bit.ly/2AEscDx
 # default = 0 = none
 #
-USER_LIBS_LIST = 0
+# USER = [N] NMEA2000-master NMEA2000_esp32-master 
+#
+USER_LIBS_LIST = NMEA2000-master NMEA2000_esp32-master
 
 # List local libraries here
 # !!! Help: http://bit.ly/2juEP91
@@ -138,7 +147,7 @@ NO_SERIAL_CONSOLE = false
 # !!! Help: http://bit.ly/2AUEcgp
 # Uncomment and specify another speed
 #
-#SERIAL_BAUDRATE = 115200
+SERIAL_BAUDRATE = 115200
 
 # OPTIMISATION for the optimisation and debugger levels
 # !!! Help: http://bit.ly/2kheSLz
@@ -194,3 +203,4 @@ BUILDS_PATH       := $(BUILT_PRODUCTS_DIR)
 BUILDS_PATH_SPACE := $(BUILDS_PATH)
 
 include $(MAKEFILE_PATH)/Step1.mk
+

@@ -130,7 +130,7 @@ void SendN2kBattery() {
     SetN2kBatConf(N2kMsg,1,N2kDCbt_AGM,N2kDCES_Yes,N2kDCbnv_12v,N2kDCbc_LeadAcid,AhToCoulomb(410),95,1.26,97);
     delay(DelayBetweenSend); NMEA2000.SendMsg(N2kMsg);
     
-    SetN2kDCStatus(N2kMsg,1,1,N2kDCt_Alternator,86,91,1420,0.215);
+    SetN2kDCStatus(N2kMsg,1,1,N2kDCt_Alternator,86,91,1420,0.215,1.0);
     delay(DelayBetweenSend); NMEA2000.SendMsg(N2kMsg);
 
     NMEA2000.SendProductInformation();
