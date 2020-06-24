@@ -32,6 +32,9 @@ public:
             // formatted (which will cause it to initially fail).
             Serial.println("ERR: SPIFFS mount failed.");
         }
+        size_t filesystem_size = SPIFFS.totalBytes();
+        size_t used_size = SPIFFS.usedBytes();
+        Serial.println(String("INFO: SPI FFS total ") + filesystem_size + "B, used " + used_size + "B");
     }
     
     /// Empty default destructor to allow for sub-classing if required.
@@ -50,12 +53,12 @@ private:
     
     bool set_key(String const& key, String const& value)
     {
-        File f = SPIFFS.open(key, FILE_WRITE);
+        fs::File f = SPIFFS.open(String("/") + key + ".par", FILE_WRITE);
         if (!f) {
             Serial.println("ERR: failed to write key to filesystem.");
             return false;
         }
-        f.println(value);
+        f.print(value);
         f.close();
         return true;
     }
@@ -69,7 +72,7 @@ private:
     
     bool get_key(String const& key, String& value)
     {
-        File f = SPIFFS.open(key, FILE_READ);
+        fs::File f = SPIFFS.open(String("/") + key + ".par", FILE_READ);
         if (!f) {
             Serial.print("ERR: failed to find key \"");
             Serial.print(key);

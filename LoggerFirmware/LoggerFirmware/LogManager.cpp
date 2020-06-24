@@ -21,9 +21,9 @@ const int MAX_LOG_FILE_SIZE = 10*1024*1024; ///< Maximum size of a single log fi
 Manager::Manager(void)
 {
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
-    m_consoleLog = SD.open("console.log", FILE_APPEND);
+    m_consoleLog = SD.open("/console.log", FILE_APPEND);
 #else
-    m_consoleLog = SD.open("console.log", FILE_WRITE);
+    m_consoleLog = SD.open("/console.log", FILE_WRITE);
 #endif
     m_consoleLog.println("info: booted logger, appending to console log.");
     m_consoleLog.flush();
@@ -217,6 +217,7 @@ void Manager::Record(PacketIDs pktID, Serialisable const& data)
 
 uint32_t Manager::GetNextLogNumber(void)
 {
+ 
     if (!SD.exists("/logs")) {
         SD.mkdir("/logs");
     }
@@ -257,12 +258,12 @@ String Manager::MakeLogName(uint32_t log_num)
 void Manager::DumpConsoleLog(Stream& output)
 {
     m_consoleLog.close();
-    m_consoleLog = SD.open("console.log", FILE_READ);
+    m_consoleLog = SD.open("/console.log", FILE_READ);
     while (m_consoleLog.available()) {
         output.write(m_consoleLog.read());
     }
     m_consoleLog.close();
-    m_consoleLog = SD.open("console.log", FILE_APPEND);
+    m_consoleLog = SD.open("/console.log", FILE_APPEND);
 }
 
 void Manager::TransferLogFile(int file_num, Stream& output)

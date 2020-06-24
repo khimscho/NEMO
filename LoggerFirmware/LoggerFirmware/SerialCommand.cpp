@@ -51,23 +51,11 @@ SerialCommand::~SerialCommand()
 
 void SerialCommand::ReportConsoleLog(CommandSource src)
 {
-    Serial.println("*** Current console log file:");
-/*    Serial.println(String("*** Console log file size = ") + m_logManager->Console().size() + " B.");
-    size_t pos = m_logManager->Console().position();
-    m_logManager->Console().seek(0);
-    while (m_logManager->Console().available()) {
-        int r = m_logManager->Console().read();
-        Serial.write(r);
-        if (m_ble->IsConnected()) {
-            m_ble->WriteByte(r);
-            delay(5);
-        }
-    }
-    m_logManager->Console().seek(pos); // Default is SEEK_SET
-*/
     switch (src) {
         case CommandSource::SerialPort:
+            Serial.println("*** Current console log start.");
             m_logManager->DumpConsoleLog(Serial);
+            Serial.println("*** Current console log end.");
             break;
         case CommandSource::BluetoothPort:
             Serial.println("ERR: cannot output console log on BLE.");
@@ -79,7 +67,6 @@ void SerialCommand::ReportConsoleLog(CommandSource src)
             Serial.println("ERR: command source not recognised.");
             break;
     }
-    Serial.println("*** Current console log end.");
 }
 
 /// Report the sizes of all of the log files that exist in the /logs directory on
@@ -127,9 +114,9 @@ void SerialCommand::ReportSoftwareVersion(CommandSource src)
 void SerialCommand::EraseLogfile(String const& filenum, CommandSource src)
 {
     if (filenum == "all") {
-        EmitMessage("Erasing all log files ...", src);
+        EmitMessage("Erasing all log files ...\n", src);
         m_logManager->RemoveAllLogfiles();
-        EmitMessage("All log files erased.", src);
+        EmitMessage("All log files erased.\n", src);
     } else {
         long file_num;
         file_num = filenum.toInt();
@@ -255,7 +242,7 @@ void SerialCommand::GetWiFiSSID(CommandSource src)
 {
     String ssid = m_wifi->GetSSID();
     if (src != CommandSource::BluetoothPort) EmitMessage("WiFi SSID: ", src);
-    EmitMessage(ssid, src);
+    EmitMessage(ssid + "\n", src);
 }
 
 /// Specify the password to use for clients attempting to connect to the WiFi access
@@ -276,7 +263,7 @@ void SerialCommand::GetWiFiPassword(CommandSource src)
 {
     String password = m_wifi->GetPassword();
     if (src != CommandSource::BluetoothPort) EmitMessage("WiFi Password: ", src);
-    EmitMessage(password, src);
+    EmitMessage(password + "\n", src);
 }
 
 /// Turn the WiFi interface on and off, as required by the user
@@ -290,13 +277,13 @@ void SerialCommand::ManageWireless(String const& command, CommandSource src)
         if (m_wifi->Startup()) {
             if (src != CommandSource::BluetoothPort)
                 EmitMessage("WiFi started on ", src);
-            EmitMessage(m_wifi->GetServerAddress(), src);
+            EmitMessage(m_wifi->GetServerAddress() + "\n", src);
         } else {
-            EmitMessage("ERR: WiFi startup failed.", src);
+            EmitMessage("ERR: WiFi startup failed.\n", src);
         }
     } else if (command == "off") {
         m_wifi->Shutdown();
-        EmitMessage("WiFi stopped.", src);
+        EmitMessage("WiFi stopped.\n", src);
     } else {
         Serial.println("ERR: wireless management command not recognised.");
     }
@@ -394,8 +381,9 @@ void SerialCommand::ProcessCommand(void)
 {
     if (Serial.available() > 0) {
         String cmd = Serial.readStringUntil('\n');
+        cmd.trim();
         
-        Serial.print("Found command: \"");
+        Serial.print("Found console command: \"");
         Serial.print(cmd);
         Serial.println("\"");
 
@@ -403,6 +391,7 @@ void SerialCommand::ProcessCommand(void)
     }
     if (m_ble->IsConnected() && m_ble->DataAvailable()) {
         String cmd = m_ble->ReceivedString();
+        cmd.trim();
 
         Serial.print("Found BLE command: \"");
         Serial.print(cmd);
@@ -412,6 +401,7 @@ void SerialCommand::ProcessCommand(void)
     }
     if (m_wifi->IsConnected() && m_wifi->DataAvailable()) {
         String cmd = m_wifi->ReceivedString();
+        cmd.trim();
         
         Serial.print("Found WiFi command: \"");
         Serial.print(cmd);

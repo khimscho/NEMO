@@ -88,6 +88,9 @@ private:
     
     bool isConnected(void)
     {
+        if (m_server == nullptr)
+            return false;
+        
         if (!m_client) {
             m_client = m_server->available();
         }
@@ -280,7 +283,7 @@ void WiFiAdapter::Shutdown(void) { stop(); }
 /// Pass-through implementation to the sub-class code to check on whether a client is available.
 ///
 /// \return True if there is a client available for connection or already connected.
-bool WiFiAdapter::IsConnected(void) { return IsConnected(); }
+bool WiFiAdapter::IsConnected(void) { return isConnected(); }
 
 /// Pass-through implementation to the sub-class code to check for data availability from the client.
 /// This also implicitly demonstrates that there is a client connected.

@@ -133,61 +133,62 @@ SerialCommand       *CommandProcessor = nullptr;///< Pointer for the command pro
 
 void setup()
 {
-  Serial.begin(115200);
-  
-  Serial.println("Configuring logger manager ...");
-  logManager = new logger::Manager();
+    Serial.begin(115200);
 
-  Serial.println("Configuring NEMA2000 logger ...");
-  N2000Logger = new nmea::N2000::Logger(&NMEA2000, logManager);
-  
-  Serial.println("Configuring NMEA0183 logger (and configuring serial ports)...");
-  N0183Logger = new nmea::N0183::Logger(logManager);
+    Serial.println("Configuring LED indicators ...");
+    LEDs = new StatusLED();
+    
+    Serial.println("Setting up LED indicator for initialising ...");
+    LEDs->SetStatus(StatusLED::Status::sINITIALISING);
 
-  Serial.println("Configuring LED indicators ...");
-  LEDs = new StatusLED();
+    Serial.println("Initialising SD card interface ...");
 
-  Serial.println("Setting up LED indicators ...");
-  LEDs->SetStatus(StatusLED::Status::sINITIALISING);
-
-  Serial.println("Configuring command processor ...");
-  CommandProcessor = new SerialCommand(N2000Logger, N0183Logger, logManager, LEDs);
-
-  Serial.println("Initialising SD card interface ...");
-  
-  /* Set up the SD interface and make sure we have a card */
-  if (!SD.begin(sd_chip_select_pin)) {
-    // Card is not present, or didn't start ... that's a fatal error
-    LEDs->SetStatus(StatusLED::Status::sFATAL_ERROR);
-    while (1) {
-      LEDs->ProcessFlash(); /* Busy loop to make sure the LED flashes */
-      delay(100);
+    /* Set up the SD interface and make sure we have a card */
+    if (!SD.begin(sd_chip_select_pin)) {
+        // Card is not present, or didn't start ... that's a fatal error
+        LEDs->SetStatus(StatusLED::Status::sFATAL_ERROR);
+        while (1) {
+            LEDs->ProcessFlash(); /* Busy loop to make sure the LED flashes */
+            delay(100);
+        }
     }
-  }
-  LEDs->SetStatus(StatusLED::Status::sNORMAL);
 
-  Serial.println("Starting log manager interface to SD card ...");
-  logManager->StartNewLog();
+    Serial.println("Configuring logger manager ...");
+    logManager = new logger::Manager();
+
+    Serial.println("Configuring NEMA2000 logger ...");
+    N2000Logger = new nmea::N2000::Logger(&NMEA2000, logManager);
   
-  Serial.println("Starting NMEA2000 bus interface ...");
-  NMEA2000.SetProductInformation(GetSerialNumberString(),
+    Serial.println("Configuring NMEA0183 logger (and configuring serial ports)...");
+    N0183Logger = new nmea::N0183::Logger(logManager);
+
+    Serial.println("Configuring command processor ...");
+    CommandProcessor = new SerialCommand(N2000Logger, N0183Logger, logManager, LEDs);
+
+    Serial.println("Starting log manager interface to SD card ...");
+    logManager->StartNewLog();
+  
+    Serial.println("Starting NMEA2000 bus interface ...");
+    NMEA2000.SetProductInformation(GetSerialNumberString(),
                                 1,
                                 "Seabed 2030 NMEA2000 Logger",
                                 N2000Logger->SoftwareVersion().c_str(),
                                 LOGGER_HARDWARE_VERSION
                                 );
-  NMEA2000.SetDeviceInformation(GetSerialNumber(),
+    NMEA2000.SetDeviceInformation(GetSerialNumber(),
                                 130,  /* Device Function: PC gateway */
                                 25,   /* Device Class: Inter/Intranetwork Device */
                                 2046  /* */
                                 );
-  NMEA2000.SetMode(tNMEA2000::N2km_ListenAndNode, 25);
-  NMEA2000.EnableForward(false);
-  NMEA2000.ExtendTransmitMessages(TransmitMessages);
-  NMEA2000.ExtendReceiveMessages(ReceiveMessages);
-  NMEA2000.AttachMsgHandler(N2000Logger);
+    NMEA2000.SetMode(tNMEA2000::N2km_ListenAndNode, 25);
+    NMEA2000.EnableForward(false);
+    NMEA2000.ExtendTransmitMessages(TransmitMessages);
+    NMEA2000.ExtendReceiveMessages(ReceiveMessages);
+    NMEA2000.AttachMsgHandler(N2000Logger);
 
-  NMEA2000.Open();
+    NMEA2000.Open();
+    Serial.println("Setup complete, setting status for normal operations.");
+    LEDs->SetStatus(StatusLED::Status::sNORMAL);
 }
 
 /// \brief General processing loop code for the logger.
@@ -201,7 +202,14 @@ void setup()
 void loop()
 {
     NMEA2000.ParseMessages();
-    N0183Logger->ProcessMessages();
-    LEDs->ProcessFlash();
-    CommandProcessor->ProcessCommand();
+    
+    if (N0183Logger != nullptr) {
+        N0183Logger->ProcessMessages();
+    }
+    if (LEDs != nullptr) {
+        LEDs->ProcessFlash();
+    }
+    if (CommandProcessor != nullptr) {
+        CommandProcessor->ProcessCommand();
+    }
 }
