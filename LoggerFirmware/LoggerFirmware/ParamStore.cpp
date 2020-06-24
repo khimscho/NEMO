@@ -109,7 +109,7 @@ public:
     }
     
 private:
-    const int max_nvm_string_length = 28; ///< Maximum length of any string written to the NVM memory on the module
+    const int max_nvm_string_length = 31; ///< Maximum length of any string written to the NVM memory on the module
 
     /// Match a known-string key-name with the placement location in memory for the value
     /// associated.  This recognises a limited number of key names, but the string has to be
@@ -154,9 +154,10 @@ private:
             write_str = value;
         else
             write_str = value.substring(0, max_nvm_string_length);
-        int address = (sizeof(int) + max_nvm_string_length) * refnum;
-        ble.writeNVM(address, write_str.length());
-        ble.writeNVM(address + 4, (uint8_t const*)(write_str.c_str()), write_str.length());
+        uint16_t address = (sizeof(uint8_t) + max_nvm_string_length) * refnum;
+        uint8_t length = write_str.length();
+        ble.writeNVM(address, &length, 1);
+        ble.writeNVM(address + sizeof(uint8_t), (uint8_t const*)(write_str.c_str()), write_str.length());
         return true;
     }
     
@@ -174,11 +175,11 @@ private:
             Serial.println("ERR: key not known.");
             return false;
         }
-        int address = (sizeof(int) + max_nvm_string_length) * refnum;
-        int32_t length;
+        int address = (sizeof(uint8_t) + max_nvm_string_length) * refnum;
+        unt8_t length;
         uint8_t buffer[max_nvm_string_length + 1];
-        ble.readNVM(address, &length);
-        ble.readNVM(address + 4, buffer, length);
+        ble.readNVM(address, &length, 1);
+        ble.readNVM(address + sizeof(uint8_t), buffer, length);
         buffer[length] = '\0';
         
         value = String((const char*)buffer);
