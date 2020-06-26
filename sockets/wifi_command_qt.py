@@ -9,7 +9,7 @@ import time
 
 
 class CaptureReturn(QObject):
-    messageReady = pyqtSignal(list)
+    messageReady = pyqtSignal(str)
     def __init__(self):
         QObject.__init__(self)
 
@@ -45,8 +45,8 @@ class Window(QtWidgets.QMainWindow):
     def doCommand(self):
         cmd = self.lineEdit.text()
         self.lineEdit.setText("")
-        self.updateRecord("\n$ " + cmd)
-        server_sock.send(cmd)
+        self.updateRecord("\n$ " + cmd + "\n")
+        server_sock.send(cmd.encode("utf8"))
 
     def outputMessageReady(self, message):
         self.updateRecord(message)

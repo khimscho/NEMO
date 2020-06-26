@@ -24,7 +24,7 @@
       <property name="font">
        <font>
         <family>DejaVu Sans Mono</family>
-        <pointsize>10</pointsize>
+        <pointsize>12</pointsize>
        </font>
       </property>
      </widget>
