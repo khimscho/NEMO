@@ -405,7 +405,7 @@ void SerialCommand::ProcessCommand(void)
         
         Serial.print("Found WiFi command: \"");
         Serial.print(cmd);
-        Serial.println("\n");
+        Serial.println("\"");
         
         Execute(cmd, CommandSource::WirelessPort);
     }
