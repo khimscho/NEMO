@@ -272,11 +272,16 @@ void Manager::DumpConsoleLog(Stream& output)
 void Manager::TransferLogFile(int file_num, Stream& output)
 {
     String filename(MakeLogName(file_num));
+    Serial.println("Transferring file: " + filename);
     SDFile f = SD.open(filename, FILE_READ);
+    uint32_t bytes_transferred = 0;
+    
     while (f.available()) {
         output.write(f.read());
+        ++bytes_transferred;
     }
     f.close();
+    Serial.println(String("Sent ") + bytes_transferred + " B");
 }
 
 }
