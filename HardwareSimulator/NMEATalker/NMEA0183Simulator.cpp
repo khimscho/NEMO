@@ -74,7 +74,7 @@ int compute_checksum(const char *msg)
     return chk;
 }
 
-void GenerateDepth(unsigned long now)
+void GenerateDepth(unsigned long now, StatusLED *led)
 {
     if (now < target_depth_time) return;
     
@@ -92,6 +92,7 @@ void GenerateDepth(unsigned long now)
     String txt = "Sending SDDBT: ";
     Serial.print(txt + msg);
     Serial1.print(msg);
+    led->TriggerDataIndication();
     
     target_depth_time = now + 1000 + (int)(1000*(random(1000)/1000.0));
 }
@@ -109,7 +110,7 @@ void format_angle(double angle, int *d, double *m, int *hemi)
     *m = angle - *d;
 }
 
-void GeneratePosition(unsigned long now)
+void GeneratePosition(unsigned long now, StatusLED *led)
 {
     if (now < target_position_time) return;
     
@@ -137,6 +138,7 @@ void GeneratePosition(unsigned long now)
     String txt = "Sending GGA: ";
     Serial.print(txt + msg);
     Serial2.print(msg);
+    led->TriggerDataIndication();
     
     target_position_time = now + 1000;
 }
@@ -181,7 +183,7 @@ void ToDayMonth(int year, int year_day, int& month, int& day)
     months[1] -= leap;      /* Uncorrect February */
 }
 
-void GenerateZDA(unsigned long now)
+void GenerateZDA(unsigned long now, StatusLED *led)
 {
     if (now < target_zda_time) return;
     
@@ -219,6 +221,7 @@ void GenerateZDA(unsigned long now)
     Serial.print(txt + msg);
     last_zda_time = millis();
     Serial2.print(msg);
+    led->TriggerDataIndication();
     
     target_zda_time = now + 1000;
 }

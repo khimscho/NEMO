@@ -13,12 +13,14 @@
 #include <stdint.h>
 #include <utility>
 #include "LogManager.h"
+#include "StatusLED.h"
 
 namespace logger {
 
 const int MAX_LOG_FILE_SIZE = 10*1024*1024; ///< Maximum size of a single log file before swapping
 
-Manager::Manager(void)
+Manager::Manager(StatusLED *led)
+: m_led(led)
 {
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
     m_consoleLog = SD.open("/console.log", FILE_APPEND);
@@ -196,6 +198,7 @@ void Manager::EnumerateLogFile(int lognumber, String& filename, int& filesize)
 void Manager::Record(PacketIDs pktID, Serialisable const& data)
 {
     m_serialiser->Process((uint32_t)pktID, data);
+    m_led->TriggerDataIndication();
     if (m_outputLog.size() > MAX_LOG_FILE_SIZE) {
         m_consoleLog.println(String("INFO: Cycling to next log file after ") + m_outputLog.size() + " B to current log file.");
         m_consoleLog.flush();

@@ -41,7 +41,7 @@
 class StatusLED {
 public:
     /// \brief Default constructor for the LED manager
-    StatusLED(int red_ping = DEFAULT_RED_LED_PIN,
+    StatusLED(int red_pin = DEFAULT_RED_LED_PIN,
               int green_pin = DEFAULT_GREEN_LED_PIN,
               int blue_pin = DEFAULT_BLUE_LED_PIN);
     

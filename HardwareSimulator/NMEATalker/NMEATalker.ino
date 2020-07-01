@@ -75,6 +75,7 @@
 
 #include "NMEA0183Simulator.h"
 #include "NMEA2000Simulator.h"
+#include "StatusLED.h"
 
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
 const int rx1_pin = 13; ///< UART port 1 receive pin number (default for this system, not standard)
@@ -91,6 +92,8 @@ const int tx2_pin = 16; ///< UART port 2 transmit pin
 #error "No configuration recognised for serial inputs"
 #endif
 
+StatusLED *LEDs = nullptr;
+
 void setup()
 {
     // Interface at high speed on reporting serial port for debugging
@@ -106,16 +109,22 @@ void setup()
 #endif
     // Configure the CAN bus for NMEA2000, and start background processor
     SetupNMEA2000();
+    
+    LEDs = new StatusLED();
+    LEDs->SetStatus(StatusLED::Status::sNORMAL);
 }
 
 void loop()
 {
     // Process NMEA0183 messages, if it's the right time
     unsigned long now = millis();
-    GenerateZDA(now);
-    GenerateDepth(now);
-    GeneratePosition(now);
+    GenerateZDA(now, LEDs);
+    GenerateDepth(now, LEDs);
+    GeneratePosition(now, LEDs);
 
     // Process NMEA2000 messages, if it's the right time
     GenerateNMEA2000();
+    
+    // Check for flashing of LEDs
+    LEDs->ProcessFlash();
 }

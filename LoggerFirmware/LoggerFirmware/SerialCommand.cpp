@@ -148,6 +148,8 @@ void SerialCommand::ModifyLEDState(String const& command)
         m_led->SetStatus(StatusLED::Status::sINITIALISING);
     } else if (command == "full") {
         m_led->SetStatus(StatusLED::Status::sCARD_FULL);
+    } else if (command == "data") {
+        m_led->TriggerDataIndication();
     } else {
         Serial.println("ERR: LED status command not recognised.");
     }

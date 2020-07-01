@@ -154,7 +154,7 @@ void setup()
     }
 
     Serial.println("Configuring logger manager ...");
-    logManager = new logger::Manager();
+    logManager = new logger::Manager(LEDs);
 
     Serial.println("Configuring NEMA2000 logger ...");
     N2000Logger = new nmea::N2000::Logger(&NMEA2000, logManager);

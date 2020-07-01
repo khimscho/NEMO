@@ -16,6 +16,7 @@
 #include <Arduino.h>
 #include <SD.h>
 #include "serialisation.h"
+#include "StatusLED.h"
 
 namespace logger {
 
@@ -29,7 +30,7 @@ const int MaxLogFiles = 1000; ///< Maximum number of log files that we will crea
 
 class Manager {
 public:
-    Manager(void);
+    Manager(StatusLED *led);
     ~Manager(void);
     
     /// \brief Start a new log file, with the next available number
@@ -81,6 +82,7 @@ private:
     SDFile      m_consoleLog;       ///< File on which to write console information
     SDFile      m_outputLog;        ///< Current output log file on the SD card
     Serialiser  *m_serialiser;      ///< Object to handle serialisation of data
+    StatusLED   *m_led;             ///< Pointer for status (data event) handling
     
     /// \brief Find the next log number in sequence that doesn't already exist
     uint32_t GetNextLogNumber(void);

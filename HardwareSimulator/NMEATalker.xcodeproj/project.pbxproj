@@ -3801,6 +3801,8 @@
 		CF01D599248FE89200B85A2D /* NMEA0183Simulator.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = NMEA0183Simulator.cpp; sourceTree = "<group>"; };
 		CF01D59A248FE89200B85A2D /* NMEA2000Simulator.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = NMEA2000Simulator.cpp; sourceTree = "<group>"; };
 		CF01D59B248FE89200B85A2D /* NMEA0183Simulator.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NMEA0183Simulator.h; sourceTree = "<group>"; };
+		CF1AF58224AAADE300F71766 /* StatusLED.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = StatusLED.cpp; sourceTree = "<group>"; };
+		CF1AF58324AAADE300F71766 /* StatusLED.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = StatusLED.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -7977,6 +7979,8 @@
 		CF01D4D0248FE2EA00B85A2D /* NMEATalker */ = {
 			isa = PBXGroup;
 			children = (
+				CF1AF58224AAADE300F71766 /* StatusLED.cpp */,
+				CF1AF58324AAADE300F71766 /* StatusLED.h */,
 				CF01D4D1248FE2EA00B85A2D /* main.cpp */,
 				CF01D599248FE89200B85A2D /* NMEA0183Simulator.cpp */,
 				CF01D59B248FE89200B85A2D /* NMEA0183Simulator.h */,
