@@ -7,6 +7,10 @@ import socket
 import threading
 import time
 
+sys.path.append("../DataParser")
+
+import LoggerFile
+
 
 class CaptureReturn(QObject):
     messageReady = pyqtSignal(str)
@@ -81,25 +85,59 @@ class Window(QtWidgets.QMainWindow):
         cmd = self.lineEdit.text()
         self.lineEdit.setText("")
         self.updateRecord("$ " + cmd + "\n")
+        # We start by parsing any local commands (i.e., that only exist in the GUI), then attempt
+        # to parse out a command that's going to the logger.  The only intervention that is done is
+        # to intercept "transfer" commands so that we can synthesise a file name for the output, and
+        # set the transfer into binary mode so we don't spam the record with random binary data.
         if cmd.startswith("binary"):
-            mode = cmd.split(' ')[1]
-            if mode == "on":
-                set_transfer_mode(True)
-            else:
-                set_transfer_mode(False)
+            try:
+                mode = cmd.split(' ')[1]
+                if mode == "on":
+                    set_transfer_mode(True)
+                else:
+                    set_transfer_mode(False)
+            except:
+                buffer = "Failed\nSyntax: binary on|off\n"
+                updateRecord(buffer)
         else:
-            if cmd.startswith("transfer"):
-                set_transfer_mode(True)
-                file_number = cmd.split(' ')[1]
-                file_name = 'nmea2000.' + file_number
-                set_transfer_filename(file_name)
+            if cmd.startswith("translate"):
+                try:
+                    file_number = cmd.split(' ')[1]
+                    file_name = "nmea2000." + file_number
+                    translate_file(file_name)
+                except:
+                    buffer = "Failed\nSyntax: translate <file number>\n"
+                    updateRecord(buffer)
             else:
-                set_transfer_mode(False)
-            server_sock.send(cmd.encode("utf8"))
+                try:
+                    if cmd.startswith("transfer"):
+                        set_transfer_mode(True)
+                        file_number = cmd.split(' ')[1]
+                        file_name = 'nmea2000.' + file_number
+                        set_transfer_filename(file_name)
+                    else:
+                        set_transfer_mode(False)
+                    server_sock.send(cmd.encode("utf8"))
+                except:
+                    buffer = "Failed\nSyntax: transfer <file number>\n"
+                    updateRecord(buffer)
 
     @pyqtSlot(str)
     def outputMessageReady(self, message):
         self.updateRecord(message)
+        
+    def translate_file(self, filename):
+        file = open(filename, "rb")
+        packet_count = 0
+        source = LoggerFile.PacketFactory(file)
+        while source.has_more():
+            pkt = source.next_packet()
+            if pkt is not None:
+                buffer = str(pkt)
+                updateRecord(buffer)
+                packet_count += 1
+        buffer = "Found " + str(packet_count) + " packets total\n"
+        updateRecord(buffer)
 
     def updateRecord(self, message):
         self.textBrowser.setText(self.textBrowser.toPlainText() + message)
