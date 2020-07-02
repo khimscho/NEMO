@@ -275,6 +275,11 @@ void Manager::TransferLogFile(int file_num, Stream& output)
     Serial.println("Transferring file: " + filename);
     SDFile f = SD.open(filename, FILE_READ);
     uint32_t bytes_transferred = 0;
+    uint32_t file_size = f.size();
+    
+    // We need to send the file size first, so that the other end knows when to stop
+    // listening, and go back to ASCII mode.
+    output.write((const uint8_t*)&file_size, sizeof(uint32_t));
     
     while (f.available()) {
         output.write(f.read());
