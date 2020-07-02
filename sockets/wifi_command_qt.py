@@ -98,16 +98,16 @@ class Window(QtWidgets.QMainWindow):
                     set_transfer_mode(False)
             except:
                 buffer = "Failed\nSyntax: binary on|off\n"
-                updateRecord(buffer)
+                self.updateRecord(buffer)
         else:
             if cmd.startswith("translate"):
                 try:
                     file_number = cmd.split(' ')[1]
                     file_name = "nmea2000." + file_number
-                    translate_file(file_name)
+                    self.translateFile(file_name)
                 except:
                     buffer = "Failed\nSyntax: translate <file number>\n"
-                    updateRecord(buffer)
+                    self.updateRecord(buffer)
             else:
                 try:
                     if cmd.startswith("transfer"):
@@ -120,24 +120,24 @@ class Window(QtWidgets.QMainWindow):
                     server_sock.send(cmd.encode("utf8"))
                 except:
                     buffer = "Failed\nSyntax: transfer <file number>\n"
-                    updateRecord(buffer)
+                    self.updateRecord(buffer)
 
     @pyqtSlot(str)
     def outputMessageReady(self, message):
         self.updateRecord(message)
         
-    def translate_file(self, filename):
+    def translateFile(self, filename):
         file = open(filename, "rb")
         packet_count = 0
         source = LoggerFile.PacketFactory(file)
         while source.has_more():
             pkt = source.next_packet()
             if pkt is not None:
-                buffer = str(pkt)
-                updateRecord(buffer)
+                buffer = str(pkt) + "\n"
+                self.updateRecord(buffer)
                 packet_count += 1
         buffer = "Found " + str(packet_count) + " packets total\n"
-        updateRecord(buffer)
+        self.updateRecord(buffer)
 
     def updateRecord(self, message):
         self.textBrowser.setText(self.textBrowser.toPlainText() + message)
