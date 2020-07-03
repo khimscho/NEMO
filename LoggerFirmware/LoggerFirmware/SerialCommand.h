@@ -5,8 +5,23 @@
  *  the user if it's connected to a terminal).  This code generates the interface for
  *  executing those commands.
  *
- *  Copyright (c) 2019, University of New Hampshire, Center for Coastal and Ocean Mapping.
- *  All Rights Reserved.
+ * Copyright (c) 2019, University of New Hampshire, Center for Coastal and Ocean Mapping.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+ * and associated documentation files (the "Software"), to deal in the Software without restriction,
+ * including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the Software is furnished
+ * to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or
+ * substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+ * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS
+ * OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF
+ * OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
 #ifndef __SERIAL_COMMAND_H__
@@ -19,6 +34,7 @@
 #include "StatusLED.h"
 #include "BluetoothAdapter.h"
 #include "WiFiAdapter.h"
+#include "IncrementalBuffer.h"
 
 /// \class SerialCommand
 /// \brief Implement a simple ASCII command language for the logger
@@ -55,12 +71,13 @@ public:
     };
     
 private:
-    nmea::N2000::Logger *m_CANLogger;       ///< Pointer for the logger object to use
-    nmea::N0183::Logger *m_serialLogger;    ///< Pointer for the NMEA0183 message handler
-    logger::Manager     *m_logManager;       ///< Object to write to SD files and console log
-    StatusLED           *m_led;     ///< Pointer for the status LED controller
-    BluetoothAdapter    *m_ble;     ///< Pointer for the BLE interface
-    WiFiAdapter         *m_wifi;    ///< Pointer for the WiFi interface, once it comes up
+    nmea::N2000::Logger *m_CANLogger;   ///< Pointer for the logger object to use
+    nmea::N0183::Logger *m_serialLogger;///< Pointer for the NMEA0183 message handler
+    logger::Manager     *m_logManager;  ///< Object to write to SD files and console log
+    StatusLED           *m_led;         ///< Pointer for the status LED controller
+    BluetoothAdapter    *m_ble;         ///< Pointer for the BLE interface
+    WiFiAdapter         *m_wifi;        ///< Pointer for the WiFi interface, once it comes up
+    logger::IncBuffer   m_serialBuffer; ///< Space to assemble serial commands that doesn't block runtime
     
     /// \brief Print the console log on the output stream(s)
     void ReportConsoleLog(CommandSource src);

@@ -5,8 +5,23 @@
  * the user if it's connected to a terminal).  This code generates the implementation for executing
  * executing those commands.
  *
- * Copyright 2019, University of New Hampshire, Center for Coastal and Ocean Mapping
- * and NOAA-UNH Joint Hydrographic Center.  All Rights Reserved.
+ * Copyright (c) 2019, University of New Hampshire, Center for Coastal and Ocean Mapping.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+ * and associated documentation files (the "Software"), to deal in the Software without restriction,
+ * including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the Software is furnished
+ * to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or
+ * substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+ * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS
+ * OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF
+ * OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
 #include <Arduino.h>
@@ -14,6 +29,7 @@
 #include "BluetoothAdapter.h"
 #include "WiFiAdapter.h"
 #include "SerialCommand.h"
+#include "IncrementalBuffer.h"
 
 /// Default constructor for the SerialCommand object.  This stores the pointers for the logger and
 /// status LED controllers for reference, and then generates a BLE service object.  This turns on
@@ -382,14 +398,20 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
 void SerialCommand::ProcessCommand(void)
 {
     if (Serial.available() > 0) {
-        String cmd = Serial.readStringUntil('\n');
-        cmd.trim();
-        
-        Serial.print("Found console command: \"");
-        Serial.print(cmd);
-        Serial.println("\"");
+        int c = Serial.read();
+        m_serialBuffer.AddCharacter(c);
+        if (c == '\n') {
+            String cmd(m_serialBuffer.Contents());
+            m_serialBuffer.Reset();
+            
+            cmd.trim();
+            
+            Serial.print("Found console command: \"");
+            Serial.print(cmd);
+            Serial.println("\"");
 
-        Execute(cmd, CommandSource::SerialPort);
+            Execute(cmd, CommandSource::SerialPort);
+        }
     }
     if (m_ble->IsConnected() && m_ble->DataAvailable()) {
         String cmd = m_ble->ReceivedString();

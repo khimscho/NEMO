@@ -6,14 +6,30 @@
  * here is to store sufficient information to make this a useful crowd-sourced bathymetry logging engine,
  * but at the cheapest possible price.
  *
- * Copyright 2019, University of New Hampshire, Center for Coastal and Ocean Mapping and
- * NOAA-UNH Joint Hydrographic Center.  All Rights Reserved.
+ * Copyright (c) 2019, University of New Hampshire, Center for Coastal and Ocean Mapping.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+ * and associated documentation files (the "Software"), to deal in the Software without restriction,
+ * including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the Software is furnished
+ * to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or
+ * substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+ * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS
+ * OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF
+ * OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
 #ifndef __N0183_LOGGER_H__
 #define __N1083_LOGGER_H__
 
 #include "LogManager.h"
+#include "IncrementalBuffer.h"
 
 namespace nmea {
 namespace N0183 {
@@ -26,7 +42,7 @@ namespace N0183 {
 /// input serial stream (by definition RS-422), and buffers the sentences until the user can read them.  A
 /// timestamp is generated for the first "$" in each string, and stored with the string.
 
-class Sentence {
+class Sentence : public logger::IncBuffer {
 public:
     static const int MAX_SENTENCE_LENGTH = 128; ///< Maximum is probably order 100 characters; this is safe
     
@@ -35,42 +51,17 @@ public:
     {
         Reset();
     }
-    
-    /// \brief Add a new character into the buffer, with length management
-    ///
-    /// This adds the specified character into the buffer, making sure that there is space
-    /// for it beforehand.
-    ///
-    /// \param a    Character to add
-    /// \return True if the character was added, otherwise False
-    
-    bool AddCharacter(char const a)
-    {
-        if (m_insertPoint < MAX_SENTENCE_LENGTH-1) {
-            m_sentence[m_insertPoint++] = a;
-            return true;
-        }
-        return false;
-    }
-    
+        
     /// \brief Reset the current sentence, going back to zero length
     ///
     /// This resets the buffer to zero contents, invalidates the timestamp, and sets the insertion
     /// point back to zero, effectively removing the old data without having to reconstruct.
     void Reset(void)
     {
-        bzero(m_sentence, MAX_SENTENCE_LENGTH);
+        logger::IncBuffer::Reset();
         m_timestamp = -1.0;
-        m_insertPoint = 0;
     }
-    
-    /// \brief Provide a pointer to the current sentence in the buffer
-    char const *Contents(void) const { return m_sentence; }
-    /// \brief Provide a legnth-count for the current contents of the buffer
-    int Length(void) const { return m_insertPoint; }
-    /// \brief Provide a count for the maximum possible sentence length
-    int MaxLength(void) const { return MAX_SENTENCE_LENGTH; }
-    
+        
     /// \brief Get the stored timestamp for the sentence
     unsigned long Timestamp(void) const { return m_timestamp; }
     /// \brief Set the stored timestamp from a seconds count
@@ -84,8 +75,6 @@ public:
     
 private:
     unsigned long   m_timestamp;    ///< Timestamp associated with the "$" that started the sentence
-    char            m_sentence[MAX_SENTENCE_LENGTH];    ///< Sentence assembly space
-    int             m_insertPoint;  ///< Location for next character to be placed in the buffer
 };
 
 /// \class MessageAssembler
