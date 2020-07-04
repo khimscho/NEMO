@@ -81,7 +81,8 @@ String Sentence::Token(void) const
 /// Start the message assembler in the "searching" state, with a blank sentence and empty FIFO.
 
 MessageAssembler::MessageAssembler(void)
-: m_state(STATE_SEARCHING), m_readPoint(0), m_writePoint(0), m_channel(-1), m_debugAssembly(false)
+: m_state(STATE_SEARCHING), m_readPoint(0), m_writePoint(0), m_channel(-1), m_debugAssembly(false),
+  m_badStartCount(0), m_lastInvertResetTime(millis())
 {
 }
 
@@ -122,6 +123,24 @@ void MessageAssembler::AddCharacter(const char in)
                         Serial.print(in, HEX);
                     }
                     Serial.println(" while searching for NMEA string.");
+                }
+                if ((in & 0x80) != 0) {
+                    // Top bit should never be set in serial ASCII, so that's either a noise
+                    // hit, or we might have a polarity problem.  We count these for now,
+                    // so that we can try to invert later.
+                    m_badStartCount++;
+                }
+                if ((m_badStartCount * 1000 / (millis() - m_lastInvertResetTime)) > 10) {
+                    // If we're seeing more than 10 bad starts/second, it's likely that we've
+                    // got an inversion of the inputs, so we attempt to fix that.
+                    m_lastInvertResetTime = millis();
+                    m_badStartCount = 0;
+                    if (m_channel == 1)
+                        Serial1.setRxInvert(true);
+                    else if (m_channel == 2)
+                        Serial2.setRxInvert(true);
+                    Serial.println(String("INFO: setting rx input inversion on channel ") +
+                                   m_channel + " due to bad start characters.");
                 }
             }
             break;
@@ -301,6 +320,18 @@ void Logger::SetVerbose(bool verbose)
     m_verbose = verbose;
     for (int ch = 0; ch < ChannelCount; ++ch) {
         m_channel[ch].SetDebugging(verbose);
+    }
+}
+
+void Logger::SetRxInvert(uint32_t port, bool invert)
+{
+    if (port < 1 || port >= ChannelCount) {
+        Serial.println(String("ERR: can't set rx-invert for port ") + port);
+    } else {
+        if (port == 1)
+            Serial1.setRxInvert(invert);
+        else if (port == 2)
+            Serial2.setRxInvert(invert);
     }
 }
 

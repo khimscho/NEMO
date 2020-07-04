@@ -333,6 +333,24 @@ void SerialCommand::TransferLogFile(String const& filenum, CommandSource src)
     }
 }
 
+void SerialCommand::ConfigureSerialPort(String const& params, CommandSource src)
+{
+    uint32_t    port;
+    bool        invert;
+    
+    if (params.startsWith("on")) {
+        invert = true;
+        port = params.substring(3).toInt();
+    } else if (params.startsWith("off")) {
+        invert = false;
+        port = params.substring(4).toInt();
+    } else {
+        EmitMessage("ERR: bad command; Syntax: invert on|off <port>\n", src);
+        return;
+    }
+    m_serialLogger->SetRxInvert(port, invert);
+}
+
 /// Execute the command strings received from the serial interface(s).  This tests the
 /// string for known commands, and passes on the options from the string (if any) to
 /// the particular methods used for command implementation.  Note that this interface
@@ -382,6 +400,8 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         ManageWireless(cmd.substring(9), src);
     } else if (cmd.startsWith("transfer")) {
         TransferLogFile(cmd.substring(9), src);
+    } else if (cmd.startsWith("invert")) {
+        ConfigureSerialPort(cmd.substring(7), src);
     } else {
         Serial.print("Command not recognised: ");
         Serial.println(cmd);

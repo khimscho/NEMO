@@ -114,6 +114,8 @@ private:
     Sentence  m_buffer[RingBufferLength]; ///< Buffer for sentences being held for use
     int       m_channel;                  ///< Channel indicator for messages
     bool      m_debugAssembly;            ///< Flag for debug message construction
+    int         m_badStartCount;            ///< Count of the number of bad start characters since last inversion reset
+    int         m_lastInvertResetTime;      ///< Elapsed time when we last tried inverting the input to get good data
 };
 
 /// \class Logger
@@ -141,6 +143,9 @@ public:
 
     /// \brief Set debugging status
     void SetVerbose(bool verbose);
+    
+    /// \brief Configure the input inversion bit on the serial ports
+    void SetRxInvert(uint32_t port, bool invert);
     
 private:
     static const int ChannelCount = 2;            ///< Number of channels that we manage
