@@ -35,11 +35,17 @@ In order to provide for the widest possible use (and to avoid excuses ...) the h
 The source for the system is maintained in a [BitBucket repository](https://bitbucket.org/brian_r_calder/sb2030logger), which also includes a Wiki for details of the design and system development.
 
 To build the system, you will need at least:
+
 1. A functional Python interpreter (at least 3.6).
+
 2. A working [Arduino](https://www.arduino.cc) development environment (at least 1.8.12), or equivalent (e.g., [embedXcode](https://embedxcode.weebly.com) 11.8.8).
+
 3. Support for [Espressif](https://www.espressif.com) ESP32 development (with Arduino 1.8.12 this can be installed from the IDE, see [here](https://github.com/espressif/arduino-esp32) for instructions).
+
 4. Support for NMEA2000 handling on ESP32 (you need the [base library](https://github.com/ttlappalainen/NMEA2000) and [ESP-specific](https://github.com/ttlappalainen/NMEA2000_esp32) extensions).
+
 5. Eagle CAD (at least 9.5.2) for the hardware designs.
+
 6. A working C++11 (at least) compiler for the software data simulator.
 
 With these prerequisites, the recommended place to start is with the logger firmware, followed with the data parser Python, which will allow you to demonstrate that your logger is actually logging data.  For benchtop testing, the hardware data simulator can be used (with the development board) to generate simulated data on both NMEA0183 and NMEA2000 for testing logger modifications.  The WiFi Command GUI can be used to interact with a logger once WiFi is enabled, allowing you to transfer files, and decode them.
