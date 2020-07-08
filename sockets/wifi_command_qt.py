@@ -77,7 +77,7 @@ class CaptureReturn(QObject):
                 pass
             except:
                 e = sys.exc_info()[0]
-                print("Exception: " + str(e))
+                print("Rx Exception: " + str(e))
 
 
 class Window(QtWidgets.QMainWindow):
@@ -107,10 +107,11 @@ class Window(QtWidgets.QMainWindow):
         print("Attempting to start server connection on " + address_string + "\n")
         try:
             server_sock = socket.create_connection((server_address, server_port), 5.0)
+            server_sock.settimeout(None)
             self.rx_thread.start()
             self.connection_started = True
             buffer = "Server connected on " + address_string + "\n"
-            self.updateRecord(message)
+            self.updateRecord(buffer)
         except:
             buffer = "Server failed to connect on " + address_string + "\n"
             self.updateRecord(buffer)
