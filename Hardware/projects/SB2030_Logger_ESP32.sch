@@ -9728,18 +9728,18 @@ Source: http://eshop.phoenixcontact.com .. 1751280.pdf</description>
 </segment>
 <segment>
 <pinref part="GND4" gate="1" pin="GND"/>
-<wire x1="208.28" y1="86.36" x2="208.28" y2="83.82" width="0.1524" layer="91"/>
 <wire x1="208.28" y1="83.82" x2="208.28" y2="81.28" width="0.1524" layer="91"/>
-<wire x1="195.58" y1="88.9" x2="195.58" y2="86.36" width="0.1524" layer="91"/>
-<wire x1="195.58" y1="86.36" x2="208.28" y2="86.36" width="0.1524" layer="91"/>
 <wire x1="220.98" y1="88.9" x2="220.98" y2="83.82" width="0.1524" layer="91"/>
 <wire x1="220.98" y1="83.82" x2="208.28" y2="83.82" width="0.1524" layer="91"/>
-<junction x="208.28" y="83.82"/>
-<pinref part="U3" gate="G$1" pin="GND"/>
-<wire x1="208.28" y1="88.9" x2="208.28" y2="86.36" width="0.1524" layer="91"/>
-<junction x="208.28" y="86.36"/>
-<pinref part="C3" gate="G$1" pin="2"/>
 <pinref part="C4" gate="G$1" pin="2"/>
+<pinref part="U3" gate="G$1" pin="GND"/>
+<wire x1="208.28" y1="83.82" x2="208.28" y2="86.36" width="0.1524" layer="91"/>
+<junction x="208.28" y="83.82"/>
+<pinref part="C3" gate="G$1" pin="2"/>
+<wire x1="208.28" y1="86.36" x2="208.28" y2="88.9" width="0.1524" layer="91"/>
+<wire x1="195.58" y1="88.9" x2="195.58" y2="86.36" width="0.1524" layer="91"/>
+<wire x1="195.58" y1="86.36" x2="208.28" y2="86.36" width="0.1524" layer="91"/>
+<junction x="208.28" y="86.36"/>
 </segment>
 <segment>
 <pinref part="SDCARD" gate="G$1" pin="6"/>
@@ -10035,11 +10035,6 @@ Source: http://eshop.phoenixcontact.com .. 1751280.pdf</description>
 <pinref part="D2" gate="G$1" pin="2"/>
 <wire x1="180.848" y1="58.42" x2="185.42" y2="58.42" width="0.1524" layer="91"/>
 <junction x="185.42" y="58.42"/>
-</segment>
-</net>
-<net name="N$3" class="0">
-<segment>
-<junction x="208.28" y="86.36"/>
 </segment>
 </net>
 <net name="N$22" class="0">
@@ -10422,6 +10417,15 @@ Source: http://eshop.phoenixcontact.com .. 1751280.pdf</description>
 </nets>
 </sheet>
 </sheets>
+<errors>
+<approved hash="104,1,86.36,121.92,U1,3V3,+3V3,,,"/>
+<approved hash="104,2,119.38,63.5,OK1,VCC,+3V3,,,"/>
+<approved hash="104,2,119.38,45.72,OK2,VCC,+3V3,,,"/>
+<approved hash="113,1,130.071,89.431,FRAME1,,,,,"/>
+<approved hash="113,2,80.01,97.8789,U6,,,,,"/>
+<approved hash="113,2,81.811,58.951,FRAME2,,,,,"/>
+<approved hash="115,1,104.14,121.92,+3V3,,,,,"/>
+</errors>
 </schematic>
 </drawing>
 <compatibility>
