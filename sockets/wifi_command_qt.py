@@ -1,3 +1,19 @@
+# Copyright 2020 Center for Coastal and Ocean Mapping & NOAA-UNH Joint Hydrographic Center, University of New Hampshire.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+# documentation files (the "Software"), to deal in the Software without restriction, including without limitation
+# the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all copies or substantial portions
+# of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+# TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+# CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+# DEALINGS IN THE SOFTWARE.
+
 from PyQt5 import QtWidgets, uic
 from PyQt5.QtWidgets import QMessageBox, QDialog, QFileDialog
 from PyQt5.QtCore import QThread, QObject, pyqtSignal, pyqtSlot
@@ -69,64 +85,91 @@ class Window(QtWidgets.QMainWindow):
     def __init__(self):
         super(Window, self).__init__()
         uic.loadUi('gui.ui', self)
-        self.lineEdit.returnPressed.connect(self.doCommand)
+        self.commandLine.returnPressed.connect(self.doCommand)
+        self.startConnection.clicked.connect(self.onStartConnection)
+        self.serverAddress.setText("192.168.4.1")
+        self.serverPort.setText("25443")
 
         # We start the capture thread that grabs output from the server, and buffers for display
+        self.connection_started = False
         self.obj = CaptureReturn()
         self.rx_thread = QThread()
         self.obj.messageReady.connect(self.outputMessageReady)
         self.obj.moveToThread(self.rx_thread)
         self.rx_thread.started.connect(self.obj.capture)
-        self.rx_thread.start()
 
+    @pyqtSlot()
+    def onStartConnection(self):
+        global server_sock
+        server_address = self.serverAddress.text()
+        server_port = self.serverPort.text()
+        address_string = server_address + "/" + server_port
+        print("Attempting to start server connection on " + address_string + "\n")
+        try:
+            server_sock = socket.create_connection((server_address, server_port), 5.0)
+            self.rx_thread.start()
+            self.connection_started = True
+            buffer = "Server connected on " + address_string + "\n"
+            self.updateRecord(message)
+        except:
+            buffer = "Server failed to connect on " + address_string + "\n"
+            self.updateRecord(buffer)
+        
     @pyqtSlot()
     def doCommand(self):
         global server_sock
-        cmd = self.lineEdit.text()
-        self.lineEdit.setText("")
-        self.updateRecord("$ " + cmd + "\n")
-        # We start by parsing any local commands (i.e., that only exist in the GUI), then attempt
-        # to parse out a command that's going to the logger.  The only intervention that is done is
-        # to intercept "transfer" commands so that we can synthesise a file name for the output, and
-        # set the transfer into binary mode so we don't spam the record with random binary data.
-        if cmd.startswith("binary"):
-            try:
-                mode = cmd.split(' ')[1]
-                if mode == "on":
-                    set_transfer_mode(True)
-                else:
-                    set_transfer_mode(False)
-            except:
-                buffer = "Failed\nSyntax: binary on|off\n"
-                self.updateRecord(buffer)
-        else:
-            if cmd.startswith("translate"):
+        if self.connection_started:
+            cmd = self.commandLine.text()
+            self.commandLine.setText("")
+            self.updateRecord("$ " + cmd + "\n")
+            # We start by parsing any local commands (i.e., that only exist in the GUI), then attempt
+            # to parse out a command that's going to the logger.  The only intervention that is done is
+            # to intercept "transfer" commands so that we can synthesise a file name for the output, and
+            # set the transfer into binary mode so we don't spam the record with random binary data.
+            if cmd.startswith("binary"):
                 try:
-                    file_number = cmd.split(' ')[1]
-                    file_name = "nmea2000." + file_number
-                    self.translateFile(file_name)
-                except:
-                    buffer = "Failed\nSyntax: translate <file number>\n"
-                    self.updateRecord(buffer)
-            else:
-                try:
-                    if cmd.startswith("transfer"):
+                    mode = cmd.split(' ')[1]
+                    if mode == "on":
                         set_transfer_mode(True)
-                        file_number = cmd.split(' ')[1]
-                        file_name = 'nmea2000.' + file_number
-                        set_transfer_filename(file_name)
                     else:
                         set_transfer_mode(False)
-                    server_sock.send(cmd.encode("utf8"))
                 except:
-                    buffer = "Failed\nSyntax: transfer <file number>\n"
+                    buffer = "Failed\nSyntax: binary on|off\n"
                     self.updateRecord(buffer)
-
+            else:
+                if cmd.startswith("translate"):
+                    try:
+                        file_number = cmd.split(' ')[1]
+                        file_name = "nmea2000." + file_number
+                        self.translateFile(file_name)
+                    except:
+                        buffer = "Failed\nSyntax: translate <file number>\n"
+                        self.updateRecord(buffer)
+                else:
+                    try:
+                        if cmd.startswith("transfer"):
+                            set_transfer_mode(True)
+                            file_number = cmd.split(' ')[1]
+                            file_name = 'nmea2000.' + file_number
+                            set_transfer_filename(file_name)
+                        else:
+                            set_transfer_mode(False)
+                        server_sock.send(cmd.encode("utf8"))
+                    except:
+                        buffer = "Failed\nSyntax: transfer <file number>\n"
+                        self.updateRecord(buffer)
+        else:
+            buffer = "Can't run commands if the server isn't connected!\n"
+            self.updateRecord(buffer)
+            self.commandLine.setText("")
+            
     @pyqtSlot(str)
     def outputMessageReady(self, message):
         self.updateRecord(message)
         
     def translateFile(self, filename):
+        # We should probably put this into another thread, so that it can churn through this
+        # in the background without stalling the GUI.
         file = open(filename, "rb")
         packet_count = 0
         source = LoggerFile.PacketFactory(file)
@@ -140,8 +183,8 @@ class Window(QtWidgets.QMainWindow):
         self.updateRecord(buffer)
 
     def updateRecord(self, message):
-        self.textBrowser.setText(self.textBrowser.toPlainText() + message)
-        self.textBrowser.verticalScrollBar().setValue(self.textBrowser.verticalScrollBar().maximum())
+        self.consoleOutput.setText(self.consoleOutput.toPlainText() + message)
+        self.consoleOutput.verticalScrollBar().setValue(self.consoleOutput.verticalScrollBar().maximum())
 
 def set_transfer_mode(flag):
     global binary_mode
@@ -151,10 +194,7 @@ def set_transfer_filename(name):
     global binary_filename
     binary_filename = name
     
-server_address = "192.168.4.1"
-server_port = 25443
-print("Starting connection for logger on " + str(server_address) + " port " + str(server_port))
-server_sock = socket.create_connection((server_address, server_port))
+server_sock = socket.socket()
 
 binary_mode = False
 binary_filename = ""
