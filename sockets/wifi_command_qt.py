@@ -1,18 +1,38 @@
-# Copyright 2020 Center for Coastal and Ocean Mapping & NOAA-UNH Joint Hydrographic Center, University of New Hampshire.
+## @file wifi_command_qt.py
+# @brief Python Qt application to provide a simple console interface to the logger's WiFi interface
 #
-# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
-# documentation files (the "Software"), to deal in the Software without restriction, including without limitation
-# the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+# This code uses the Qt widget set to make a very simple command-line
+# interface to the logger's WiFi interface (assuming it's turned on
+# through either serial or BLE interfaces with "wireless on"), so that
+# the user can test the interface is working, and interrogate the data
+# files on the logger.  The code here also allows for the files on the
+# logger to be transferred to the local computer, and has a built-in
+# command ("translate") to use the data parser code to inspect the contents
+# of the file.  It's a little shonky, and cobbled together from multiple
+# examples and sources, but it sort of works, which is good enough for
+# these purposes.
 #
-# The above copyright notice and this permission notice shall be included in all copies or substantial portions
-# of the Software.
+# Copyright 2020 Center for Coastal and Ocean Mapping & NOAA-UNH Joint
+# Hydrographic Center, University of New Hampshire.
 #
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-# TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
-# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
-# CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-# DEALINGS IN THE SOFTWARE.
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights to use,
+# copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so, subject to
+# the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+# OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+# FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+# OR OTHER DEALINGS IN THE SOFTWARE.
 
 from PyQt5 import QtWidgets, uic
 from PyQt5.QtWidgets import QMessageBox, QDialog, QFileDialog
