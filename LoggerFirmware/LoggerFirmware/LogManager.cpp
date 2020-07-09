@@ -168,6 +168,7 @@ void Manager::RemoveAllLogfiles(void)
 /// Count the number of log files on the SD card, so that the client can enumerate them
 /// and report to the user.
 ///
+/// \param filenumbers  (Out) Array of the log file numbers on card
 /// \return Number of files on the SD card
 
 int Manager::CountLogFiles(int filenumbers[MaxLogFiles])

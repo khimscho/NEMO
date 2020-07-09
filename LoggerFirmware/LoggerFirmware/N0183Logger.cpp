@@ -35,7 +35,7 @@ namespace N0183 {
   
 const int SoftwareVersionMajor = 1; ///< Software major version for the logger
 const int SoftwareVersionMinor = 0; ///< Software minor version for the logger
-const int SoftwareVersionPatch = 0; ///< Software patch version for the logger
+const int SoftwareVersionPatch = 1; ///< Software patch version for the logger
 
 /// Validate the sentence, making sure that it meets the requirements to be a NMEA0183 message.  For
 /// this, it has to contain only printable characters, it has to start with a "$", and end with a valid checksum
@@ -81,8 +81,8 @@ String Sentence::Token(void) const
 /// Start the message assembler in the "searching" state, with a blank sentence and empty FIFO.
 
 MessageAssembler::MessageAssembler(void)
-: m_state(STATE_SEARCHING), m_readPoint(0), m_writePoint(0), m_channel(-1), m_debugAssembly(false),
-  m_badStartCount(0), m_lastInvertResetTime(millis())
+: m_logManager(nullptr), m_state(STATE_SEARCHING), m_readPoint(0), m_writePoint(0), m_channel(-1),
+  m_debugAssembly(false), m_badStartCount(0), m_lastInvertResetTime(millis())
 {
 }
 
@@ -99,6 +99,8 @@ MessageAssembler::~MessageAssembler(void)
 
 void MessageAssembler::AddCharacter(const char in)
 {
+    String message;
+    
     switch(m_state) {
         case STATE_SEARCHING:
             if (in == '$') {
@@ -114,16 +116,22 @@ void MessageAssembler::AddCharacter(const char in)
                                    "; changing to CAPTURING.");
                 }
             } else {
-                if (m_debugAssembly) {
-                    Serial.print("error: non-start character ");
+                if (m_debugAssembly || m_logManager != nullptr) {
+                    message = "ERR: non-start character ";
                     if (std::isprint(in)) {
-                        Serial.print(String("'") + in + "'");
+                        message += String("'") + in + "'";
                     } else {
-                        Serial.print("0x");
-                        Serial.print(in, HEX);
+                        message += "0x" + String(in, HEX);
                     }
-                    Serial.println(" while searching for NMEA string.");
+                    message += " while searching for NMEA string (channel " + String(m_channel) + ").";
+                    if (m_debugAssembly) {
+                        Serial.println(message);
+                    }
+                    if (m_logManager != nullptr) {
+                        m_logManager->Console().println(message);
+                    }
                 }
+
                 if ((in & 0x80) != 0) {
                     // Top bit should never be set in serial ASCII, so that's either a noise
                     // hit, or we might have a polarity problem.  We count these for now,
@@ -139,8 +147,12 @@ void MessageAssembler::AddCharacter(const char in)
                         Serial1.setRxInvert(true);
                     else if (m_channel == 2)
                         Serial2.setRxInvert(true);
-                    Serial.println(String("INFO: setting rx input inversion on channel ") +
-                                   m_channel + " due to bad start characters.");
+                    message = "INFO: setting rx input inversion on channel "
+                                + String(m_channel) + " due to bad start characters.";
+                    Serial.println(message);
+                    if (m_logManager != nullptr) {
+                        m_logManager->Console().println(message);
+                    }
                 }
             }
             break;
@@ -173,7 +185,11 @@ void MessageAssembler::AddCharacter(const char in)
                     m_current.Reset();
                     m_current.Timestamp(now);
                     m_current.AddCharacter(in);
-                    Serial.println("warning: sentence restarted before end of previous one?!");
+                    message = "WARN: sentence restarted before end of previous one?! (channel " + String(m_channel) + ").";
+                    Serial.println(message);
+                    if (m_logManager != nullptr) {
+                        m_logManager->Console().println(message);
+                    }
                     if (m_debugAssembly) {
                         Serial.println(String("debug: new sentence started with timestamp ") +
                                        m_current.Timestamp() + " as reset on channel " +
@@ -186,7 +202,11 @@ void MessageAssembler::AddCharacter(const char in)
                         // Ran out of buffer space, so return to searching.  Note that we don't need to
                         // reset the current buffer, because the next sentence starting will do so.
                         m_state = STATE_SEARCHING;
-                        Serial.println("warning: over-long sentence detected, and ignored.");
+                        message = "WARN: over-long sentence detected, and ignored (channel " + String(m_channel) + ").";
+                        Serial.println(message);
+                        if (m_logManager != nullptr) {
+                            m_logManager->Console().println(message);
+                        }
                         if (m_debugAssembly) {
                             Serial.println(String("debug: reset state to SEARCHING on channel ") +
                                            m_channel + " after over-long sentence.");
@@ -196,7 +216,10 @@ void MessageAssembler::AddCharacter(const char in)
             }
             break;
         default:
-            Serial.println("error: unknown state in message assembly! Resetting to SEARCHING.");
+            Serial.println("ERR: unknown state in message assembly! Resetting to SEARCHING.");
+            if (m_logManager != nullptr) {
+                m_logManager->Console().println("ERR: unknown state in message assembly! Resetting to SEARCHING.");
+            }
             m_state = STATE_SEARCHING;
             break;
     }
@@ -244,7 +267,10 @@ Logger::Logger(logger::Manager *output)
 : m_logManager(output), m_verbose(false)
 {
     m_channel[0].SetChannel(1);
+    m_channel[0].SetLogManager(output);
     m_channel[1].SetChannel(2);
+    m_channel[1].SetLogManager(output);
+    
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
     Serial1.begin(4800, SERIAL_8N1, rx1_pin, tx1_pin);
     Serial2.begin(4800, SERIAL_8N1, rx2_pin, tx2_pin);

@@ -92,6 +92,8 @@ public:
     ~MessageAssembler(void);
     /// \brief Set the channel indicator for reporting
     inline void SetChannel(const int channel) { m_channel = channel; }
+    /// \brief Set the log manager to use for console logging
+    inline void SetLogManager(logger::Manager *manager) { m_logManager = manager; }
     /// \brief Add a new character to the current sentence (potentially completing it)
     void AddCharacter(const char c);
     /// \brief Set debugging state for message assembly
@@ -105,17 +107,17 @@ private:
         STATE_CAPTURING
     };
 
-    static const int RingBufferLength = 10;///< Maximum number of sentences we'll attempt to buffer
-    
-    State     m_state;                    ///< Current state of the message being assembled
-    Sentence  m_current;                  ///< Sentence currently being assembled
-    int       m_readPoint;                ///< Ring buffer read position
-    int       m_writePoint;               ///< Ring buffer write position
-    Sentence  m_buffer[RingBufferLength]; ///< Buffer for sentences being held for use
-    int       m_channel;                  ///< Channel indicator for messages
-    bool      m_debugAssembly;            ///< Flag for debug message construction
-    int         m_badStartCount;            ///< Count of the number of bad start characters since last inversion reset
-    int         m_lastInvertResetTime;      ///< Elapsed time when we last tried inverting the input to get good data
+    static const int RingBufferLength = 10; ///< Maximum number of sentences we'll attempt to buffer
+    logger::Manager *m_logManager;          ///< Log manager to use for console logging, if required
+    State     m_state;                      ///< Current state of the message being assembled
+    Sentence  m_current;                    ///< Sentence currently being assembled
+    int       m_readPoint;                  ///< Ring buffer read position
+    int       m_writePoint;                 ///< Ring buffer write position
+    Sentence  m_buffer[RingBufferLength];   ///< Buffer for sentences being held for use
+    int       m_channel;                    ///< Channel indicator for messages
+    bool      m_debugAssembly;              ///< Flag for debug message construction
+    int       m_badStartCount;              ///< Count of the number of bad start characters since last inversion reset
+    int       m_lastInvertResetTime;        ///< Elapsed time when we last tried inverting the input to get good data
 };
 
 /// \class Logger
