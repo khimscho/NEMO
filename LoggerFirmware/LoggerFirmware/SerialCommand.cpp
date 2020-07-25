@@ -31,6 +31,10 @@
 #include "SerialCommand.h"
 #include "IncrementalBuffer.h"
 
+const uint32_t CommandMajorVersion = 1;
+const uint32_t CommandMinorVersion = 0;
+const uint32_t CommandPatchVersion = 0;
+
 /// Default constructor for the SerialCommand object.  This stores the pointers for the logger and
 /// status LED controllers for reference, and then generates a BLE service object.  This turns on
 /// advertising for the BLE UART service, allowing for data to the sent and received over the air.
@@ -302,6 +306,10 @@ void SerialCommand::ManageWireless(String const& command, CommandSource src)
     } else if (command == "off") {
         m_wifi->Shutdown();
         EmitMessage("WiFi stopped.\n", src);
+    } else if (command == "accesspoint") {
+        m_wifi->SetWirelessMode(WiFiAdapter::WirelessMode::ADAPTER_SOFTAP);
+    } else if (command == "station") {
+        m_wifi->SetWirelessMode(WiFiAdapter::WirelessMode::ADAPTER_STATION);
     } else {
         Serial.println("ERR: wireless management command not recognised.");
     }
@@ -349,6 +357,31 @@ void SerialCommand::ConfigureSerialPort(String const& params, CommandSource src)
         return;
     }
     m_serialLogger->SetRxInvert(port, invert);
+}
+
+/// Output a list of known commands, since there are now enough of them to make remembering them
+/// all a little difficult.
+
+void SerialCommand::Syntax(CommandSource src)
+{
+    EmitMessage(String("Command Syntax (V") + CommandMajorVersion + "." + CommandMinorVersion + "." + CommandPatchVersion + "):\n", src);
+    EmitMessage("  advertise bt-name                   Set BLE advertising name.\n", src);
+    EmitMessage("  erase file-number|all               Remove a specific [file-number] or all log files.\n", src);
+    EmitMessage("  help|syntax                         Generate this list.\n", src);
+    EmitMessage("  identify                            Report the logger's unique identification string.\n", src);
+    EmitMessage("  invert 0|1                          Invert polarity of RS-422 input on port 0|1.\n", src);
+    EmitMessage("  led normal|error|initialising|full  [Debug] Set the indicator LED status.\n", src);
+    EmitMessage("  log                                 Output the contents of the console log.\n", src);
+    EmitMessage("  password [wifi-password]            Set the WiFi password.\n", src);
+    EmitMessage("  setid logger-name                   Set the logger's unique identification string.\n", src);
+    EmitMessage("  sizes                               Output list of the extant log files, and their sizes in bytes.\n", src);
+    EmitMessage("  ssid [wifi-ssid]                    Set the WiFi SSID.\n", src);
+    EmitMessage("  steplog                             Close current log file, and move to the next in sequence.\n", src);
+    EmitMessage("  stop                                Close files and go into self-loop for power-down.\n", src);
+    EmitMessage("  transfer file-number                Transfer log file [file-number] (WiFi and serial only).\n", src);
+    EmitMessage("  version                             Report NMEA0183 and NMEA2000 logger version numbers.\n", src);
+    EmitMessage("  verbose on|off                      Control verbosity of reporting for serial input strings.\n", src);
+    EmitMessage("  wireless on|off|accesspoint|station Control WiFi activity [on|off] and mode [accesspoint|station].\n", src);
 }
 
 /// Execute the command strings received from the serial interface(s).  This tests the
@@ -402,6 +435,8 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         TransferLogFile(cmd.substring(9), src);
     } else if (cmd.startsWith("invert")) {
         ConfigureSerialPort(cmd.substring(7), src);
+    } else if (cmd == "help" || cmd == "syntax") {
+        Syntax(src);
     } else {
         Serial.print("Command not recognised: ");
         Serial.println(cmd);

@@ -113,6 +113,8 @@ private:
     void TransferLogFile(String const& command, CommandSource src);
     /// \brief Set up receiver on UARTs for inverting input (to deal with polarity problems)
     void ConfigureSerialPort(String const& command, CommandSource src);
+    /// \brief Show a list of known commands
+    void Syntax(CommandSource src);
     
     /// \brief Check for commands, and execute them if found
     void Execute(String const& cmd, CommandSource src);

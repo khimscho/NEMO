@@ -77,9 +77,22 @@ private:
             Serial.println("ERR: failed to start WiFi server.");
             return false;
         }
-        WiFi.softAP(get_ssid().c_str(), get_password().c_str());
-        IPAddress server_address = WiFi.softAPIP();
-        set_address(server_address);
+        if (get_wireless_mode() == WirelessMode::ADAPTER_SOFTAP) {
+            WiFi.softAP(get_ssid().c_str(), get_password().c_str());
+            IPAddress server_address = WiFi.softAPIP();
+            set_address(server_address);
+        } else {
+            Serial.print(String("Connecting to ") + get_ssid() + ": ");
+            wl_status_t status = WiFi.begin(get_ssid().c_str(), get_password().c_str());
+            Serial.print(String("(status: ") + static_cast<int>(status) + ")");
+            while (WiFi.status() != WL_CONNECTED) {
+                delay(500);
+                Serial.print(".");
+            }
+            Serial.println("");
+            IPAddress server_address = WiFi.localIP();
+            set_address(server_address);
+        }
         m_server->begin();
     }
     
@@ -275,6 +288,51 @@ private:
         return value;
     }
     
+    /// Sets the mode in which to bring up the interface.  Most WiFi embedded solutions can come up either
+    /// as a client on some other WiFi network, or as an access point ("Soft AP"), making its own network.  The
+    /// default condition is to come up as an AP, but for debug, and in some other applications, it might make
+    /// more sense to come up as a client.
+    ///
+    /// \param  mode    WirelessMode enum to use for the next setup
+    
+    void set_wireless_mode(WirelessMode mode)
+    {
+        String value;
+        if (mode == WirelessMode::ADAPTER_STATION) {
+            value = "Station";
+        } else if (mode == WirelessMode::ADAPTER_SOFTAP) {
+            value = "AP";
+        } else {
+            Serial.println("ERR: unknown wireless adapater mode.");
+            return;
+        }
+        if (!m_paramStore->SetKey("wifimode", value)) {
+            Serial.println("ERR: failed to set WiFi adapater mode on module.");
+        }
+    }
+    
+    /// Gets the current configured mode for the WiFi adapter.  By default, the system should come up as an
+    /// access point ("SoftAP") that makes its own network, but can come up as a client on another network
+    /// if required.
+    ///
+    /// \return WirelessMode enum type for the current configuration; returns ADAPTER_SOFTAP by default
+    
+    WirelessMode get_wireless_mode(void)
+    {
+        String          value;
+        WirelessMode    rc;
+        
+        if (!m_paramStore->GetKey("wifimode", value)) {
+            Serial.println("ERR: failed to get WiFi adapter mode on module.");
+            value = "UNKNOWN";
+        }
+        if (value == "Station")
+            rc = WirelessMode::ADAPTER_STATION;
+        else
+            rc = WirelessMode::ADAPTER_SOFTAP;
+        return rc;
+    }
+    
     /// Provide a Stream interface for the client (to read/write data).  Use with caution.
     ///
     /// \return WiFiClient reference up-cast to Stream.
@@ -351,6 +409,16 @@ void WiFiAdapter::SetPassword(String const& password) { set_password(password); 
 ///
 /// \return String (dotted notation) of the IP (v4) address of the server on the access point.
 String WiFiAdapter::GetServerAddress(void) { return get_address(); }
+
+/// Pass-through implementation to the sub-class code to set the wireless adapter mode.
+///
+/// \param mode WirelessMode for the adapter on startup
+void WiFiAdapter::SetWirelessMode(WirelessMode mode) { return set_wireless_mode(mode); }
+
+/// Pass-through implementation to the sub-class code to get the wireless adapter mode.
+///
+/// \return WirelessMode enum value, using AP as the default
+WiFiAdapter::WirelessMode WiFiAdapter::GetWirelessMode(void) { return get_wireless_mode(); }
 
 /// Pass-through implementation to the sub-class code to return a Stream-version of the client attached to
 /// the server, if there is one.

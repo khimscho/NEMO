@@ -61,6 +61,14 @@ public:
     void SetPassword(String const& password);
     /// \brief Return a string version of the IP address in use for the server.
     String GetServerAddress(void);
+    enum WirelessMode {
+        ADAPTER_STATION,    ///< Join the configured network when activated
+        ADAPTER_SOFTAP      ///< Create the configured network when activated
+    };
+    /// \brief Set up wireless mode for the adapter (i.e., AP or STA)
+    void SetWirelessMode(WirelessMode mode);
+    /// \brief Determine the wireless mode currently configures
+    WirelessMode GetWirelessMode(void);
     
     /// \brief Return a reference to the stream associated with the client TCP/IP socket (if available).
     Stream& Client(void);
@@ -93,6 +101,10 @@ private:
     virtual void set_address(IPAddress const& address) = 0;
     /// \brief Sub-class to get the IP (v4) address being used by the adapter.
     virtual String get_address(void) = 0;
+    /// \brief Sub-class implementation to set the adapter access mode
+    virtual void set_wireless_mode(WirelessMode mode) = 0;
+    /// \brief Sub-class implementation to get the adapter access mode
+    virtual WirelessMode get_wireless_mode(void) = 0;
     
     /// \brief Sub-class implementation of code to get a Stream reference for the client, if there is one.
     virtual Stream& get_client_stream(void) = 0;
