@@ -35,7 +35,7 @@ s3_client = boto3.client('s3')
 def process_geojson(upload_path, key):
     
     headers = {
-    'x-auth-token': 'eyJpc3MiOiJOQ0VJIiwic3ViIjoiVEVTVEVSIiwiYXVkIjoiaW5nZXN0LWV4dGVybmFsIiwicm9sZXMiOiJST0xFX1RFU1RfQ09OVFJJQlVUT1IifQ==.1DUCdyoKbscbRb+3D/zDyFDNdtAlIyhRL0PRKmMEeCg='
+    'x-auth-token': 'YOUR-AUTH-TOKEN-HERE'
     }
     
     #with open(upload_path, 'r') as myfile:
@@ -44,7 +44,7 @@ def process_geojson(upload_path, key):
         
     files = {
     'file': (upload_path, open(upload_path, 'rb')),
-    'metadataInput': (None, '{\n    "uniqueID": "UNHJHC-d23a3c32-6fa1-11ea-bc55-0242ac130003"\n}'),
+    'metadataInput': (None, '{\n    "uniqueID": "YOUR-UNIQUE-ID-HERE"\n}'),
     }
     
     response = requests.post('https://www.ngdc.noaa.gov/ingest-external/upload/csb/test/geojson/MYORG-f8c469f8-df38-11e5-b86d-9a79f06e9478', headers=headers, files=files)
