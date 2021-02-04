@@ -264,7 +264,7 @@ const int tx2_pin = 16; ///< UART port 2 transmit pin
 /// \param output   Reference for the output SD file logger to use
 
 Logger::Logger(logger::Manager *output)
-: m_logManager(output), m_verbose(false)
+: m_verbose(false), m_logManager(output)
 {
     m_channel[0].SetChannel(1);
     m_channel[0].SetLogManager(output);

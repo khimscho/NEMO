@@ -59,7 +59,7 @@ public:
     void Reset(void)
     {
         logger::IncBuffer::Reset();
-        m_timestamp = -1.0;
+        m_timestamp = 0UL;
     }
         
     /// \brief Get the stored timestamp for the sentence

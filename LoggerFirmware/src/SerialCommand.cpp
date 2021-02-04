@@ -30,6 +30,7 @@
 #include "WiFiAdapter.h"
 #include "SerialCommand.h"
 #include "IncrementalBuffer.h"
+#include "OTAUpdater.h"
 
 const uint32_t CommandMajorVersion = 1;
 const uint32_t CommandMinorVersion = 0;
@@ -435,6 +436,8 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         TransferLogFile(cmd.substring(9), src);
     } else if (cmd.startsWith("invert")) {
         ConfigureSerialPort(cmd.substring(7), src);
+    } else if (cmd == "ota") {
+        OTAUpdater updater(); // This puts the logger into a loop which ends with a full reset
     } else if (cmd == "help" || cmd == "syntax") {
         Syntax(src);
     } else {

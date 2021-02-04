@@ -94,6 +94,7 @@ private:
             set_address(server_address);
         }
         m_server->begin();
+        return true;
     }
     
     /// Stop the WiFi adapter cleanly, and return to BLE only for access to the system.  This attempts to
@@ -168,6 +169,7 @@ private:
                 buffer += c;
             }
         }
+        return buffer;
     }
     
     /// Transfer a specific log file from the logger to the client in an efficient manner that doesn't include
