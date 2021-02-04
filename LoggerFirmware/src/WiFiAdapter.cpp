@@ -26,7 +26,7 @@
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <WiFIAP.h>
-#include <SD.h>
+#include <SD_MMC.h>
 
 #include "WiFiAdapter.h"
 #include "ParamStore.h"
@@ -183,7 +183,7 @@ private:
     bool sendLogFile(String const& filename)
     {
         if (!isConnected()) return false;
-        SDFile f = SD.open(filename, FILE_READ);
+        File f = SD_MMC.open(filename, FILE_READ);
         if (!f) {
             Serial.println("ERR: failed to open file for transfer.");
             return false;

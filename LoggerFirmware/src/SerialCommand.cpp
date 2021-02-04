@@ -25,7 +25,6 @@
  */
 
 #include <Arduino.h>
-#include <SD.h>
 #include "BluetoothAdapter.h"
 #include "WiFiAdapter.h"
 #include "SerialCommand.h"
@@ -383,6 +382,7 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  version                             Report NMEA0183 and NMEA2000 logger version numbers.\n", src);
     EmitMessage("  verbose on|off                      Control verbosity of reporting for serial input strings.\n", src);
     EmitMessage("  wireless on|off|accesspoint|station Control WiFi activity [on|off] and mode [accesspoint|station].\n", src);
+    EmitMessage("  ota                                 Start Over-the-Air update sequence for the logger.\n", src);
 }
 
 /// Execute the command strings received from the serial interface(s).  This tests the

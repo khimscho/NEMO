@@ -38,9 +38,9 @@ Manager::Manager(StatusLED *led)
 : m_led(led)
 {
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
-    m_consoleLog = SD.open("/console.log", FILE_APPEND);
+    m_consoleLog = SD_MMC.open("/console.log", FILE_APPEND);
 #else
-    m_consoleLog = SD.open("/console.log", FILE_WRITE);
+    m_consoleLog = SD_MMC.open("/console.log", FILE_WRITE);
 #endif
     m_consoleLog.println("info: booted logger, appending to console log.");
     m_consoleLog.flush();
@@ -71,7 +71,7 @@ void Manager::StartNewLog(void)
     String filename = MakeLogName(log_num);
     Serial.println(String("Log Name: ") + filename);
 
-    m_outputLog = SD.open(filename, FILE_WRITE);
+    m_outputLog = SD_MMC.open(filename, FILE_WRITE);
     if (m_outputLog) {
         m_serialiser = new Serialiser(m_outputLog);
         m_consoleLog.println(String("INFO: started logging to ") + filename);
@@ -108,7 +108,7 @@ void Manager::CloseLogfile(void)
 bool Manager::RemoveLogFile(uint32_t file_num)
 {
     String filename = MakeLogName(file_num);
-    boolean rc = SD.remove(filename);
+    boolean rc = SD_MMC.remove(filename);
 
     if (rc) {
         m_consoleLog.println(String("INFO: erased log file ") + file_num +
@@ -128,8 +128,8 @@ bool Manager::RemoveLogFile(uint32_t file_num)
 
 void Manager::RemoveAllLogfiles(void)
 {
-    SDFile basedir = SD.open("/logs");
-    SDFile entry = basedir.openNextFile();
+    File basedir = SD_MMC.open("/logs");
+    File entry = basedir.openNextFile();
 
     CloseLogfile();  // All means all ...
     
@@ -146,7 +146,7 @@ void Manager::RemoveAllLogfiles(void)
 
         Serial.println("INFO: erasing log file: \"" + filename + "\"");
         
-        boolean rc = SD.remove(filename);
+        boolean rc = SD_MMC.remove(filename);
         if (rc) {
             m_consoleLog.println(String("INFO: erased log file ") + filename +
                                  String(" by user command."));
@@ -175,8 +175,8 @@ int Manager::CountLogFiles(int filenumbers[MaxLogFiles])
 {
     int file_count = 0;
     
-    SDFile logdir = SD.open("/logs");
-    SDFile entry = logdir.openNextFile();
+    File logdir = SD_MMC.open("/logs");
+    File entry = logdir.openNextFile();
     while (entry) {
         filenumbers[file_count] = String(entry.name()).substring(15).toInt();
         ++file_count;
@@ -197,7 +197,7 @@ int Manager::CountLogFiles(int filenumbers[MaxLogFiles])
 void Manager::EnumerateLogFile(int lognumber, String& filename, int& filesize)
 {
     filename = MakeLogName(lognumber);
-    SDFile f = SD.open(filename);
+    File f = SD_MMC.open(filename);
     if (f) {
         filesize = f.size();
     } else {
@@ -237,19 +237,19 @@ void Manager::Record(PacketIDs pktID, Serialisable const& data)
 uint32_t Manager::GetNextLogNumber(void)
 {
  
-    if (!SD.exists("/logs")) {
-        SD.mkdir("/logs");
+    if (!SD_MMC.exists("/logs")) {
+        SD_MMC.mkdir("/logs");
     }
-    SDFile dir = SD.open("/logs");
+    File dir = SD_MMC.open("/logs");
     if (!dir.isDirectory()) {
         dir.close();
-        SD.remove("/logs");
-        SD.mkdir("/logs");
+        SD_MMC.remove("/logs");
+        SD_MMC.mkdir("/logs");
     }
     
     uint32_t lognum = 0;
     while (lognum < MaxLogFiles) {
-        if (SD.exists(MakeLogName(lognum))) {
+        if (SD_MMC.exists(MakeLogName(lognum))) {
             ++lognum;
         } else {
             break;
@@ -277,19 +277,19 @@ String Manager::MakeLogName(uint32_t log_num)
 void Manager::DumpConsoleLog(Stream& output)
 {
     m_consoleLog.close();
-    m_consoleLog = SD.open("/console.log", FILE_READ);
+    m_consoleLog = SD_MMC.open("/console.log", FILE_READ);
     while (m_consoleLog.available()) {
         output.write(m_consoleLog.read());
     }
     m_consoleLog.close();
-    m_consoleLog = SD.open("/console.log", FILE_APPEND);
+    m_consoleLog = SD_MMC.open("/console.log", FILE_APPEND);
 }
 
 void Manager::TransferLogFile(int file_num, Stream& output)
 {
     String filename(MakeLogName(file_num));
     Serial.println("Transferring file: " + filename);
-    SDFile f = SD.open(filename, FILE_READ);
+    File f = SD_MMC.open(filename, FILE_READ);
     uint32_t bytes_transferred = 0;
     uint32_t file_size = f.size();
     

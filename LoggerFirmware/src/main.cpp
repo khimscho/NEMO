@@ -27,7 +27,7 @@
 
 // Set parameters
 
-#include <SD.h>
+#include <SD_MMC.h>
 #include <NMEA2000_CAN.h> /* This auto-generates the NMEA2000 global for bus control */
 #include "N2kLogger.h"
 #include "serial_number.h"
@@ -36,14 +36,6 @@
 
 /// Hardware version for the logger implementation (for NMEA2000 declaration)
 #define LOGGER_HARDWARE_VERSION "1.0.0"
-
-#if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
-const int sd_chip_select_pin = 5; ///< Using VSPI interface for ESP32 SD card (the Arduino default), GPIO5 is SS
-#endif
-
-#if defined(__SAM3X8E__)
-const int sd_chip_select_pin = 10; ///< For SD card shield on Arduino Due, GPIO10 is SS for the SD
-#endif
 
 const unsigned long TransmitMessages[] PROGMEM={0}; ///< List of messages the logger transmits (null set)
 const unsigned long ReceiveMessages[] PROGMEM =
@@ -86,7 +78,7 @@ void setup()
     Serial.println("Initialising SD card interface ...");
 
     /* Set up the SD interface and make sure we have a card */
-    if (!SD.begin(sd_chip_select_pin)) {
+    if (!SD_MMC.begin()) {
         // Card is not present, or didn't start ... that's a fatal error
         LEDs->SetStatus(StatusLED::Status::sFATAL_ERROR);
         while (1) {

@@ -29,7 +29,7 @@
 
 #include <stdint.h>
 #include <Arduino.h>
-#include <SD.h>
+#include <SD_MMC.h>
 #include "serialisation.h"
 #include "StatusLED.h"
 
@@ -85,7 +85,7 @@ public:
     void Record(PacketIDs pktID, Serialisable const& data);
     
     /// \brief Call-through for the console log file handle
-    SDFile& Console(void) { return m_consoleLog; }
+    File& Console(void) { return m_consoleLog; }
     /// \brief Close the console file prior to shutdown
     void CloseConsole(void) { m_consoleLog.close(); }
     /// \brief Dump console log to serial
@@ -94,8 +94,8 @@ public:
     void TransferLogFile(int file_num, Stream& output);
 
 private:
-    SDFile      m_consoleLog;       ///< File on which to write console information
-    SDFile      m_outputLog;        ///< Current output log file on the SD card
+    File        m_consoleLog;       ///< File on which to write console information
+    File        m_outputLog;        ///< Current output log file on the SD card
     Serialiser  *m_serialiser;      ///< Object to handle serialisation of data
     StatusLED   *m_led;             ///< Pointer for status (data event) handling
     
