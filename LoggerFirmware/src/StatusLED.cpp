@@ -26,8 +26,8 @@
 
 #include "StatusLED.h"
 
-const boolean ON = HIGH;    ///< Synonym for common cathode LED state being on (i.e., pin driven high)
-const boolean OFF = LOW;    ///< Synonym for common cathode LED state being off (i.e., pin driven low)
+const boolean ON = LOW;    ///< Synonym for common cathode LED state being on (i.e., pin driven high)
+const boolean OFF = HIGH;    ///< Synonym for common cathode LED state being off (i.e., pin driven low)
 
 /// Constructor for the LED manager.  This configures the manager to have all of the
 /// specified pins as output, and turns them off to start with.  The flasher is also disabled,
