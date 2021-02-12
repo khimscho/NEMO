@@ -105,7 +105,8 @@ private:
         if (m_client) {
             m_client.stop();
         }
-        m_server->end();
+        if (m_server)
+            m_server->end();
         delete m_server;
         m_server = nullptr;
     }
