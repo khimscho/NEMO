@@ -436,8 +436,9 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         TransferLogFile(cmd.substring(9), src);
     } else if (cmd.startsWith("invert")) {
         ConfigureSerialPort(cmd.substring(7), src);
-    } else if (cmd == "ota") {
-        OTAUpdater updater(); // This puts the logger into a loop which ends with a full reset
+    } else if (cmd.startsWith("ota")) {
+        EmitMessage("Starting OTA update sequence ...\n", src);
+        OTAUpdater updater; // This puts the logger into a loop which ends with a full reset
     } else if (cmd == "help" || cmd == "syntax") {
         Syntax(src);
     } else {
@@ -464,9 +465,7 @@ void SerialCommand::ProcessCommand(void)
             
             cmd.trim();
             
-            Serial.print("Found console command: \"");
-            Serial.print(cmd);
-            Serial.println("\"");
+            Serial.printf("Found console command: \"%s\"\n", cmd.c_str());
 
             Execute(cmd, CommandSource::SerialPort);
         }
@@ -475,9 +474,7 @@ void SerialCommand::ProcessCommand(void)
         String cmd = m_ble->ReceivedString();
         cmd.trim();
 
-        Serial.print("Found BLE command: \"");
-        Serial.print(cmd);
-        Serial.println("\"");
+        Serial.printf("Found BLE command: \"%s\"\n", cmd.c_str());
 
         Execute(cmd, CommandSource::BluetoothPort);
     }
@@ -485,9 +482,7 @@ void SerialCommand::ProcessCommand(void)
         String cmd = m_wifi->ReceivedString();
         cmd.trim();
         
-        Serial.print("Found WiFi command: \"");
-        Serial.print(cmd);
-        Serial.println("\"");
+        Serial.printf("Found WiFi command: \"%s\"\n", cmd.c_str());
         
         Execute(cmd, CommandSource::WirelessPort);
     }

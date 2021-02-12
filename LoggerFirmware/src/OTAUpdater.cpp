@@ -34,11 +34,35 @@
 #include "ArduinoOTA.h"
 #include "OTAUpdater.h"
 #include "WiFiAdapter.h"
+#include "SerialCommand.h"
+#include "LogManager.h"
+
+extern nmea::N2000::Logger *N2000Logger;
+extern nmea::N0183::Logger *N0183Logger;
+extern logger::Manager     *logManager;
+extern SerialCommand       *CommandProcessor;
 
 OTAUpdater::OTAUpdater(void)
 {
+    // Setting up the OTA with all of the services running can cause problems
+    // with having enough RAM to do processing.  These therefore need to go
+    // down before starting.  Since the whole system is going to reboot afterwards,
+    // this isn't a major problem.
+    Serial.println("Stopping logger services for update ...");
+    delete CommandProcessor;
+    delete N2000Logger;
+    delete N0183Logger;
+    delete logManager;
+    Serial.println("Configuring WiFi Adapter ...");
     WiFiAdapter *wifi = WiFiAdapterFactory::Create();
-    wifi->Startup();
+    Serial.println("Starting WiFi interface ...");
+    if (wifi->Startup()) {
+        Serial.printf("WiFi started up on IP %s\n", wifi->GetServerAddress().c_str());
+    } else {
+        Serial.printf("WiFi startup failed, rebooting.\n");
+        ESP.restart();
+    }
+    Serial.println("Configuring OTA server ...");
     ArduinoOTA
         .onStart([]() {
         String type;
@@ -63,9 +87,11 @@ OTAUpdater::OTAUpdater(void)
         else if (error == OTA_END_ERROR) Serial.println("End failed");
     });
 
+    Serial.println("Starting OTA updater service ...");
     ArduinoOTA.begin();
 
-    while (false) {
+    Serial.println("Waiting for OTA update on WiFi ...");
+    while (true) {
         ArduinoOTA.handle();
     }
 }
