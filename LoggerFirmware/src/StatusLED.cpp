@@ -46,6 +46,7 @@ StatusLED::StatusLED(int red_pin, int green_pin, int blue_pin)
     for (int i = 0; i < 3; ++i) {
         pinMode(led_pins[i], OUTPUT);
         led_state[i] = OFF;
+        digitalWrite(led_pins[i], led_state[i]);
     }
     led_flasher = false;
     
@@ -107,6 +108,7 @@ void StatusLED::SetStatus(Status status)
             SetColour(Colour::cALARM, true);
             break;
     }
+    ProcessFlash();
 }
 
 /// Turn on some indication that a data event has occurred; depending on the system, this could
