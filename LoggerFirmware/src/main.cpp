@@ -33,6 +33,7 @@
 #include "serial_number.h"
 #include "SerialCommand.h"
 #include "StatusLED.h"
+#include "eMMCController.h"
 
 /// Hardware version for the logger implementation (for NMEA2000 declaration)
 #define LOGGER_HARDWARE_VERSION "1.0.0"
@@ -52,11 +53,12 @@ const unsigned long ReceiveMessages[] PROGMEM =
    0
   }; ///< List if messages that the logger expects to receive
 
-nmea::N2000::Logger *N2000Logger = nullptr;     ///< Pointer for NMEA2000 CANbus logger object
-nmea::N0183::Logger *N0183Logger = nullptr;     ///< Pointer for serial NMEA data logger object
-logger::Manager     *logManager = nullptr;      ///< SD log file manager object
-StatusLED           *LEDs = nullptr;            ///< Pointer to the status LED manager object
-SerialCommand       *CommandProcessor = nullptr;///< Pointer for the command processor object
+nmea::N2000::Logger     *N2000Logger = nullptr;     ///< Pointer for NMEA2000 CANbus logger object
+nmea::N0183::Logger     *N0183Logger = nullptr;     ///< Pointer for serial NMEA data logger object
+logger::Manager         *logManager = nullptr;      ///< SD log file manager object
+StatusLED               *LEDs = nullptr;            ///< Pointer to the status LED manager object
+nemo30::eMMCController  *emmc = nullptr;            ///< Pointer for the eMMC module controller object
+SerialCommand           *CommandProcessor = nullptr;///< Pointer for the command processor object
 
 /// \brief Primary setup code for the logger
 ///
@@ -71,11 +73,15 @@ void setup()
 
     Serial.println("Configuring LED indicators ...");
     LEDs = new StatusLED();
-    
+
     Serial.println("Setting up LED indicator for initialising ...");
     LEDs->SetStatus(StatusLED::Status::sINITIALISING);
 
-    Serial.println("Initialising SD card interface ...");
+    Serial.println("Bringing up eMMC Controller ...");
+    emmc = new nemo30::eMMCController();
+    emmc->setModuleStatus(true);
+    
+    Serial.println("Initialising memory interface ...");
 
     /* Set up the SD interface and make sure we have a card */
     if (!SD_MMC.begin()) {
@@ -135,8 +141,9 @@ void setup()
 
 void loop()
 {
-    NMEA2000.ParseMessages();
-    
+    if (N2000Logger != nullptr) {
+        NMEA2000.ParseMessages();
+    }
     if (N0183Logger != nullptr) {
         N0183Logger->ProcessMessages();
     }
