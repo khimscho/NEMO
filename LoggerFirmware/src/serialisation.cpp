@@ -26,7 +26,6 @@
  */
 
 #include <stdint.h>
-#include <SD_MMC.h>
 #include "serialisation.h"
 #include "N2kLogger.h"
 #include "N0183Logger.h"

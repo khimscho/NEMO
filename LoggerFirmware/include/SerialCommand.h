@@ -60,6 +60,9 @@ public:
     
     /// \brief Poll for commands, and execute if they've been received.
     void ProcessCommand(void);
+
+    /// \brief Stop logging immediately for emergency power-down
+    void EmergencyStop(void);
     
     /// \enum CommandSource
     /// \brief Identify the source of the command being processed
@@ -113,6 +116,8 @@ private:
     void TransferLogFile(String const& command, CommandSource src);
     /// \brief Set up receiver on UARTs for inverting input (to deal with polarity problems)
     void ConfigureSerialPort(String const& command, CommandSource src);
+    /// \brief Configure whether to bring on individual loggers
+    void ConfigureLoggers(String const& command, CommandSource src);
     /// \brief Show a list of known commands
     void Syntax(CommandSource src);
     

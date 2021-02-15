@@ -26,10 +26,10 @@
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <WiFIAP.h>
-#include <SD_MMC.h>
 
 #include "WiFiAdapter.h"
 #include "ParamStore.h"
+#include "MemController.h"
 
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
 
@@ -44,8 +44,11 @@ public:
     /// Default constructor for the ESP32 adapter.  This brings up the parameter store to use
     /// for WiFi parameters, but takes no other action until the user explicitly starts the AccessPoint.
     ESP32WiFiAdapter(void)
-    : m_paramStore(nullptr), m_server(nullptr)
+    : m_storage(nullptr), m_paramStore(nullptr), m_server(nullptr)
     {
+        if ((m_storage = mem::MemControllerFactory::Create()) == nullptr) {
+            return;
+        }
         if ((m_paramStore = ParamStoreFactory::Create()) == nullptr) {
             return;
         }
@@ -56,9 +59,11 @@ public:
     {
         stop();
         delete m_paramStore;
+        delete m_storage; // Note that we're not stopping the interface, since it may still be required elsewhere
     }
     
 private:
+    mem::MemController *m_storage;  ///< Pointer to the storage object to use
     ParamStore  *m_paramStore;  ///< Pointer to the object used to manipulate the key/value parameter store.
     WiFiServer  *m_server;      ///< Pointer to the server object, if started.
     WiFiClient  m_client;       ///< Pointer to the current client connection, if there is one.
@@ -184,7 +189,7 @@ private:
     bool sendLogFile(String const& filename)
     {
         if (!isConnected()) return false;
-        File f = SD_MMC.open(filename, FILE_READ);
+        File f = m_storage->Controller().open(filename, FILE_READ);
         if (!f) {
             Serial.println("ERR: failed to open file for transfer.");
             return false;

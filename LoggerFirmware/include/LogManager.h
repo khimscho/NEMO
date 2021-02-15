@@ -29,9 +29,10 @@
 
 #include <stdint.h>
 #include <Arduino.h>
-#include <SD_MMC.h>
+#include "FS.h"
 #include "serialisation.h"
 #include "StatusLED.h"
+#include "MemController.h"
 
 namespace logger {
 
@@ -78,7 +79,8 @@ public:
         Pkt_Temperature = 7,    ///< Temperature and source
         Pkt_Humidity = 8,       ///< Humidity and source
         Pkt_Pressure = 9,       ///< Pressure and source
-        Pkt_NMEAString = 10     ///< A generic NMEA0183 string, in raw format
+        Pkt_NMEAString = 10,    ///< A generic NMEA0183 string, in raw format
+        Pkt_LocalIMU = 11       ///< Logger's on-board IMU
     };
     
     /// \brief Write a packet into the current log file
@@ -94,6 +96,7 @@ public:
     void TransferLogFile(int file_num, Stream& output);
 
 private:
+    mem::MemController  *m_storage; ///< Controller for the storage to use
     File        m_consoleLog;       ///< File on which to write console information
     File        m_outputLog;        ///< Current output log file on the SD card
     Serialiser  *m_serialiser;      ///< Object to handle serialisation of data

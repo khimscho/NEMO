@@ -25,15 +25,15 @@
  * OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-// Set parameters
-
-#include <SD_MMC.h>
 #include <NMEA2000_CAN.h> /* This auto-generates the NMEA2000 global for bus control */
 #include "N2kLogger.h"
 #include "serial_number.h"
 #include "SerialCommand.h"
 #include "StatusLED.h"
-#include "eMMCController.h"
+#include "MemController.h"
+#include "IMULogger.h"
+#include "ParamStore.h"
+#include "SupplyMonitor.h"
 
 /// Hardware version for the logger implementation (for NMEA2000 declaration)
 #define LOGGER_HARDWARE_VERSION "1.0.0"
@@ -55,10 +55,12 @@ const unsigned long ReceiveMessages[] PROGMEM =
 
 nmea::N2000::Logger     *N2000Logger = nullptr;     ///< Pointer for NMEA2000 CANbus logger object
 nmea::N0183::Logger     *N0183Logger = nullptr;     ///< Pointer for serial NMEA data logger object
+imu::Logger             *IMULogger = nullptr;       ///< Pointer for local IMU data logger
 logger::Manager         *logManager = nullptr;      ///< SD log file manager object
 StatusLED               *LEDs = nullptr;            ///< Pointer to the status LED manager object
-nemo30::eMMCController  *emmc = nullptr;            ///< Pointer for the eMMC module controller object
 SerialCommand           *CommandProcessor = nullptr;///< Pointer for the command processor object
+mem::MemController      *memController = nullptr;   ///< Pointer for the storage abstraction
+nemo30::SupplyMonitor   *supplyMonitor = nullptr;   ///< Pointer for the supply voltage monitoring code
 
 /// \brief Primary setup code for the logger
 ///
@@ -77,14 +79,11 @@ void setup()
     Serial.println("Setting up LED indicator for initialising ...");
     LEDs->SetStatus(StatusLED::Status::sINITIALISING);
 
-    Serial.println("Bringing up eMMC Controller ...");
-    emmc = new nemo30::eMMCController();
-    emmc->setModuleStatus(true);
+    Serial.println("Bringing up Storage Controller ...");
+    memController = mem::MemControllerFactory::Create();
     
-    Serial.println("Initialising memory interface ...");
-
-    /* Set up the SD interface and make sure we have a card */
-    if (!SD_MMC.begin()) {
+    Serial.println("Starting memory interface ...");
+    if (!memController->Start()) {
         // Card is not present, or didn't start ... that's a fatal error
         LEDs->SetStatus(StatusLED::Status::sFATAL_ERROR);
         while (1) {
@@ -96,11 +95,26 @@ void setup()
     Serial.println("Configuring logger manager ...");
     logManager = new logger::Manager(LEDs);
 
-    Serial.println("Configuring NEMA2000 logger ...");
-    N2000Logger = new nmea::N2000::Logger(&NMEA2000, logManager);
+    ParamStore *params = ParamStoreFactory::Create();
+    bool start_nmea_2000, start_nmea_0183, start_imu;
+    params->GetBinaryKey("N2Enable", start_nmea_2000);
+    params->GetBinaryKey("N1Enable", start_nmea_0183);
+    params->GetBinaryKey("IMUEnable", start_imu);
+
+    if (start_nmea_2000) {
+        Serial.println("Configuring NEMA2000 logger ...");
+        N2000Logger = new nmea::N2000::Logger(&NMEA2000, logManager);
+    }
   
-    Serial.println("Configuring NMEA0183 logger (and configuring serial ports)...");
-    N0183Logger = new nmea::N0183::Logger(logManager);
+    if (start_nmea_0183) {
+        Serial.println("Configuring NMEA0183 logger (and configuring serial ports)...");
+        N0183Logger = new nmea::N0183::Logger(logManager);
+    }
+
+    if (start_imu) {
+        Serial.println("Configurating IMU logger ...");
+        IMULogger = new imu::Logger(logManager);
+    }
 
     Serial.println("Configuring command processor ...");
     CommandProcessor = new SerialCommand(N2000Logger, N0183Logger, logManager, LEDs);
@@ -108,25 +122,31 @@ void setup()
     Serial.println("Starting log manager interface to SD card ...");
     logManager->StartNewLog();
   
-    Serial.println("Starting NMEA2000 bus interface ...");
-    NMEA2000.SetProductInformation(GetSerialNumberString(),
-                                1,
-                                "Seabed 2030 NMEA2000 Logger",
-                                N2000Logger->SoftwareVersion().c_str(),
-                                LOGGER_HARDWARE_VERSION
-                                );
-    NMEA2000.SetDeviceInformation(GetSerialNumber(),
-                                130,  /* Device Function: PC gateway */
-                                25,   /* Device Class: Inter/Intranetwork Device */
-                                2046  /* */
-                                );
-    NMEA2000.SetMode(tNMEA2000::N2km_ListenAndNode, 25);
-    NMEA2000.EnableForward(false);
-    NMEA2000.ExtendTransmitMessages(TransmitMessages);
-    NMEA2000.ExtendReceiveMessages(ReceiveMessages);
-    NMEA2000.AttachMsgHandler(N2000Logger);
+    if (start_nmea_2000) {
+        Serial.println("Starting NMEA2000 bus interface ...");
+        NMEA2000.SetProductInformation(GetSerialNumberString(),
+                                    1,
+                                    "Seabed 2030 NMEA2000 Logger",
+                                    N2000Logger->SoftwareVersion().c_str(),
+                                    LOGGER_HARDWARE_VERSION
+                                    );
+        NMEA2000.SetDeviceInformation(GetSerialNumber(),
+                                    130,  /* Device Function: PC gateway */
+                                    25,   /* Device Class: Inter/Intranetwork Device */
+                                    2046  /* */
+                                    );
+        NMEA2000.SetMode(tNMEA2000::N2km_ListenAndNode, 25);
+        NMEA2000.EnableForward(false);
+        NMEA2000.ExtendTransmitMessages(TransmitMessages);
+        NMEA2000.ExtendReceiveMessages(ReceiveMessages);
+        NMEA2000.AttachMsgHandler(N2000Logger);
 
-    NMEA2000.Open();
+        NMEA2000.Open();
+    }
+
+    Serial.println("Bringing up supply voltage monitoring ...");
+    supplyMonitor = new nemo30::SupplyMonitor();
+
     Serial.println("Setup complete, setting status for normal operations.");
     LEDs->SetStatus(StatusLED::Status::sNORMAL);
 }
@@ -147,10 +167,17 @@ void loop()
     if (N0183Logger != nullptr) {
         N0183Logger->ProcessMessages();
     }
+    if (IMULogger != nullptr) {
+        IMULogger->TransferData();
+    }
     if (LEDs != nullptr) {
         LEDs->ProcessFlash();
     }
     if (CommandProcessor != nullptr) {
         CommandProcessor->ProcessCommand();
+    }
+    if (supplyMonitor->EmergencyPower()) {
+        // Eek!  Power went out, so we need to stop logging ASAP
+        CommandProcessor->EmergencyStop();
     }
 }

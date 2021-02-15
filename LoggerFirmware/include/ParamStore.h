@@ -41,6 +41,11 @@ public:
     bool SetKey(String const& key, String const& value);
     /// \brief Get a value for a given key
     bool GetKey(String const& key, String& value);
+
+    /// \brief Set/Reset a binary key value
+    bool SetBinaryKey(String const& key, bool value);
+    /// \brief Get a value for a binary key value
+    bool GetBinaryKey(String const& key, bool& value);
     
 private:
     /// \brief Sub-class implementation of the mechanics to set a key to a value.

@@ -226,6 +226,47 @@ bool ParamStore::GetKey(String const& key, String& value)
     return get_key(key, value);
 }
 
+/// Base-class implementation of a specialised binary key-value pair
+///
+/// \param key      Recognition name for the value to set
+/// \param value    Binary state to set
+/// \return True if the value was successfully set, otherwise false.
+
+bool ParamStore::SetBinaryKey(String const& key, bool value)
+{
+    String txt_value;
+    if (value) {
+        txt_value = "true";
+    } else {
+        txt_value = "false";
+    }
+    return set_key(key, txt_value);
+}
+
+/// Base-class implementation of a specialised binary key-value pair.  The code
+/// automatically returns "true" for any key that is not known, but will return
+/// false for non-recognised keys.
+///
+/// \param key      Recognition name for the value to set
+/// \param value    Binary state found from store
+/// \return True if the value was successfully retrieved, otherwise false.
+
+bool ParamStore::GetBinaryKey(String const& key, bool& value)
+{
+    String  txt_value;
+    bool rc = get_key(key, txt_value);
+    if (rc) {
+        if (txt_value == "true")
+            value = true;
+        else
+            value = false;
+    } else {
+        // default value
+        value = true;
+    }
+    return rc;
+}
+
 /// Factory method to generate the appropriate implementation of the ParamStore object for the
 /// current hardware module.  The sub-class is up-cast to the base object on return.
 ///

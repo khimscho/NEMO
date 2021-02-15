@@ -32,7 +32,7 @@
 #define __SERIALISATION_H__
 
 #include <stdint.h>
-#include <SD_MMC.h>
+#include "FS.h"
 
 const int SerialiserVersionMajor = 1; ///< Major version number for the serialiser
 const int SerialiserVersionMinor = 0; ///< Minor version number for the serialiser

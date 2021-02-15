@@ -30,6 +30,7 @@
 #include "SerialCommand.h"
 #include "IncrementalBuffer.h"
 #include "OTAUpdater.h"
+#include "ParamStore.h"
 
 const uint32_t CommandMajorVersion = 1;
 const uint32_t CommandMinorVersion = 0;
@@ -118,8 +119,12 @@ void SerialCommand::ReportLogfileSizes(CommandSource src)
 
 void SerialCommand::ReportSoftwareVersion(CommandSource src)
 {
-    EmitMessage(String("NMEA2000: ") + m_CANLogger->SoftwareVersion() + String("\n"), src);
-    EmitMessage(String("NMEA0183: ") + m_serialLogger->SoftwareVersion() + String("\n"), src);
+    if (m_CANLogger != nullptr) {
+        EmitMessage(String("NMEA2000: ") + m_CANLogger->SoftwareVersion() + String("\n"), src);
+    }
+    if (m_serialLogger != nullptr) {
+        EmitMessage(String("NMEA0183: ") + m_serialLogger->SoftwareVersion() + String("\n"), src);
+    }
 }
 
 /// Erase one, or all, of the log files currently on the SD card.  If the string is "all", all
@@ -220,11 +225,11 @@ void SerialCommand::SetBluetoothName(String const& name)
 void SerialCommand::SetVerboseMode(String const& mode)
 {
     if (mode == "on") {
-        m_CANLogger->SetVerbose(true);
-        m_serialLogger->SetVerbose(true);
+        if (m_CANLogger != nullptr) m_CANLogger->SetVerbose(true);
+        if (m_serialLogger != nullptr) m_serialLogger->SetVerbose(true);
     } else if (mode == "off") {
-        m_CANLogger->SetVerbose(false);
-        m_serialLogger->SetVerbose(false);
+        if (m_CANLogger != nullptr) m_CANLogger->SetVerbose(false);
+        if (m_serialLogger != nullptr) m_serialLogger->SetVerbose(false);
     } else {
         Serial.println("ERR: verbose mode not recognised.");
     }
@@ -346,6 +351,10 @@ void SerialCommand::ConfigureSerialPort(String const& params, CommandSource src)
     uint32_t    port;
     bool        invert;
     
+    if (m_serialLogger == nullptr) {
+        EmitMessage("ERR: NMEA0183 logger disabled, cannot run command.\n", src);
+        return;
+    }
     if (params.startsWith("on")) {
         invert = true;
         port = params.substring(3).toInt();
@@ -359,6 +368,35 @@ void SerialCommand::ConfigureSerialPort(String const& params, CommandSource src)
     m_serialLogger->SetRxInvert(port, invert);
 }
 
+void SerialCommand::ConfigureLoggers(String const& params, CommandSource src)
+{
+    String  logger;
+    bool    state;
+
+    if (params.startsWith("on")) {
+        state = true;
+        logger = params.substring(3);
+    } else if (params.startsWith("off")) {
+        state = false;
+        logger = params.substring(4);
+    } else {
+        EmitMessage("ERR: loggers can be configured 'on' or 'off' only.\n", src);
+        return;
+    }
+
+    ParamStore *store = ParamStoreFactory::Create();
+    if (logger.startsWith("nmea2000")) {
+        store->SetBinaryKey("N2Enable", state);
+    } else if (logger.startsWith("nmea0183")) {
+        store->SetBinaryKey("N1Enable", state);
+    } else if (logger.startsWith("imu")) {
+        store->SetBinaryKey("IMUEnable", state);
+    } else {
+        EmitMessage("ERR: logger name not recognised.\n", src);
+    }
+    delete store;
+}
+
 /// Output a list of known commands, since there are now enough of them to make remembering them
 /// all a little difficult.
 
@@ -366,12 +404,14 @@ void SerialCommand::Syntax(CommandSource src)
 {
     EmitMessage(String("Command Syntax (V") + CommandMajorVersion + "." + CommandMinorVersion + "." + CommandPatchVersion + "):\n", src);
     EmitMessage("  advertise bt-name                   Set BLE advertising name.\n", src);
+    EmitMessage("  configure on|off logger-name        Configure individual loggers on/off.\n", src);
     EmitMessage("  erase file-number|all               Remove a specific [file-number] or all log files.\n", src);
     EmitMessage("  help|syntax                         Generate this list.\n", src);
     EmitMessage("  identify                            Report the logger's unique identification string.\n", src);
     EmitMessage("  invert 0|1                          Invert polarity of RS-422 input on port 0|1.\n", src);
     EmitMessage("  led normal|error|initialising|full  [Debug] Set the indicator LED status.\n", src);
     EmitMessage("  log                                 Output the contents of the console log.\n", src);
+    EmitMessage("  ota                                 Start Over-the-Air update sequence for the logger.\n", src);
     EmitMessage("  password [wifi-password]            Set the WiFi password.\n", src);
     EmitMessage("  setid logger-name                   Set the logger's unique identification string.\n", src);
     EmitMessage("  sizes                               Output list of the extant log files, and their sizes in bytes.\n", src);
@@ -382,7 +422,7 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  version                             Report NMEA0183 and NMEA2000 logger version numbers.\n", src);
     EmitMessage("  verbose on|off                      Control verbosity of reporting for serial input strings.\n", src);
     EmitMessage("  wireless on|off|accesspoint|station Control WiFi activity [on|off] and mode [accesspoint|station].\n", src);
-    EmitMessage("  ota                                 Start Over-the-Air update sequence for the logger.\n", src);
+
 }
 
 /// Execute the command strings received from the serial interface(s).  This tests the
@@ -439,6 +479,8 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
     } else if (cmd.startsWith("ota")) {
         EmitMessage("Starting OTA update sequence ...\n", src);
         OTAUpdater updater; // This puts the logger into a loop which ends with a full reset
+    } else if (cmd.startsWith("configure")) {
+        ConfigureLoggers(cmd.substring(10), src);
     } else if (cmd == "help" || cmd == "syntax") {
         Syntax(src);
     } else {
@@ -486,6 +528,13 @@ void SerialCommand::ProcessCommand(void)
         
         Execute(cmd, CommandSource::WirelessPort);
     }
+}
+
+void SerialCommand::EmergencyStop(void)
+{
+    Serial.println("WARN: Emergency power activated, shutting down.");
+    m_logManager->Console().println("warning: emergency power activated, shutting down.");
+    Shutdown();
 }
 
 /// Generate a message on the output stream associated with the source given.

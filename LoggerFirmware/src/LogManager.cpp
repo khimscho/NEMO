@@ -29,6 +29,7 @@
 #include <utility>
 #include "LogManager.h"
 #include "StatusLED.h"
+#include "MemController.h"
 
 namespace logger {
 
@@ -37,10 +38,11 @@ const int MAX_LOG_FILE_SIZE = 10*1024*1024; ///< Maximum size of a single log fi
 Manager::Manager(StatusLED *led)
 : m_led(led)
 {
+    m_storage = mem::MemControllerFactory::Create();
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
-    m_consoleLog = SD_MMC.open("/console.log", FILE_APPEND);
+    m_consoleLog = m_storage->Controller().open("/console.log", FILE_APPEND);
 #else
-    m_consoleLog = SD_MMC.open("/console.log", FILE_WRITE);
+    m_consoleLog = m_storage->Controller().open("/console.log", FILE_WRITE);
 #endif
     m_consoleLog.println("info: booted logger, appending to console log.");
     m_consoleLog.flush();
@@ -54,6 +56,8 @@ Manager::~Manager(void)
     
     m_consoleLog.println("INFO: shutting down log manager under control.");
     m_consoleLog.close();
+    m_storage->Stop();
+    delete m_storage;
 }
 
 /// Start logging data to a new log file, generating the next log number in sequence that
@@ -71,7 +75,7 @@ void Manager::StartNewLog(void)
     String filename = MakeLogName(log_num);
     Serial.println(String("Log Name: ") + filename);
 
-    m_outputLog = SD_MMC.open(filename, FILE_WRITE);
+    m_outputLog = m_storage->Controller().open(filename, FILE_WRITE);
     if (m_outputLog) {
         m_serialiser = new Serialiser(m_outputLog);
         m_consoleLog.println(String("INFO: started logging to ") + filename);
@@ -108,7 +112,7 @@ void Manager::CloseLogfile(void)
 bool Manager::RemoveLogFile(uint32_t file_num)
 {
     String filename = MakeLogName(file_num);
-    boolean rc = SD_MMC.remove(filename);
+    boolean rc = m_storage->Controller().remove(filename);
 
     if (rc) {
         m_consoleLog.println(String("INFO: erased log file ") + file_num +
@@ -128,7 +132,7 @@ bool Manager::RemoveLogFile(uint32_t file_num)
 
 void Manager::RemoveAllLogfiles(void)
 {
-    File basedir = SD_MMC.open("/logs");
+    File basedir = m_storage->Controller().open("/logs");
     File entry = basedir.openNextFile();
 
     CloseLogfile();  // All means all ...
@@ -146,7 +150,7 @@ void Manager::RemoveAllLogfiles(void)
 
         Serial.println("INFO: erasing log file: \"" + filename + "\"");
         
-        boolean rc = SD_MMC.remove(filename);
+        boolean rc = m_storage->Controller().remove(filename);
         if (rc) {
             m_consoleLog.println(String("INFO: erased log file ") + filename +
                                  String(" by user command."));
@@ -175,7 +179,7 @@ int Manager::CountLogFiles(int filenumbers[MaxLogFiles])
 {
     int file_count = 0;
     
-    File logdir = SD_MMC.open("/logs");
+    File logdir = m_storage->Controller().open("/logs");
     File entry = logdir.openNextFile();
     while (entry) {
         filenumbers[file_count] = String(entry.name()).substring(15).toInt();
@@ -197,7 +201,7 @@ int Manager::CountLogFiles(int filenumbers[MaxLogFiles])
 void Manager::EnumerateLogFile(int lognumber, String& filename, int& filesize)
 {
     filename = MakeLogName(lognumber);
-    File f = SD_MMC.open(filename);
+    File f = m_storage->Controller().open(filename);
     if (f) {
         filesize = f.size();
     } else {
@@ -237,19 +241,19 @@ void Manager::Record(PacketIDs pktID, Serialisable const& data)
 uint32_t Manager::GetNextLogNumber(void)
 {
  
-    if (!SD_MMC.exists("/logs")) {
-        SD_MMC.mkdir("/logs");
+    if (!m_storage->Controller().exists("/logs")) {
+        m_storage->Controller().mkdir("/logs");
     }
-    File dir = SD_MMC.open("/logs");
+    File dir = m_storage->Controller().open("/logs");
     if (!dir.isDirectory()) {
         dir.close();
-        SD_MMC.remove("/logs");
-        SD_MMC.mkdir("/logs");
+        m_storage->Controller().remove("/logs");
+        m_storage->Controller().mkdir("/logs");
     }
     
     uint32_t lognum = 0;
     while (lognum < MaxLogFiles) {
-        if (SD_MMC.exists(MakeLogName(lognum))) {
+        if (m_storage->Controller().exists(MakeLogName(lognum))) {
             ++lognum;
         } else {
             break;
@@ -277,19 +281,19 @@ String Manager::MakeLogName(uint32_t log_num)
 void Manager::DumpConsoleLog(Stream& output)
 {
     m_consoleLog.close();
-    m_consoleLog = SD_MMC.open("/console.log", FILE_READ);
+    m_consoleLog = m_storage->Controller().open("/console.log", FILE_READ);
     while (m_consoleLog.available()) {
         output.write(m_consoleLog.read());
     }
     m_consoleLog.close();
-    m_consoleLog = SD_MMC.open("/console.log", FILE_APPEND);
+    m_consoleLog = m_storage->Controller().open("/console.log", FILE_APPEND);
 }
 
 void Manager::TransferLogFile(int file_num, Stream& output)
 {
     String filename(MakeLogName(file_num));
     Serial.println("Transferring file: " + filename);
-    File f = SD_MMC.open(filename, FILE_READ);
+    File f = m_storage->Controller().open(filename, FILE_READ);
     uint32_t bytes_transferred = 0;
     uint32_t file_size = f.size();
     
