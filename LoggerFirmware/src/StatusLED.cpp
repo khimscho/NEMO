@@ -26,8 +26,8 @@
 
 #include "StatusLED.h"
 
-const boolean ON = LOW;    ///< Synonym for common cathode LED state being on (i.e., pin driven high)
-const boolean OFF = HIGH;    ///< Synonym for common cathode LED state being off (i.e., pin driven low)
+const boolean ON = LOW;     ///< Synonym for common anode LED state being on (i.e., pin driven low)
+const boolean OFF = HIGH;   ///< Synonym for common anode LED state being off (i.e., pin driven high)
 
 /// Constructor for the LED manager.  This configures the manager to have all of the
 /// specified pins as output, and turns them off to start with.  The flasher is also disabled,
@@ -76,7 +76,7 @@ void StatusLED::SetColour(Colour colour, boolean flash)
             led_state[0] = ON; led_state[1] = ON; led_state[2] = OFF; /* Yellow */
             break;
         case Colour::cALARM:
-            led_state[0] = ON; led_state[1] = OFF; led_state[2] = OFF; /* Red */
+            led_state[0] = OFF; led_state[1] = OFF; led_state[2] = ON; /* Blue */
             break;
     }
     led_flasher = ON;
@@ -146,16 +146,18 @@ void StatusLED::DataLEDOff(void)
 void StatusLED::ProcessFlash(void)
 {
     if (last_change_time > 0) {
+        Serial.printf("DBG: Processing LED flash for last change time %lu\n", last_change_time);
         // This implies that we are flashing the LED
         if ((last_change_time + on_period) < millis()) {
             // Only do anything if we've hit the time marker
             last_change_time = millis();
+            Serial.printf("DBG: Swapping LED flash status at time %lu\n", last_change_time);
             if (led_flasher == ON) {
                 led_flasher = OFF;
             } else {
                 led_flasher = ON;
             }
-            for (int i = 0; i < 2; ++i) {
+            for (int i = 0; i < 3; ++i) {
                 if (led_flasher == ON && led_state[i] == ON)
                     digitalWrite(led_pins[i], ON);
                 else
@@ -164,7 +166,7 @@ void StatusLED::ProcessFlash(void)
         }
     } else {
         // If we're not flashing, we just set the LED state
-        for (int i = 0; i < 2; ++i) {
+        for (int i = 0; i < 3; ++i) {
             digitalWrite(led_pins[i], led_state[i]);
         }
     }
