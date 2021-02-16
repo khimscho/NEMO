@@ -146,12 +146,10 @@ void StatusLED::DataLEDOff(void)
 void StatusLED::ProcessFlash(void)
 {
     if (last_change_time > 0) {
-        Serial.printf("DBG: Processing LED flash for last change time %lu\n", last_change_time);
         // This implies that we are flashing the LED
         if ((last_change_time + on_period) < millis()) {
             // Only do anything if we've hit the time marker
             last_change_time = millis();
-            Serial.printf("DBG: Swapping LED flash status at time %lu\n", last_change_time);
             if (led_flasher == ON) {
                 led_flasher = OFF;
             } else {
