@@ -600,7 +600,52 @@ class SerialiserVersion(DataPacket):
     # \return String representation of the object
     def __str__(self):
         rtn = DataPacket.__str__(self) + " " + self.name() + ": version = " + str(self.major) + "." + str(self.minor) +\
-                " with NMEA2000 version " + self.nmea2000_version + " and NMEA0183 version " + self.nmea0183_version;
+                " with NMEA2000 version " + self.nmea2000_version + " and NMEA0183 version " + self.nmea0183_version
+        return rtn
+
+## Implement the motion sensor data packet
+#
+# This picks out the information from the on-board motion sensor (if available).  This data is not processed
+# (e.g., with a Kalman filter) and may need further work before being useful.
+class Motion(DataPacket):
+    ## Initialise the object using the supplies buffer of binary data
+    #
+    # The buffer should contain 28 bytes for 3-axis acceleration, 3-axis gyro, and internal sensor temperature.
+    #
+    # \param self   Pointer to the object
+    # \param buffer Binary data from file to interpret
+    def __init__(self, buffer):
+        (elapsed, ax, ay, az, gx, gy, gz, temp) = struct.unpack("<Ifffffff", buffer)
+        # Accelerations, 3-axis
+        self.ax = ax
+        self.ay = ay
+        self.az = az
+        # Gyroscope rotation rates, 3-axis
+        self.gx = gx
+        self.gy = gy
+        self.gz = gz
+        # Die temperature of the motion sensor
+        self.temp = temp
+        DataPacket.__init__(self, 0, 0.0, elapsed)
+
+    ## Provide the fixed-text string name for this data pakcet
+    #
+    # This simply reports the human-readable name for the class so that reporting is possible
+    #
+    # \param self   Pointer to the object
+    # \return String with the human-readable name of the packet
+    def name(self):
+        return "Motion"
+    
+    ## Implement the printable interface for this class, allowing it to be streamed
+    #
+    # This converts to human-readable version of the data packet for the standard streaming output interface.
+    #
+    # \param self   Pointer to the object
+    # \return String representation of the object
+    def __str__(self):
+        rtn = DataPacket.__str__(self) + " " + self.name() + ": acc = (" + str(self.ax) + ", " + str(self.ay) + ", " + str(self.az) +\
+            "), gyro = (" + str(self.gx) + ", " + str(self.gy) + ", " + str(self.gz) + "), temp = " + str(self.temp)
         return rtn
 
 ## Translate packets out of the binary file, reconstituing as an appropriate class
@@ -663,6 +708,8 @@ class PacketFactory:
             rtn = Pressure(buffer)
         elif pkt_id == 10:
             rtn = SerialString(buffer)
+        elif pkt_id == 11:
+            rtn = Motion(buffer)
         else:
             print("Unknown packet with ID " + str(pkt_id) + " in input stream; ignored.")
             rtn = None

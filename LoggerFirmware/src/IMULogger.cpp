@@ -73,10 +73,11 @@ Logger::~Logger(void)
 void Logger::TransferData(void)
 {
     if (m_sensor == nullptr) return;
-
     sensors_event_t acc, gyro, temp;
+    unsigned long now = millis();
     if (m_sensor->getEvent(&acc, &gyro, &temp)) {
-        Serialisable buffer(28);
+        Serialisable buffer(28 + sizeof(unsigned long));
+        buffer += static_cast<uint32_t>(now);
         buffer += acc.acceleration.x;
         buffer += acc.acceleration.y;
         buffer += acc.acceleration.z;
