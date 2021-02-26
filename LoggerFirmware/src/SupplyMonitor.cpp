@@ -26,22 +26,33 @@
 
 #include <Arduino.h>
 #include "SupplyMonitor.h"
+#include "Configuration.h"
 
 namespace nemo30 {
 
 SupplyMonitor::SupplyMonitor(uint8_t monitor_pin)
-: m_monitorPin(monitor_pin)
+: m_monitorPower(false), m_monitorPin(monitor_pin)
 {
-    pinMode(m_monitorPin, INPUT);
+    if (!logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_POWMON_B, m_monitorPower)) {
+        // Returns false if the key doesn't exist.  This usually means that
+        // it hasn't been set yet, and that means we're still in programming,
+        // or debugging mode.  In that mode, the power monitoring doesn't work
+        // (there's no input power to monitor!), so we turn monitoring off.
+        m_monitorPower = false;
+    }
+    if (m_monitorPower) {
+        pinMode(m_monitorPin, INPUT);
+    }
 }
 
 bool SupplyMonitor::EmergencyPower(void)
 {
-    uint16_t monitor_voltage = analogRead(m_monitorPin);
-    if (monitor_voltage < 2048)
-        return true;
-    else
-        return false;
+    if (m_monitorPower) {
+        uint16_t monitor_voltage = analogRead(m_monitorPin);
+        if (monitor_voltage < 2048)
+            return true;
+    }
+    return false;
 }
 
 }

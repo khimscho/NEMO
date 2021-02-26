@@ -29,6 +29,7 @@
 #include <string>
 #include <cstring>
 #include "N0183Logger.h"
+#include "Configuration.h"
 
 namespace nmea {
 namespace N0183 {
@@ -242,9 +243,9 @@ Sentence const *MessageAssembler::NextSentence(void)
 }
                                        
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
-const int rx1_pin = 27; ///< UART port 1 receive pin number (default for this system, not standard)
+const int rx1_pin = 34; ///< UART port 1 receive pin number (default for this system, not standard)
 const int tx1_pin = 18; ///< UART port 1 transmit pin number (default for this system, not standard)
-const int rx2_pin = 33; ///< UART port 2 receive pin number (default for this system, not standard)
+const int rx2_pin = 35; ///< UART port 2 receive pin number (default for this system, not standard)
 const int tx2_pin = 19; ///< UART port 2 transmit pin number (default for this system, not standard)
 #elif defined(__SAM3X8E__)
 // Note that these are the defaults, since there doesn't appear to be a way to adjust on Arduino Due
@@ -272,8 +273,22 @@ Logger::Logger(logger::Manager *output)
     m_channel[1].SetLogManager(output);
     
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
-    Serial1.begin(4800, SERIAL_8N1, rx1_pin, tx1_pin);
-    Serial2.begin(4800, SERIAL_8N1, rx2_pin, tx2_pin);
+    // We have limits on the number of pins that can be used, so the TX pins (which we don't need)
+    // are routed to the SPI pins by default on the assumption that the eMMC module will be used
+    // instead for storage, and the SPI pins can be safely reused.  Of course, if that isn't the
+    // case, we need to switch ...
+    int used_tx1_pin = tx1_pin, used_tx2_pin = tx2_pin;
+    bool sdio_in_use = false;
+    if (!logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_SDMMC_B, sdio_in_use)) {
+        sdio_in_use = false;
+    }
+    if (!sdio_in_use) {
+        // Reassign to eMMC data lines not otherwise being used.
+        used_tx1_pin = 14;
+        used_tx2_pin = 15;
+    }
+    Serial1.begin(4800, SERIAL_8N1, rx1_pin, used_tx1_pin);
+    Serial2.begin(4800, SERIAL_8N1, rx2_pin, used_tx2_pin);
 #elif defined(__SAM3X8E__)
     Serial1.begin(4800);
     Serial2.begin(4800);

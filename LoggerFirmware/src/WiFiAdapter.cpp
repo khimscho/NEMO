@@ -28,7 +28,7 @@
 #include <WiFIAP.h>
 
 #include "WiFiAdapter.h"
-#include "ParamStore.h"
+#include "Configuration.h"
 #include "MemController.h"
 
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
@@ -44,12 +44,9 @@ public:
     /// Default constructor for the ESP32 adapter.  This brings up the parameter store to use
     /// for WiFi parameters, but takes no other action until the user explicitly starts the AccessPoint.
     ESP32WiFiAdapter(void)
-    : m_storage(nullptr), m_paramStore(nullptr), m_server(nullptr)
+    : m_storage(nullptr), m_server(nullptr)
     {
         if ((m_storage = mem::MemControllerFactory::Create()) == nullptr) {
-            return;
-        }
-        if ((m_paramStore = ParamStoreFactory::Create()) == nullptr) {
             return;
         }
     }
@@ -58,13 +55,11 @@ public:
     virtual ~ESP32WiFiAdapter(void)
     {
         stop();
-        delete m_paramStore;
         delete m_storage; // Note that we're not stopping the interface, since it may still be required elsewhere
     }
     
 private:
     mem::MemController *m_storage;  ///< Pointer to the storage object to use
-    ParamStore  *m_paramStore;  ///< Pointer to the object used to manipulate the key/value parameter store.
     WiFiServer  *m_server;      ///< Pointer to the server object, if started.
     WiFiClient  m_client;       ///< Pointer to the current client connection, if there is one.
     
@@ -212,7 +207,7 @@ private:
     
     void set_ssid(String const& ssid)
     {
-        if (!m_paramStore->SetKey("ssid", ssid)) {
+        if (!logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFISSID_S, ssid)) {
             Serial.println("ERR: failed to set SSID string on module.");
         }
     }
@@ -225,7 +220,7 @@ private:
     String get_ssid(void)
     {
         String value;
-        if (!m_paramStore->GetKey("ssid", value)) {
+        if (!logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFISSID_S, value)) {
             Serial.println("ERR: failed to get SSID string from module.");
             value = "UNKNOWN";
         }
@@ -241,7 +236,7 @@ private:
     
     void set_password(String const& password)
     {
-        if (!m_paramStore->SetKey("password", password)) {
+        if (!logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFIPSWD_S, password)) {
             Serial.println("ERR: failed to set password on module.");
         }
     }
@@ -259,7 +254,7 @@ private:
     String get_password(void)
     {
         String value;
-        if (!m_paramStore->GetKey("password", value)) {
+        if (!logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIPSWD_S, value)) {
             Serial.println("ERR: failed to get password on module.");
             value = "UNKNOWN";
         }
@@ -275,7 +270,7 @@ private:
     
     void set_address(IPAddress const& address)
     {
-        if (!m_paramStore->SetKey("ipaddress", address.toString())) {
+        if (!logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, address.toString())) {
             Serial.println("ERR: failed to set WiFI IP address on module.");
         }
     }
@@ -289,7 +284,7 @@ private:
     String get_address(void)
     {
         String value;
-        if (!m_paramStore->GetKey("ipaddress", value)) {
+        if (!logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, value)) {
             Serial.println("ERR: failed to get WiFi IP address on module.");
             value = "UNKNOWN";
         }
@@ -314,7 +309,7 @@ private:
             Serial.println("ERR: unknown wireless adapater mode.");
             return;
         }
-        if (!m_paramStore->SetKey("wifimode", value)) {
+        if (!logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFIMODE_S, value)) {
             Serial.println("ERR: failed to set WiFi adapater mode on module.");
         }
     }
@@ -330,7 +325,7 @@ private:
         String          value;
         WirelessMode    rc;
         
-        if (!m_paramStore->GetKey("wifimode", value)) {
+        if (!logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIMODE_S, value)) {
             Serial.println("ERR: failed to get WiFi adapter mode on module.");
             value = "UNKNOWN";
         }

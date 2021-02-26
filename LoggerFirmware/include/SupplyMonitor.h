@@ -43,6 +43,7 @@ public:
     bool EmergencyPower(void);
 
 private:
+    bool    m_monitorPower;
     uint8_t m_monitorPin;
 };
 

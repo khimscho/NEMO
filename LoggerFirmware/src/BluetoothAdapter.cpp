@@ -27,7 +27,7 @@
 #include <Arduino.h>
 
 #include "BluetoothAdapter.h"
-#include "ParamStore.h"
+#include "Configuration.h"
 
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
 
@@ -213,14 +213,9 @@ public:
     /// the BLE server for Nordic Semi-style UART service.
     
     ESP32Adapter(void)
-    : m_started(false), m_paramStore(nullptr), m_server(NULL), m_service(NULL),
+    : m_started(false), m_server(NULL), m_service(NULL),
       m_txCharacteristic(NULL), m_rxCallbacks(NULL)
     {
-        if ((m_paramStore = ParamStoreFactory::Create()) == nullptr) {
-            Serial.println("ERR: failed to start parameter store object.");
-            return;
-        }
-        
         // We now need to bring up the BLE server with notification on
         // transmit and call-backs on receive.
         BLEDevice::init(getAdvertisingName().c_str());
@@ -259,13 +254,11 @@ public:
             delete m_txCharacteristic;
             delete m_service;
             delete m_server;
-            delete m_paramStore;
         }
     }
     
 private:
     bool                m_started;  ///< Flag: interface has been started
-    ParamStore          *m_paramStore;  ///< Pointer to the parameter store manager
     BLEServer           *m_server;  ///< Pointer to the BLE server object
     BLEService          *m_service; ///< Pointer to the UART service
     BLECharacteristic   *m_txCharacteristic;    ///< Transmit characteristic for the BLE UART
@@ -281,7 +274,7 @@ private:
     
     void setIdentificationString(String const& id)
     {
-        if (!m_paramStore->SetKey("modid", id)) {
+        if (!logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_MODULEID_S, id)) {
             Serial.println("ERR: module identification string file failed to write.");
             return;
         }
@@ -297,7 +290,7 @@ private:
     String getIdentificationString(void) const
     {
         String value;
-        if (!m_paramStore->GetKey("modid", value)) {
+        if (!logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_MODULEID_S, value)) {
             Serial.println("ERR: failed to find identification string file for module.");
             value = "UNKNOWN";
         }
@@ -315,7 +308,7 @@ private:
     
     void setAdvertisingName(String const& name)
     {
-        if (!m_paramStore->SetKey("modname", name)) {
+        if (!logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_BLENAME_S, name)) {
             Serial.println("ERR: module advertising name file failed to write.");
             return;
         }
@@ -331,7 +324,7 @@ private:
     String getAdvertisingName(void) const
     {
         String value;
-        if (!m_paramStore->GetKey("modname", value)) {
+        if (!logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_BLENAME_S, value)) {
             Serial.println("ERR: failed to find advertising name string file for module.");
             value = "SB2030";
         }
@@ -457,11 +450,8 @@ public:
     /// delay until the module resets.
     
     AdafruitAdapter(void)
-    : m_started(false), m_connected(false), m_paramStore(nullptr)
+    : m_started(false), m_connected(false)
     {
-        if ((m_paramStore = ParamStoreFactory.Create()) == nullptr) {
-            return;
-        }
         if (!ble.begin(true)) {
             return;
         }
@@ -493,7 +483,6 @@ public:
 private:
     bool    m_started;      ///< BLE interface is started and running
     bool    m_connected;    ///< BLE interface has been connected at the other end
-    ParamStore  *m_paramStore;  ///< Pointer to the parameter storage module
     
     /// \brief Implement the interface for writing the user-unique identification string
     ///
@@ -504,7 +493,7 @@ private:
     
     void setIdentificationString(String const& id)
     {
-        if (!m_paramStore->SetKey("idstring", id)) {
+        if (!logger::LoggerConfig.SetConfigString(CONFIG_MODULEID_S, id)) {
             Serial.println("ERR: failed to write identification string.");
         }
     }
@@ -519,7 +508,7 @@ private:
     String getIdentificationString(void) const
     {
         String value;
-        if (!m_paramStore->GetKey("idstring", value)) {
+        if (!logger::LoggerConfig.GetConfigString(CONFIG_MODULEID_S, value)) {
             Serial.println("ERR: failed to read identification string.");
             value = "UNKNOWN";
         }
@@ -535,7 +524,7 @@ private:
     
     void setAdvertisingName(String const& name)
     {
-        if (!m_paramStore->SetKey("adname", name)) {
+        if (!logger::LoggerConfig.SetConfigString(CONFIG_BLENAME_S, name)) {
             Serial.println("ERR: failed to write advertising name.");
         }
     }
@@ -550,7 +539,7 @@ private:
     String getAdvertisingName(void) const
     {
         String value;
-        if (!m_paramStore->GetKey("adname", value)) {
+        if (!logger::LoggerConfig.GetConfigString(CONFIG_BLENAME_S, value)) {
             Serial.println("ERR: failed to read advertising name string.");
             value = "UNKNOWN";
         }

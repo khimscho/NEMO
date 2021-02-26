@@ -32,8 +32,8 @@
 #include "StatusLED.h"
 #include "MemController.h"
 #include "IMULogger.h"
-#include "ParamStore.h"
 #include "SupplyMonitor.h"
+#include "Configuration.h"
 
 /// Hardware version for the logger implementation (for NMEA2000 declaration)
 #define LOGGER_HARDWARE_VERSION "1.0.0"
@@ -84,6 +84,7 @@ void setup()
     
     Serial.println("Starting memory interface ...");
     if (!memController->Start()) {
+        Serial.println("ERR: Memory system didn't start ... halting.");
         // Card is not present, or didn't start ... that's a fatal error
         LEDs->SetStatus(StatusLED::Status::sFATAL_ERROR);
         while (1) {
@@ -95,23 +96,21 @@ void setup()
     Serial.println("Configuring logger manager ...");
     logManager = new logger::Manager(LEDs);
 
-    ParamStore *params = ParamStoreFactory::Create();
-    bool start_nmea_2000, start_nmea_0183, start_imu;
-    params->GetBinaryKey("N2Enable", start_nmea_2000);
-    params->GetBinaryKey("N1Enable", start_nmea_0183);
-    params->GetBinaryKey("IMUEnable", start_imu);
-
-    if (start_nmea_2000) {
+    bool start_nmea_2000, start_nmea_0183, start_motion_sensor;
+    if (logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_NMEA2000_B, start_nmea_2000)
+            && start_nmea_2000) {
         Serial.println("Configuring NEMA2000 logger ...");
         N2000Logger = new nmea::N2000::Logger(&NMEA2000, logManager);
     }
   
-    if (start_nmea_0183) {
+    if (logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_NMEA0183_B, start_nmea_0183)
+            && start_nmea_0183) {
         Serial.println("Configuring NMEA0183 logger (and configuring serial ports)...");
         N0183Logger = new nmea::N0183::Logger(logManager);
     }
 
-    if (start_imu) {
+    if (logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_MOTION_B, start_motion_sensor)
+            && start_motion_sensor) {
         Serial.println("Configurating IMU logger ...");
         IMULogger = new imu::Logger(logManager);
     }

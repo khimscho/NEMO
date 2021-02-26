@@ -30,7 +30,7 @@
 #include "SerialCommand.h"
 #include "IncrementalBuffer.h"
 #include "OTAUpdater.h"
-#include "ParamStore.h"
+#include "Configuration.h"
 
 const uint32_t CommandMajorVersion = 1;
 const uint32_t CommandMinorVersion = 0;
@@ -384,17 +384,50 @@ void SerialCommand::ConfigureLoggers(String const& params, CommandSource src)
         return;
     }
 
-    ParamStore *store = ParamStoreFactory::Create();
     if (logger.startsWith("nmea2000")) {
-        store->SetBinaryKey("N2Enable", state);
+        logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_NMEA2000_B, state);
     } else if (logger.startsWith("nmea0183")) {
-        store->SetBinaryKey("N1Enable", state);
+        logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_NMEA0183_B, state);
     } else if (logger.startsWith("imu")) {
-        store->SetBinaryKey("IMUEnable", state);
+        logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_MOTION_B, state);
     } else {
         EmitMessage("ERR: logger name not recognised.\n", src);
     }
-    delete store;
+}
+
+void SerialCommand::ReportConfiguration(CommandSource src)
+{
+    bool bin_param;
+    String string_param;
+
+    EmitMessage("Configuration Parameters:\n", src);
+    EmitMessage("  NMEA0183 Logger: ", src);
+    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_NMEA0183_B, bin_param);
+    EmitMessage(bin_param ? "on\n" : "off\n", src);
+    EmitMessage("  NMEA2000 Logger: ", src);
+    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_NMEA2000_B, bin_param);
+    EmitMessage(bin_param ? "on\n" : "off\n", src);
+    EmitMessage("  IMU Logger: ", src);
+    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_MOTION_B, bin_param);
+    EmitMessage(bin_param ? "on\n" : "off\n", src);
+    EmitMessage("  Power Monitor: ", src);
+    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_POWMON_B, bin_param);
+    EmitMessage(bin_param ? "on\n" : "off\n", src);
+    EmitMessage("  SDIO-MMC Interface: ", src);
+    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_SDMMC_B, bin_param);
+    EmitMessage(bin_param ? "on\n" : "off\n", src);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_MODULEID_S, string_param);
+    EmitMessage("  Module ID String: " + string_param + "\n", src);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_BLENAME_S, string_param);
+    EmitMessage("  BLE Advertising String: " + string_param + "\n", src);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFISSID_S, string_param);
+    EmitMessage("  WiFi SSID String: " + string_param + "\n", src);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIPSWD_S, string_param);
+    EmitMessage("  WiFi Password String: " + string_param + "\n", src);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, string_param);
+    EmitMessage("  WiFi IP Address String: " + string_param + "\n", src);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIMODE_S, string_param);
+    EmitMessage("  WiFi Mode String: " + string_param + "\n", src);
 }
 
 /// Output a list of known commands, since there are now enough of them to make remembering them
@@ -404,7 +437,7 @@ void SerialCommand::Syntax(CommandSource src)
 {
     EmitMessage(String("Command Syntax (V") + CommandMajorVersion + "." + CommandMinorVersion + "." + CommandPatchVersion + "):\n", src);
     EmitMessage("  advertise bt-name                   Set BLE advertising name.\n", src);
-    EmitMessage("  configure on|off logger-name        Configure individual loggers on/off.\n", src);
+    EmitMessage("  configure [on|off logger-name]      Configure individual loggers on/off (or report config).\n", src);
     EmitMessage("  erase file-number|all               Remove a specific [file-number] or all log files.\n", src);
     EmitMessage("  help|syntax                         Generate this list.\n", src);
     EmitMessage("  identify                            Report the logger's unique identification string.\n", src);
@@ -480,7 +513,11 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         EmitMessage("Starting OTA update sequence ...\n", src);
         OTAUpdater updater; // This puts the logger into a loop which ends with a full reset
     } else if (cmd.startsWith("configure")) {
-        ConfigureLoggers(cmd.substring(10), src);
+        if (cmd.length() == 9) {
+            ReportConfiguration(src);
+        } else {
+            ConfigureLoggers(cmd.substring(10), src);
+        }
     } else if (cmd == "help" || cmd == "syntax") {
         Syntax(src);
     } else {

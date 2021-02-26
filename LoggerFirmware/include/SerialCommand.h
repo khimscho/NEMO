@@ -118,6 +118,8 @@ private:
     void ConfigureSerialPort(String const& command, CommandSource src);
     /// \brief Configure whether to bring on individual loggers
     void ConfigureLoggers(String const& command, CommandSource src);
+    /// \brief Report configuration parameters for the logger
+    void ReportConfiguration(CommandSource src);
     /// \brief Show a list of known commands
     void Syntax(CommandSource src);
     

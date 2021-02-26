@@ -25,10 +25,15 @@
  * OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
+#include "esp_log.h"
+
 #include "MemController.h"
+#include "FS.h"
 #include "SD.h"
+#include "SPI.h"
 #include "SD_MMC.h"
-#include "ParamStore.h"
+#include "Configuration.h"
 #include "eMMCController.h"
 
 namespace mem {
@@ -51,7 +56,17 @@ private:
 
     bool start_interface(void)
     {
-        return SD.begin(m_csPin);
+        // By default, the interface chosen for SPI is the ESP32's VSPI, which is what NEMO-30 uses,
+        // so we don't need to configure the SPI interface to make this work.
+
+        bool rc = false;
+        int rep = 0;
+        while (rep < 10 && !rc) {
+            Serial.printf("DBG: repeat %d for SD start ...\n", rep);
+            rc = SD.begin(m_csPin);
+            ++rep;
+        }
+        return rc;
     }
 
     void stop_interface(void)
@@ -64,13 +79,14 @@ private:
         return SD;
     }
 };
-
+ 
 class MMCController : public MemController {
 public:
     MMCController(void)
     {
         m_eMMCController = new nemo30::eMMCController();
         m_eMMCController->setModuleStatus(true); // Enable CMD line to module
+        m_eMMCController->resetModule();
     }
 
     ~MMCController(void)
@@ -99,25 +115,17 @@ private:
 
 MemController *MemControllerFactory::Create(void)
 {
-    ParamStore *store = ParamStoreFactory::Create();
-    String mem_module;
-    bool use_spi = true;
+    bool use_sdio;
     MemController *rc = nullptr;
 
-    if (store->GetKey("MemModule", mem_module)) {
-        if (mem_module == "SPI") {
-            use_spi = true;
-        } else if (mem_module == "MMC") {
-            use_spi = false;
-        } else {
-            Serial.println("ERR: memory module interface not recognised!  Using SPI.");
-            use_spi = true;
-        }
+    if (!logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_SDMMC_B, use_sdio)) {
+        Serial.println("ERR: memory module interface not recognised!  Using SD-SPI.");
+        use_sdio = false;
     }
-    if (use_spi) {
-        rc = new SPIController();
-    } else {
+    if (use_sdio) {
         rc = new MMCController();
+    } else {
+        rc = new SPIController();
     }
     return rc;
 }
