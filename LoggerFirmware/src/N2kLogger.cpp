@@ -231,8 +231,7 @@ void Logger::HandleMsg(const tN2kMsg& message)
         default:
             // We ignore all packets, unless we're in verbose mode
             if (m_verbose) {
-                Serial.print("DBG: Found, and ignoring, packet ID ");
-                Serial.println(message.PGN);
+                Serial.printf("DBG: Found, and ignoring, packet ID %lu\n", message.PGN);
             }
             break;
     }

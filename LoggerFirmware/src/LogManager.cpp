@@ -115,11 +115,9 @@ bool Manager::RemoveLogFile(uint32_t file_num)
     boolean rc = m_storage->Controller().remove(filename);
 
     if (rc) {
-        m_consoleLog.println(String("INFO: erased log file ") + file_num +
-                             String(" by user command."));
+        m_consoleLog.printf("INFO: erased log file %d by user command.\n", file_num);
     } else {
-        m_consoleLog.println(String("ERR: failed to erase log file ") + file_num +
-                             String(" on command."));
+        m_consoleLog.printf("ERR: failed to erase log file %d on user command.\n", file_num);
     }
     m_consoleLog.flush();
     
@@ -148,22 +146,19 @@ void Manager::RemoveAllLogfiles(void)
         entry.close();
         ++total_files;
 
-        Serial.println("INFO: erasing log file: \"" + filename + "\"");
+        Serial.printf("INFO: erasing log file: \"%s\".\n", filename.c_str());
         
         boolean rc = m_storage->Controller().remove(filename);
         if (rc) {
-            m_consoleLog.println(String("INFO: erased log file ") + filename +
-                                 String(" by user command."));
+            m_consoleLog.printf("INFO: erased log file \"%s\" by user command.\n", filename.c_str());
             ++file_count;
         } else {
-            m_consoleLog.println(String("ERR: failed to erase log file ") + filename +
-                                 String(" by user command."));
+            m_consoleLog.printf("ERR: failed to erase log file \"%s\" by user command.\n", filename.c_str());
         }
         entry = basedir.openNextFile();
     }
     basedir.close();
-    m_consoleLog.println(String("INFO: erased ") + file_count + String(" log files of ")
-                         + total_files);
+    m_consoleLog.printf("INFO: erased %ld log files of %ld.\n", file_count, total_files);
     m_consoleLog.flush();
 
     StartNewLog();
@@ -220,7 +215,7 @@ void Manager::Record(PacketIDs pktID, Serialisable const& data)
     m_serialiser->Process((uint32_t)pktID, data);
     m_led->TriggerDataIndication();
     if (m_outputLog.size() > MAX_LOG_FILE_SIZE) {
-        m_consoleLog.println(String("INFO: Cycling to next log file after ") + m_outputLog.size() + " B to current log file.");
+        m_consoleLog.printf("INFO: Cycling to next log file after %d B to current log file.\n", m_outputLog.size());
         m_consoleLog.flush();
         CloseLogfile();
         StartNewLog();
