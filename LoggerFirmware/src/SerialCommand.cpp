@@ -390,6 +390,10 @@ void SerialCommand::ConfigureLoggers(String const& params, CommandSource src)
         logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_NMEA0183_B, state);
     } else if (logger.startsWith("imu")) {
         logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_MOTION_B, state);
+    } else if (logger.startsWith("power")) {
+        logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_POWMON_B, state);
+    } else if (logger.startsWith("sdio")) {
+        logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_SDMMC_B, state);
     } else {
         EmitMessage("ERR: logger name not recognised.\n", src);
     }
@@ -455,6 +459,7 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  version                             Report NMEA0183 and NMEA2000 logger version numbers.\n", src);
     EmitMessage("  verbose on|off                      Control verbosity of reporting for serial input strings.\n", src);
     EmitMessage("  wireless on|off|accesspoint|station Control WiFi activity [on|off] and mode [accesspoint|station].\n", src);
+    EmitMessage("  restart                             Restart the logger module hardware.\n", src);
 
 }
 
@@ -518,6 +523,8 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         } else {
             ConfigureLoggers(cmd.substring(10), src);
         }
+    } else if (cmd == "restart") {
+        ESP.restart();
     } else if (cmd == "help" || cmd == "syntax") {
         Syntax(src);
     } else {
