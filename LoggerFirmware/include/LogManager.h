@@ -87,9 +87,9 @@ public:
     void Record(PacketIDs pktID, Serialisable const& data);
     
     /// \brief Call-through for the console log file handle
-    File& Console(void) { return m_consoleLog; }
+    Stream& Console(void);
     /// \brief Close the console file prior to shutdown
-    void CloseConsole(void) { m_consoleLog.close(); }
+    void CloseConsole(void);
     /// \brief Dump console log to serial
     void DumpConsoleLog(Stream& output);
     /// \brief Send a log file to a particular output stream

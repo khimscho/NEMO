@@ -83,6 +83,9 @@ void setup()
     memController = mem::MemControllerFactory::Create();
     
     Serial.println("Starting memory interface ...");
+    #ifdef DEBUG_LOG_MANAGER
+    Serial.println("DBG: Ignoring memory sub-system for debug purposes.");
+    #else
     if (!memController->Start()) {
         Serial.println("ERR: Memory system didn't start ... halting.");
         // Card is not present, or didn't start ... that's a fatal error
@@ -92,6 +95,7 @@ void setup()
             delay(100);
         }
     }
+    #endif
 
     Serial.println("Configuring logger manager ...");
     logManager = new logger::Manager(LEDs);

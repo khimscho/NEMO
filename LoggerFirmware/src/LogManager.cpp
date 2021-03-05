@@ -35,6 +35,78 @@ namespace logger {
 
 const int MAX_LOG_FILE_SIZE = 10*1024*1024; ///< Maximum size of a single log file before swapping
 
+#ifdef DEBUG_LOG_MANAGER
+Manager::Manager(StatusLED *led)
+: m_led(led)
+{
+    Serial.println("INF: Starting dummy log manager - NO LOGGING WILL BE DONE.");
+}
+
+Manager::~Manager(void)
+{
+    // Nothing to be done here
+}
+
+void Manager::StartNewLog(void)
+{
+    Serial.println("DBG: Call to start new log file");
+}
+
+void Manager::CloseLogfile(void)
+{
+    Serial.println("DBG: Call to close log file.");
+}
+
+boolean Manager::RemoveLogFile(const uint32_t file_num)
+{
+    Serial.printf("DBG: Call to remote log file %d.\n", file_num);
+}
+
+void Manager::RemoveAllLogfiles(void)
+{
+    Serial.println("DBG: Call to remove all log files.");
+}
+
+int Manager::CountLogFiles(int filenumbers[MaxLogFiles])
+{
+    Serial.println("DBG: Call to count log files; returning zero.");
+    return 0;
+}
+
+void Manager::EnumerateLogFile(int lognumber, String& filename, int& filesize)
+{
+    Serial.printf("DBG: Call to enumerate size of logfile %d.\n", lognumber);
+    filename = "UNKNOWN";
+    filesize = 0;
+}
+
+void Manager::Record(PacketIDs pktID, Serialisable const& data)
+{
+    Serial.printf("DBG: Call to serialise a packet with ID %d.\n", (uint32_t)pktID);
+}
+
+Stream& Manager::Console(void)
+{
+    return Serial;
+}
+
+void Manager::CloseConsole(void)
+{
+    Serial.println("DBG: Call to close console log.");
+}
+
+void Manager::DumpConsoleLog(Stream& output)
+{
+    Serial.println("DBG: Call to dump console log to stream.");
+}
+
+void Manager::TransferLogFile(int file_num, Stream& output)
+{
+    Serial.printf("DBG: Call to transfer log file %d to stream.\n", file_num);
+}
+
+#else
+
 Manager::Manager(StatusLED *led)
 : m_led(led)
 {
@@ -222,6 +294,16 @@ void Manager::Record(PacketIDs pktID, Serialisable const& data)
     }
 }
 
+Stream& Manager::Console(void)
+{
+    return m_consoleLog;
+}
+
+void Manager::CloseConsole(void)
+{
+    m_consoleLog.close();
+}
+
 /// Generate a logical file number for the next log file to be written.  This operates
 /// by walking the current log directory counting files that exist until the upper
 /// limit is reached.  The log directory is created if it does not already exist, and any
@@ -303,5 +385,7 @@ void Manager::TransferLogFile(int file_num, Stream& output)
     f.close();
     Serial.println(String("Sent ") + bytes_transferred + " B");
 }
+
+#endif
 
 }
