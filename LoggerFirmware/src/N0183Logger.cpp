@@ -243,9 +243,9 @@ Sentence const *MessageAssembler::NextSentence(void)
 }
                                        
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
-const int rx1_pin = 34; ///< UART port 1 receive pin number (default for this system, not standard)
+const int rx1_pin = 27; ///< UART port 1 receive pin number (default for this system, not standard)
 const int tx1_pin = 18; ///< UART port 1 transmit pin number (default for this system, not standard)
-const int rx2_pin = 35; ///< UART port 2 receive pin number (default for this system, not standard)
+const int rx2_pin = 33; ///< UART port 2 receive pin number (default for this system, not standard)
 const int tx2_pin = 19; ///< UART port 2 transmit pin number (default for this system, not standard)
 #elif defined(__SAM3X8E__)
 // Note that these are the defaults, since there doesn't appear to be a way to adjust on Arduino Due
@@ -366,7 +366,7 @@ void Logger::SetVerbose(bool verbose)
 
 void Logger::SetRxInvert(uint32_t port, bool invert)
 {
-    if (port < 1 || port >= ChannelCount) {
+    if (port < 1 || port > ChannelCount) {
         Serial.println(String("ERR: can't set rx-invert for port ") + port);
     } else {
         if (port == 1)
