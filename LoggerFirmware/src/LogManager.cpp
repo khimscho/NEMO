@@ -60,6 +60,7 @@ void Manager::CloseLogfile(void)
 boolean Manager::RemoveLogFile(const uint32_t file_num)
 {
     Serial.printf("DBG: Call to remote log file %d.\n", file_num);
+    return true;
 }
 
 void Manager::RemoveAllLogfiles(void)

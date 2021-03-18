@@ -30,7 +30,7 @@ namespace nemo30 {
 
 const int enable_pin = 25;
 const int reset_pin = 26;
-const int reset_delay = 5; // milliseconds
+const int reset_delay = 1; // milliseconds, for Toshiba 4GB part (THGBMNG5D1LBAIL)
 
 eMMCController::eMMCController(void)
 {

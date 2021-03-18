@@ -28,7 +28,7 @@
 #include "SupplyMonitor.h"
 #include "Configuration.h"
 
-namespace nemo30 {
+namespace logger {
 
 SupplyMonitor::SupplyMonitor(uint8_t monitor_pin)
 : m_monitorPower(false), m_monitorPin(monitor_pin)

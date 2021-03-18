@@ -29,7 +29,7 @@
 
 #include <stdint.h>
 
-namespace nemo30 {
+namespace logger {
 
 const uint8_t default_monitor_pin = 36;
 

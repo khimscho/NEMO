@@ -84,18 +84,24 @@ class MMCController : public MemController {
 public:
     MMCController(void)
     {
+#ifdef BUILD_NEMO30
         m_eMMCController = new nemo30::eMMCController();
         m_eMMCController->setModuleStatus(true); // Enable CMD line to module
         m_eMMCController->resetModule();
+#endif
     }
 
     ~MMCController(void)
     {
+#ifdef BUILD_NEMO30
         delete m_eMMCController;
+#endif
     }
 
 private:
+#ifdef BUILD_NEMO30
     nemo30::eMMCController  *m_eMMCController;
+#endif
 
     bool start_interface(void)
     {
@@ -119,8 +125,8 @@ MemController *MemControllerFactory::Create(void)
     MemController *rc = nullptr;
 
     if (!logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_SDMMC_B, use_sdio)) {
-        Serial.println("ERR: memory module interface not recognised!  Using SD-SPI.");
-        use_sdio = false;
+        Serial.println("ERR: memory module interface not recognised!  Using SDIO.");
+        use_sdio = true;
     }
     if (use_sdio) {
         rc = new MMCController();

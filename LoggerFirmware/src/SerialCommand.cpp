@@ -372,17 +372,19 @@ void SerialCommand::ConfigureLoggers(String const& params, CommandSource src)
 {
     String  logger;
     bool    state;
+    int     position;
 
     if (params.startsWith("on")) {
         state = true;
-        logger = params.substring(3);
+        position = 3;
     } else if (params.startsWith("off")) {
         state = false;
-        logger = params.substring(4);
+        position = 4;
     } else {
         EmitMessage("ERR: loggers can be configured 'on' or 'off' only.\n", src);
         return;
     }
+    logger = params.substring(position);
 
     if (logger.startsWith("nmea2000")) {
         logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_NMEA2000_B, state);
@@ -393,6 +395,12 @@ void SerialCommand::ConfigureLoggers(String const& params, CommandSource src)
     } else if (logger.startsWith("power")) {
         logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_POWMON_B, state);
     } else if (logger.startsWith("sdio")) {
+#ifndef DEBUG_NEMO30
+        if (!state) {
+            EmitMessage("ERR: cannot turn off SDIO memory card interface for this logger.\n", src);
+            state = true;
+        }
+#endif
         logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_SDMMC_B, state);
     } else {
         EmitMessage("ERR: logger name not recognised.\n", src);

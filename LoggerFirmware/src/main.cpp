@@ -60,7 +60,7 @@ logger::Manager         *logManager = nullptr;      ///< SD log file manager obj
 StatusLED               *LEDs = nullptr;            ///< Pointer to the status LED manager object
 SerialCommand           *CommandProcessor = nullptr;///< Pointer for the command processor object
 mem::MemController      *memController = nullptr;   ///< Pointer for the storage abstraction
-nemo30::SupplyMonitor   *supplyMonitor = nullptr;   ///< Pointer for the supply voltage monitoring code
+logger::SupplyMonitor   *supplyMonitor = nullptr;   ///< Pointer for the supply voltage monitoring code
 
 /// \brief Primary setup code for the logger
 ///
@@ -148,7 +148,7 @@ void setup()
     }
 
     Serial.println("Bringing up supply voltage monitoring ...");
-    supplyMonitor = new nemo30::SupplyMonitor();
+    supplyMonitor = new logger::SupplyMonitor();
 
     Serial.println("Setup complete, setting status for normal operations.");
     LEDs->SetStatus(StatusLED::Status::sNORMAL);
