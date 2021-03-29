@@ -80,7 +80,8 @@ public:
         Pkt_Humidity = 8,       ///< Humidity and source
         Pkt_Pressure = 9,       ///< Pressure and source
         Pkt_NMEAString = 10,    ///< A generic NMEA0183 string, in raw format
-        Pkt_LocalIMU = 11       ///< Logger's on-board IMU
+        Pkt_LocalIMU = 11,      ///< Logger's on-board IMU
+        Pkt_Metadata = 12       ///< Logger identification information
     };
     
     /// \brief Write a packet into the current log file

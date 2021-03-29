@@ -29,6 +29,7 @@
 #include "serialisation.h"
 #include "N2kLogger.h"
 #include "N0183Logger.h"
+#include "Configuration.h"
 
 /// Constructor for a serialisable buffer of data.  The buffer is allocated to the \a size_hint but
 /// can grow as new data is added if required.  Expanding a buffer is expensive, so it's wise to
@@ -193,6 +194,17 @@ Serialiser::Serialiser(File& file)
     version += patch;
     
     rawProcess(0, version);
+
+    Serialisable meta(255);
+    String name, identifier;
+    logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_WIFISSID_S, name);
+    logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_MODULEID_S, identifier);
+    meta += name.length();
+    meta += name.c_str();
+    meta += identifier.length();
+    meta += identifier.c_str();
+
+    rawProcess(logger::Manager::PacketIDs::Pkt_Metadata, meta);
 }
 
 /// Private method to actually write the buffer to file.  This avoids cross-checks on the payload ID
