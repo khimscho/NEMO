@@ -532,6 +532,10 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
             ConfigureLoggers(cmd.substring(10), src);
         }
     } else if (cmd == "restart") {
+        pinMode(0, OUTPUT);
+        digitalWrite(0, LOW);
+        delay(1);
+        digitalWrite(0, HIGH);
         ESP.restart();
     } else if (cmd == "help" || cmd == "syntax") {
         Syntax(src);

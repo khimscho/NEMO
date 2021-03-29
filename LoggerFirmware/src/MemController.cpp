@@ -125,8 +125,13 @@ MemController *MemControllerFactory::Create(void)
     MemController *rc = nullptr;
 
     if (!logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_SDMMC_B, use_sdio)) {
+#ifdef PROTOTYPE_LOGGER
+        Serial.println("ERR: prototype logger, setting VSPI SD interface.");
+        use_sdio = false;
+#else
         Serial.println("ERR: memory module interface not recognised!  Using SDIO.");
         use_sdio = true;
+#endif
     }
     if (use_sdio) {
         rc = new MMCController();

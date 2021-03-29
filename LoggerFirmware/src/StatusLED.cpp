@@ -26,8 +26,13 @@
 
 #include "StatusLED.h"
 
+#ifdef PROTOTYPE_LOGGER
+const boolean ON = HIGH;
+const boolean OFF = LOW;
+#else
 const boolean ON = LOW;     ///< Synonym for common anode LED state being on (i.e., pin driven low)
 const boolean OFF = HIGH;   ///< Synonym for common anode LED state being off (i.e., pin driven high)
+#endif
 
 /// Constructor for the LED manager.  This configures the manager to have all of the
 /// specified pins as output, and turns them off to start with.  The flasher is also disabled,
