@@ -42,6 +42,8 @@ import os
 import socket
 import threading
 import time
+import boto3
+import uuid
 
 sys.path.append("../DataParser")
 
@@ -139,50 +141,60 @@ class Window(QtWidgets.QMainWindow):
     @pyqtSlot()
     def doCommand(self):
         global server_sock
-        if self.connection_started:
-            cmd = self.commandLine.text()
-            self.commandLine.setText("")
-            self.updateRecord("$ " + cmd + "\n")
-            # We start by parsing any local commands (i.e., that only exist in the GUI), then attempt
-            # to parse out a command that's going to the logger.  The only intervention that is done is
-            # to intercept "transfer" commands so that we can synthesise a file name for the output, and
-            # set the transfer into binary mode so we don't spam the record with random binary data.
-            if cmd.startswith("binary"):
+        cmd = self.commandLine.text()
+        self.commandLine.setText("")
+        self.updateRecord("$ " + cmd + "\n")
+        # We start by parsing any local commands (i.e., that only exist in the GUI), then attempt
+        # to parse out a command that's going to the logger.  The only intervention that is done is
+        # to intercept "transfer" commands so that we can synthesise a file name for the output, and
+        # set the transfer into binary mode so we don't spam the record with random binary data.
+        if cmd.startswith("binary"):
+            try:
+                mode = cmd.split(' ')[1]
+                if mode == "on":
+                    set_transfer_mode(True)
+                else:
+                    set_transfer_mode(False)
+            except:
+                buffer = "Failed\nSyntax: binary on|off\n"
+                self.updateRecord(buffer)
+        elif cmd.startswith("translate"):
+            try:
+                file_number = cmd.split(' ')[1]
+                file_name = "nmea2000." + file_number
+                self.translateFile(file_name)
+            except:
+                buffer = "Failed\nSyntax: translate <file number>\n"
+                self.updateRecord(buffer)
+        elif cmd.startswith("upload"):
+            try:
+                file_number = cmd.split(' ')[1]
+                file_name = "nmea2000." + file_number
+                self.uploadFile(file_name)
+            except:
+                buffer = "Failed\nSyntax: upload <file number>\n"
+                self.updateRecord(buffer)
+        else:
+            # We get to here only if there's a command to send to the
+            # logger.  We can only do that, however, if the connection
+            # has actually been started.
+            if self.connection_started:
                 try:
-                    mode = cmd.split(' ')[1]
-                    if mode == "on":
+                    if cmd.startswith("transfer"):
                         set_transfer_mode(True)
+                        file_number = cmd.split(' ')[1]
+                        file_name = 'nmea2000.' + file_number
+                        set_transfer_filename(file_name)
                     else:
                         set_transfer_mode(False)
+                    server_sock.send(cmd.encode("utf8"))
                 except:
-                    buffer = "Failed\nSyntax: binary on|off\n"
+                    buffer = "Failed: command not accepted on logger\n"
                     self.updateRecord(buffer)
             else:
-                if cmd.startswith("translate"):
-                    try:
-                        file_number = cmd.split(' ')[1]
-                        file_name = "nmea2000." + file_number
-                        self.translateFile(file_name)
-                    except:
-                        buffer = "Failed\nSyntax: translate <file number>\n"
-                        self.updateRecord(buffer)
-                else:
-                    try:
-                        if cmd.startswith("transfer"):
-                            set_transfer_mode(True)
-                            file_number = cmd.split(' ')[1]
-                            file_name = 'nmea2000.' + file_number
-                            set_transfer_filename(file_name)
-                        else:
-                            set_transfer_mode(False)
-                        server_sock.send(cmd.encode("utf8"))
-                    except:
-                        buffer = "Failed\nSyntax: transfer <file number>\n"
-                        self.updateRecord(buffer)
-        else:
-            buffer = "Can't run commands if the server isn't connected!\n"
-            self.updateRecord(buffer)
-            self.commandLine.setText("")
+                buffer = "Can't run commands if the server isn't connected!\n"
+                self.updateRecord(buffer)
+                self.commandLine.setText("")
             
     @pyqtSlot(str)
     def outputMessageReady(self, message):
@@ -201,6 +213,19 @@ class Window(QtWidgets.QMainWindow):
                 self.updateRecord(buffer)
                 packet_count += 1
         buffer = "Found " + str(packet_count) + " packets total\n"
+        self.updateRecord(buffer)
+        
+    def uploadFile(self, filename):
+        # Upload to the S3 bucket for incoming data, ready to be timestamped, converted
+        # to GeoJSON, and sent to DCDB
+        s3 = boto3.resource('s3')
+        dest_bucket = s3.Bucket('csb-upload-ingest-bucket')
+        try:
+            obj_key = str(uuid.uuid4())
+            dest_bucket.upload_file(Filename=filename, Key=obj_key)
+            buffer = "Upload successful\n"
+        except:
+            buffer = "Failed to upload file to CSB ingest bucket\n"
         self.updateRecord(buffer)
 
     def updateRecord(self, message):
