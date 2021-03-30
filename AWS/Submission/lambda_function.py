@@ -70,5 +70,6 @@ def lambda_handler(event, context):
                 'statusCode': 400,
                 'body': 'Transmission failed: ' + source_object
             }
+            print('Transmission failed for ' + source_object)
     
     return rtn
