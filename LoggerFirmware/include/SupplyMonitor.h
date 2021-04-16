@@ -31,7 +31,7 @@
 
 namespace logger {
 
-const uint8_t default_monitor_pin = 36;
+const uint8_t default_monitor_pin = GPIO_NUM_36;
 
 /// \class SupplyMonitor
 /// \brief Object to check on supply voltage and indicate backup power startup
@@ -40,7 +40,7 @@ class SupplyMonitor {
 public:
     SupplyMonitor(uint8_t monitor_pin = default_monitor_pin);
 
-    bool EmergencyPower(void);
+    bool EmergencyPower(uint16_t *value = nullptr);
 
 private:
     bool    m_monitorPower;

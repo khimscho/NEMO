@@ -25,6 +25,9 @@
  * OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#define ESP32_CAN_TX_PIN GPIO_NUM_16
+#define ESP32_CAN_RX_PIN GPIO_NUM_17
+
 #include <NMEA2000_CAN.h> /* This auto-generates the NMEA2000 global for bus control */
 #include "N2kLogger.h"
 #include "serial_number.h"
@@ -179,8 +182,10 @@ void loop()
     if (CommandProcessor != nullptr) {
         CommandProcessor->ProcessCommand();
     }
-    if (supplyMonitor->EmergencyPower()) {
+    uint16_t supply_voltage;
+    if (supplyMonitor->EmergencyPower(&supply_voltage)) {
         // Eek!  Power went out, so we need to stop logging ASAP
+        //Serial.printf("DBG: Supply voltage ADC dropped to %hu\n", supply_voltage);
         CommandProcessor->EmergencyStop();
     }
 }

@@ -133,9 +133,12 @@ MemController *MemControllerFactory::Create(void)
         use_sdio = true;
 #endif
     }
+    use_sdio = true;
     if (use_sdio) {
+        Serial.println("Starting SD/MMC interface.");
         rc = new MMCController();
     } else {
+        Serial.println("Starting SPI interface.");
         rc = new SPIController();
     }
     return rc;

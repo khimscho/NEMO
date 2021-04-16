@@ -42,13 +42,18 @@ SupplyMonitor::SupplyMonitor(uint8_t monitor_pin)
     }
     if (m_monitorPower) {
         pinMode(m_monitorPin, INPUT);
+        uint16_t v;
+        EmergencyPower(&v);
+        Serial.printf("DBG: monitor voltage level = %hu\n", v);
     }
 }
 
-bool SupplyMonitor::EmergencyPower(void)
+bool SupplyMonitor::EmergencyPower(uint16_t *value)
 {
     if (m_monitorPower) {
         uint16_t monitor_voltage = analogRead(m_monitorPin);
+        if (value != nullptr)
+            *value = monitor_voltage;
         if (monitor_voltage < 2048)
             return true;
     }

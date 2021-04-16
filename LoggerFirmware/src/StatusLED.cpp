@@ -78,10 +78,10 @@ void StatusLED::SetColour(Colour colour, boolean flash)
             led_state[0] = OFF; led_state[1] = ON; led_state[2] = OFF; /* Green */
             break;
         case Colour::cCARD_FULL:
-            led_state[0] = ON; led_state[1] = ON; led_state[2] = OFF; /* Yellow */
+            led_state[0] = OFF; led_state[1] = ON; led_state[2] = ON; /* Green/Blue (i.e., working, but card's full) */
             break;
         case Colour::cALARM:
-            led_state[0] = OFF; led_state[1] = OFF; led_state[2] = ON; /* Blue */
+            led_state[0] = ON; led_state[1] = OFF; led_state[2] = OFF; /* Red (Or Yellow, depending on build) */
             break;
     }
     led_flasher = ON;

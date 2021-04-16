@@ -34,13 +34,17 @@
 #define DEFAULT_RED_LED_PIN 25
 #define DEFAULT_GREEN_LED_PIN 26
 #define DEFAULT_BLUE_LED_PIN 27
-#else
+#elif defined(BUILD_NEMO30)
 /// ESP32 GPIO pin to use for the RED indicator LED
 #define DEFAULT_RED_LED_PIN 34
 /// ESP32 GPIO pin to use for the GREEN indicator LED
 #define DEFAULT_GREEN_LED_PIN 35
 /// ESP32 GPIO pin to use for the BLUE indicator LED
 #define DEFAULT_BLUE_LED_PIN 32
+#else
+#define DEFAULT_RED_LED_PIN     25
+#define DEFAULT_GREEN_LED_PIN   26
+#define DEFAULT_BLUE_LED_PIN    27
 #endif
 #endif
 
