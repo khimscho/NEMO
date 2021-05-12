@@ -43,8 +43,10 @@ import datetime as dt
 class NoTimeSource(Exception):
     pass
 
+class NoData(Exception):
+    pass
 
-def time_interpolation(filename):
+def time_interpolation(filename, elapsed_time_quantum, verbose):
     # Assume that we're dealing with a file, rather than a stream, which is provided as the first
     # argument on the command line; it's a requirement that this is also rewind-able, so that we
     # can take a second pass through the file to determine the timestamps.
@@ -90,14 +92,15 @@ def time_interpolation(filename):
                     pass
             packet_count += 1
 
-    print("Found " + str(packet_count) + " packet total")
-    print("Found " + str(systime_packets) + " NMEA2000 SystemTime packets")
-    print("Found " + str(depth_packets) + " NMEA2000 Depth packets")
-    print("Found " + str(gnss_packets) + " NMEA2000 Position packets")
-    print("Found " + str(ascii_packets) + " NMEA0183 packets")
-    print("Found " + str(gga_packets) + " NMEA0183 GGA packets")
-    print("Found " + str(dbt_packets) + " NMEA0183 DBT packets")
-    print("Found " + str(zda_packets) + " NMEA0183 ZDA packets")
+    if verbose:
+        print("Found " + str(packet_count) + " packet total")
+        print("Found " + str(systime_packets) + " NMEA2000 SystemTime packets")
+        print("Found " + str(depth_packets) + " NMEA2000 Depth packets")
+        print("Found " + str(gnss_packets) + " NMEA2000 Position packets")
+        print("Found " + str(ascii_packets) + " NMEA0183 packets")
+        print("Found " + str(gga_packets) + " NMEA0183 GGA packets")
+        print("Found " + str(dbt_packets) + " NMEA0183 DBT packets")
+        print("Found " + str(zda_packets) + " NMEA0183 ZDA packets")
 
     # We need to decide on the source of master time provision.  In general, we prefer to use NMEA2000
     # SystemTime if it's available, but otherwise use either GNSS information for NMEA2000, or ZDA
@@ -136,24 +139,34 @@ def time_interpolation(filename):
 
     file.seek(0)
     source = LoggerFile.PacketFactory(file)
+    elapsed_offset = 0
+    last_elapsed = 0
     while source.has_more():
         pkt = source.next_packet()
         if pkt is not None:
+            # We need to check that the elapsed ms counter hasn't wrapped around since
+            # the last packet.  If so, we need to increment the elapsed time base stamp.
+            # This method is very simple, and will fail mightily if the elapsed times in
+            # the log file are not sequential and monotonic (modulo the elapsed_time_quantum).
+            if pkt.elapsed < last_elapsed:
+                elapsed_offset = elapsed_offset + elapsed_time_quantum
+            last_elapsed = pkt.elapsed
+            
             if isinstance(pkt, LoggerFile.Metadata):
                 platform_name = pkt.ship_name
                 platform_UUID = pkt.ship_id
             if isinstance(pkt, LoggerFile.SystemTime):
                 if use_systime:
-                    time_table_t.append(pkt.elapsed)
+                    time_table_t.append(pkt.elapsed + elapsed_offset)
                     time_table_reftime.append(pkt.date * seconds_per_day + pkt.timestamp)
             if isinstance(pkt, LoggerFile.Depth):
-                depth_table_t.append(pkt.elapsed)
+                depth_table_t.append(pkt.elapsed + elapsed_offset)
                 depth_table_z.append(pkt.depth)
             if isinstance(pkt, LoggerFile.GNSS):
                 if use_gnss:
-                    time_table_t.append(pkt.elapsed)
+                    time_table_t.append(pkt.elapsed + elapsed_offset)
                     time_table_reftime.append(pkt.date * seconds_per_day + pkt.timestamp)
-                position_table_t.append(pkt.elapsed)
+                position_table_t.append(pkt.elapsed + elapsed_offset)
                 position_table_lat.append(pkt.latitude)
                 position_table_lon.append(pkt.longitude)
             if isinstance(pkt, LoggerFile.SerialString):
@@ -161,13 +174,13 @@ def time_interpolation(filename):
                     msg = nmea.parse(pkt.payload.decode('ASCII'))
                     if isinstance(msg, nmea.ZDA):
                         if use_zda:
-                            timestamp = pkt.elapsed
+                            timestamp = pkt.elapsed + elapsed_offset
                             reftime = dt.datetime.combine(msg.datestamp, msg.timestamp)
                             time_table_t.append(timestamp)
                             time_table_reftime.append(reftime.timestamp())
                     if isinstance(msg, nmea.GGA):
                         # Convert all of the elements first to make sure we have valid conversion
-                        timestamp = pkt.elapsed
+                        timestamp = pkt.elapsed + elapsed_offset
                         latitude = msg.latitude
                         longitude = msg.longitude
                         # Add all of the elements as a group
@@ -175,7 +188,7 @@ def time_interpolation(filename):
                         position_table_lat.append(latitude)
                         position_table_lon.append(longitude)
                     if isinstance(msg, nmea.DBT):
-                        timestamp = pkt.elapsed
+                        timestamp = pkt.elapsed + elapsed_offset
                         depth = float(msg.depth_meters)
                         depth_table_t.append(timestamp)
                         depth_table_z.append(depth)
@@ -188,11 +201,15 @@ def time_interpolation(filename):
                 except ChecksumError as e:
                     print('Checksum error: {}'.format(e))
                     continue
+    
+    if verbose:
+        print('Reference time table length = ', len(time_table_t))
+        print('Position table length = ', len(position_table_t))
+        print('Depth observations = ', len(depth_table_t))
 
-    print('Reference time table length = ', len(time_table_t))
-    print('Position table length = ', len(position_table_t))
-    print('Depth observations = ', len(depth_table_t))
-
+    if len(depth_table_t) < 1:
+        raise NoData()
+        
     # Finally, do the interpolations to generate the output data
     ref_times = np.interp(depth_table_t, time_table_t, time_table_reftime)
     ref_lat = np.interp(depth_table_t, position_table_t, position_table_lat)

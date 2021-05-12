@@ -725,7 +725,7 @@ class PacketFactory:
         buffer = self.file.read(8)   # Header for each packet is U32 (ID) U32 (length in bytes)
 
         if len(buffer) < 8:
-            print("Failed to read 8-byte packet header in PacketFactory")
+            #print("Failed to read 8-byte packet header in PacketFactory")
             self.end_of_file = True
             return None
 

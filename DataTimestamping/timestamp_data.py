@@ -36,159 +36,55 @@
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
 import sys
+import argparse as arg
+from datetime import datetime
 
 # You may or may not have to do this, depending on whether you fix the path externally, or move
 # the data file parser library into the current directory.
-sys.path.append(r'../DataParser')
+sys.path.append(r'../AWS/Timestamping-GeoJSON')
 
-import LoggerFile
-import datetime as dt
-import numpy as np
-import pynmea2 as nmea
+import Timestamping as ts
 
-class NoTimeSource(Exception):
-    pass
+def main():
+    parser = arg.ArgumentParser(description = 'Convert WIBL logger data to timestamped ASCII')
+    parser.add_argument('-b', '--bitsize', help = 'Set bit-length of elapsed times')
+    parser.add_argument('-i', '--input', help = 'WIBL format input file')
+    parser.add_argument('-o', '--output', help = 'ASCII format output file')
+    parser.add_argument('input', help = 'WIBL format input file')
+    parser.add_argument('output', help = 'ASCII format output file')
 
-# Assume that we're dealing with a file, rather than a stream, which is provided as the first
-# argument on the command line; it's a requirement that this is also rewind-able, so that we
-# can take a second pass through the file to determine the timestamps.
-file = open(sys.argv[1], 'rb')
-
-# First pass through the file: we need to count the packets in order to determine what sources
-# of information we have, and should use for timestamping and positioning.
-
-packet_count = 0        # Total number of packets of all types
-systime_packets = 0     # Count of NMEA2000 SystemTime packets
-depth_packets = 0       # Count of NMEA2000 Depth packets
-gnss_packets = 0        # Count of NMEA2000 GNSS packets
-ascii_packets = 0       # Count of all NMEA0183 packets (which all show up as the same type to start with)
-gga_packets = 0         # Count of NMEA0183 GPGGA packets.
-dbt_packets = 0         # Count of NMEA0183 SDDBT packets.
-zda_packets = 0         # Count of NMEA0183 ZDA packets.
-
-source = LoggerFile.PacketFactory(file)
-
-while source.has_more():
-    pkt = source.next_packet()
-    if pkt is not None:
-        if isinstance(pkt, LoggerFile.SystemTime):
-            systime_packets += 1
-        if isinstance(pkt, LoggerFile.Depth):
-            depth_packets += 1
-        if isinstance(pkt, LoggerFile.GNSS):
-            gnss_packets += 1
-        if isinstance(pkt, LoggerFile.SerialString):
-            # Note that parsing the NMEA string doesn't guarantee that it's actually valid,
-            # and you can end up with problems later on when getting at the data.
-            msg = nmea.parse(pkt.payload.decode('ASCII'))
-            if isinstance(msg, nmea.GGA):
-                gga_packets += 1
-            if isinstance(msg, nmea.DBT):
-                dbt_packets += 1
-            if isinstance(msg, nmea.ZDA):
-                zda_packets += 1
-            ascii_packets += 1
-        packet_count += 1
-
-print("Found " + str(packet_count) + " packet total")
-print("Found " + str(systime_packets) + " NMEA2000 SystemTime packets")
-print("Found " + str(depth_packets) + " NMEA2000 Depth packets")
-print("Found " + str(gnss_packets) + " NMEA2000 Position packets")
-print("Found " + str(ascii_packets) + " NMEA0183 packets")
-print("Found " + str(gga_packets) + " NMEA0183 GGA packets")
-print("Found " + str(dbt_packets) + " NMEA0183 DBT packets")
-print("Found " + str(zda_packets) + " NMEA0183 ZDA packets")
-
-# We need to decide on the source of master time provision.  In general, we prefer to use NMEA2000
-# SystemTime if it's available, but otherwise use either GNSS information for NMEA2000, or ZDA
-# information for NMEA0183, preferring GNSS if both are available.  The ordering reflects the idea
-# that NMEA2000 should have lower (or at least better controlled) latency than NMEA0183 due to not
-# being on a 4800-baud serial line.
-
-use_systime = False
-use_zda = False
-use_gnss = False
-if systime_packets > 0:
-    use_systime = True
-else:
-    if gnss_packets > 0:
-        use_gnss = True
+    optargs = parser.parse_args()
+    
+    if optargs.bitsize:
+        elapsed_time_quantum = 1 << int(optargs.bitsize)
     else:
-        if zda_packets > 0:
-            use_zda = True
-        else:
-            raise NoTimeSource()
+        elapsed_time_quantum = 1 << 32
+        
+    if optargs.input:
+        in_filename = optargs.input
+        
+    if optargs.output:
+        out_filename = optargs.output
+    
+    try:
+        tsdata = ts.time_interpolation(in_filename, elapsed_time_quantum, False)
+        
+    except ts.NoTimeSource:
+        print('Error: failed to find a time source to timestamp file.')
+        sys.exit(1)
+        
+    except ts.NoData:
+        print('Warning: no data to interpolate.')
+        sys.exit(1)
+    
+    print('Converting Data For:');
+    print('Platform:\t', tsdata['name'])
+    print('Platform ID:\t', tsdata['uniqid'])
+    
+    with open(out_filename, 'w') as f:
+        for i in range(len(tsdata['t'])):
+            dt = datetime.fromtimestamp(tsdata['t'][i])
+            f.write('%s,%.3f,%.8f,%.8f,%.2f\n' % (dt, tsdata['t'][i], tsdata['lon'][i], tsdata['lat'][i], tsdata['z'][i]))
 
-# Second pass through the file, converting into the lists needed for interpolation, using the time source
-# determined above.
-
-time_table_t = []
-time_table_reftime = []
-position_table_t = []
-position_table_lon = []
-position_table_lat = []
-depth_table_t = []
-depth_table_z = []
-
-seconds_per_day = 24.0 * 60.0 * 60.0
-
-file.seek(0)
-source = LoggerFile.PacketFactory(file)
-while source.has_more():
-    pkt = source.next_packet()
-    if pkt is not None:
-        if isinstance(pkt, LoggerFile.SystemTime):
-            if use_systime:
-                time_table_t.append(pkt.elapsed)
-                time_table_reftime.append(pkt.date*seconds_per_day + pkt.timestamp)
-        if isinstance(pkt, LoggerFile.Depth):
-            depth_table_t.append(pkt.elapsed)
-            depth_table_z.append(pkt.depth)
-        if isinstance(pkt, LoggerFile.GNSS):
-            if use_gnss:
-                time_table_t.append(pkt.elapsed)
-                time_table_reftime.append(pkt.date*seconds_per_day + pkt.timestamp)
-            position_table_t.append(pkt.elapsed)
-            position_table_lat.append(pkt.latitude)
-            position_table_lon.append(pkt.longitude)
-        if isinstance(pkt, LoggerFile.SerialString):
-            try:
-                msg = nmea.parse(pkt.payload.decode('ASCII'))
-                if isinstance(msg, nmea.ZDA):
-                    if use_zda:
-                        timestamp = pkt.elapsed
-                        reftime = dt.datetime.combine(msg.datestamp, msg.timestamp)
-                        time_table_t.append(timestamp)
-                        time_table_reftime.append(reftime.timestamp())
-                if isinstance(msg, nmea.GGA):
-                    # Convert all of the elements first to make sure we have valid conversion
-                    timestamp = pkt.elapsed
-                    latitude = msg.latitude
-                    longitude = msg.longitude
-                    # Add all of the elements as a group
-                    position_table_t.append(timestamp)
-                    position_table_lat.append(latitude)
-                    position_table_lon.append(longitude)
-                if isinstance(msg, nmea.DBT):
-                    timestamp = pkt.elapsed
-                    depth = msg.depth_meters
-                    depth_table_t.append(timestamp)
-                    depth_table_z.append(depth)
-            except nmea.ParseError as e:
-                print('Parse error: {}'.format(e))
-                continue
-            except AttributeError as e:
-                print('Attribute error: {}'.format(e))
-                continue
-
-print('Reference time table length = ', len(time_table_t))
-print('Position table length = ', len(position_table_t))
-print('Depth observations = ', len(depth_table_t))
-
-# Finally, do the interpolations to generate the output data
-ref_times = np.interp(depth_table_t, time_table_t, time_table_reftime)
-ref_lat = np.interp(depth_table_t, position_table_t, position_table_lat)
-ref_lon = np.interp(depth_table_t, position_table_t, position_table_lon)
-
-for i in range(len(depth_table_z)):
-    print("[", i, "]: ", ref_times[i], ref_lon[i], ref_lat[i], depth_table_z[i])
+if __name__ == "__main__":
+    main()
