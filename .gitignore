@@ -7,8 +7,10 @@ Documents
 *.b\#*
 *.s\#*
 DataParser/__pycache__
+__pycache__
 LoggerFirmware/LoggerFirmware/html
 LoggerFirmware/LoggerFirmware/latex
+Hardware/Manufacturing
 
 # Below are standard files for macOS development with XCode 11 that we should be ignoring
 # See https://thoughtbot.com/blog/xcode-and-git-bridging-the-gap
