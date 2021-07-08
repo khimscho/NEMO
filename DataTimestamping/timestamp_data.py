@@ -50,6 +50,9 @@ def main():
     parser.add_argument('-b', '--bitsize', help = 'Set bit-length of elapsed times')
     parser.add_argument('-i', '--input', help = 'WIBL format input file')
     parser.add_argument('-o', '--output', help = 'ASCII format output file')
+    parser.add_argument('-q', '--heading', help = 'ASCII format output for true heading')
+    parser.add_argument('-t', '--temp', help = 'ASCII format output for water temperature')
+    parser.add_argument('-w', '--wind', help = 'ASCII format output for wind speed/direction')
     parser.add_argument('input', help = 'WIBL format input file')
     parser.add_argument('output', help = 'ASCII format output file')
 
@@ -82,9 +85,31 @@ def main():
     print('Platform ID:\t', tsdata['uniqid'])
     
     with open(out_filename, 'w') as f:
-        for i in range(len(tsdata['t'])):
-            dt = datetime.fromtimestamp(tsdata['t'][i])
-            f.write('%s,%.3f,%.8f,%.8f,%.2f\n' % (dt, tsdata['t'][i], tsdata['lon'][i], tsdata['lat'][i], tsdata['z'][i]))
+        f.write('Time,Epoch,Longitude,Latitude,Depth\n')
+        for i in range(len(tsdata['depth']['t'])):
+            dt = datetime.fromtimestamp(tsdata['depth']['t'][i])
+            f.write('%s,%.3f,%.8f,%.8f,%.2f\n' % (dt, tsdata['depth']['t'][i], tsdata['depth']['lon'][i], tsdata['depth']['lat'][i], tsdata['depth']['z'][i]))
+    
+    if optargs.heading:
+        with open(optargs.heading, 'w') as f:
+            f.write('Time,Epoch,Longitude,Latitude,Heading\n')
+            for i in range(len(tsdata['heading']['t'])):
+                dt = datetime.fromtimestamp(tsdata['heading']['t'][i])
+                f.write('%s,%.3f,%.8f,%.8f,%.1f\n' % (dt, tsdata['heading']['t'][i], tsdata['heading']['lon'][i], tsdata['heading']['lat'][i], tsdata['heading']['heading'][i]))
+    
+    if optargs.temp:
+        with open(optargs.temp, 'w') as f:
+            f.write('Time,Epoch,Longitude,Latitude,Temperature\n')
+            for i in range(len(tsdata['watertemp']['t'])):
+                dt = datetime.fromtimestamp(tsdata['watertemp']['t'][i])
+                f.write('%s,%.3f,%.8f,%.8f,%.1f\n' % (dt, tsdata['watertemp']['t'][i], tsdata['watertemp']['lon'][i], tsdata['watertemp']['lat'][i], tsdata['watertemp']['temperature'][i]))
+                
+    if optargs.wind:
+        with open(optargs.wind, 'w') as f:
+            f.write('Time,Epoch,Longitude,Latitude,Direction,Speed\n')
+            for i in range(len(tsdata['wind']['t'])):
+                dt = datetime.fromtimestamp(tsdata['wind']['t'][i])
+                f.write('%s,%.3f,%.8f,%.8f,%.2f,%.2f\n' % (dt, tsdata['wind']['t'][i], tsdata['wind']['lon'][i], tsdata['wind']['lat'][i], tsdata['wind']['direction'][i], tsdata['wind']['speed'][i]))
 
 if __name__ == "__main__":
     main()
