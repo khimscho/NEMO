@@ -1,31 +1,28 @@
-/// \file StatusLED.h
-/// \brief Interface for status LED management
-///
-/// The logger has status LEDs to indicate what it's doing, and things like a full
-/// SD card, or bad card, etc.  This code manages the colours and specifics of
-/// the system.
-///
-/// Copyright 2020 Center for Coastal and Ocean Mapping & NOAA-UNH Joint
-/// Hydrographic Center, University of New Hampshire.
-///
-/// Permission is hereby granted, free of charge, to any person obtaining a copy
-/// of this software and associated documentation files (the "Software"), to deal
-/// in the Software without restriction, including without limitation the rights to use,
-/// copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
-/// and to permit persons to whom the Software is furnished to do so, subject to
-/// the following conditions:
-///
-/// The above copyright notice and this permission notice shall be included in
-/// all copies or substantial portions of the Software.
-///
-/// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-/// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
-/// OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-/// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
-/// HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-/// WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-/// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
-/// OR OTHER DEALINGS IN THE SOFTWARE.
+/*!\file StatusLED.h
+ * \brief Interface for status LED management
+ *
+ * The logger has status LEDs to indicate what it's doing, and things like a full
+ * SD card, or bad card, etc.  This code manages the colours and specifics of
+ * the system.
+ *
+ * Copyright (c) 2019, University of New Hampshire, Center for Coastal and Ocean Mapping.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+ * and associated documentation files (the "Software"), to deal in the Software without restriction,
+ * including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the Software is furnished
+ * to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or
+ * substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+ * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS
+ * OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF
+ * OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
 
 #ifndef __STATUS_LED_H__
 #define __STATUS_LED_H__
@@ -33,12 +30,22 @@
 #include <Arduino.h>
 
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
-/// ESP32 GPIO pin to use for the RED indicator LED
+#ifdef PROTOTYPE_LOGGER
 #define DEFAULT_RED_LED_PIN 25
-/// ESP32 GPIO pin to use for the GREEN indicator LED
 #define DEFAULT_GREEN_LED_PIN 26
-/// ESP32 GPIO pin to use for the BLUE indicator LED
 #define DEFAULT_BLUE_LED_PIN 27
+#elif defined(BUILD_NEMO30)
+/// ESP32 GPIO pin to use for the RED indicator LED
+#define DEFAULT_RED_LED_PIN 34
+/// ESP32 GPIO pin to use for the GREEN indicator LED
+#define DEFAULT_GREEN_LED_PIN 35
+/// ESP32 GPIO pin to use for the BLUE indicator LED
+#define DEFAULT_BLUE_LED_PIN 32
+#else
+#define DEFAULT_RED_LED_PIN     25
+#define DEFAULT_GREEN_LED_PIN   26
+#define DEFAULT_BLUE_LED_PIN    27
+#endif
 #endif
 
 #if defined(__SAM3X8E__)
@@ -60,7 +67,7 @@
 class StatusLED {
 public:
     /// \brief Default constructor for the LED manager
-    StatusLED(int red_pin = DEFAULT_RED_LED_PIN,
+    StatusLED(int red_ping = DEFAULT_RED_LED_PIN,
               int green_pin = DEFAULT_GREEN_LED_PIN,
               int blue_pin = DEFAULT_BLUE_LED_PIN);
     

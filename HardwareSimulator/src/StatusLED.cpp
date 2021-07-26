@@ -1,37 +1,38 @@
-/// \file StatusLED.cpp
-/// \brief Implementation of status LED management
-///
-/// The logger has status LEDs to indicate what it's doing, and things like a full
-/// SD card, or bad card, etc.  This code manages the colours and specifics of
-/// the system.
-///
-/// Copyright 2020 Center for Coastal and Ocean Mapping & NOAA-UNH Joint
-/// Hydrographic Center, University of New Hampshire.
-///
-/// Permission is hereby granted, free of charge, to any person obtaining a copy
-/// of this software and associated documentation files (the "Software"), to deal
-/// in the Software without restriction, including without limitation the rights to use,
-/// copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
-/// and to permit persons to whom the Software is furnished to do so, subject to
-/// the following conditions:
-///
-/// The above copyright notice and this permission notice shall be included in
-/// all copies or substantial portions of the Software.
-///
-/// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-/// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
-/// OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-/// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
-/// HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-/// WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-/// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
-/// OR OTHER DEALINGS IN THE SOFTWARE.
-
+/*!\file StatusLED.cpp
+ * \brief Implementation of status LED management
+ *
+ * The logger has status LEDs to indicate what it's doing, and things like a full
+ * SD card, or bad card, etc.  This code manages the colours and specifics of
+ * the system.
+ *
+ * Copyright (c) 2019, University of New Hampshire, Center for Coastal and Ocean Mapping.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+ * and associated documentation files (the "Software"), to deal in the Software without restriction,
+ * including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the Software is furnished
+ * to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or
+ * substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+ * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS
+ * OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF
+ * OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
 
 #include "StatusLED.h"
 
-const boolean ON = HIGH;    ///< Synonym for common cathode LED state being on (i.e., pin driven high)
-const boolean OFF = LOW;    ///< Synonym for common cathode LED state being off (i.e., pin driven low)
+#ifdef PROTOTYPE_LOGGER
+const boolean ON = HIGH;
+const boolean OFF = LOW;
+#else
+const boolean ON = LOW;     ///< Synonym for common anode LED state being on (i.e., pin driven low)
+const boolean OFF = HIGH;   ///< Synonym for common anode LED state being off (i.e., pin driven high)
+#endif
 
 /// Constructor for the LED manager.  This configures the manager to have all of the
 /// specified pins as output, and turns them off to start with.  The flasher is also disabled,
@@ -50,6 +51,7 @@ StatusLED::StatusLED(int red_pin, int green_pin, int blue_pin)
     for (int i = 0; i < 3; ++i) {
         pinMode(led_pins[i], OUTPUT);
         led_state[i] = OFF;
+        digitalWrite(led_pins[i], led_state[i]);
     }
     led_flasher = false;
     
@@ -76,10 +78,10 @@ void StatusLED::SetColour(Colour colour, boolean flash)
             led_state[0] = OFF; led_state[1] = ON; led_state[2] = OFF; /* Green */
             break;
         case Colour::cCARD_FULL:
-            led_state[0] = ON; led_state[1] = ON; led_state[2] = OFF; /* Yellow */
+            led_state[0] = OFF; led_state[1] = ON; led_state[2] = ON; /* Green/Blue (i.e., working, but card's full) */
             break;
         case Colour::cALARM:
-            led_state[0] = ON; led_state[1] = OFF; led_state[2] = OFF; /* Red */
+            led_state[0] = ON; led_state[1] = OFF; led_state[2] = OFF; /* Red (Or Yellow, depending on build) */
             break;
     }
     led_flasher = ON;
@@ -111,6 +113,7 @@ void StatusLED::SetStatus(Status status)
             SetColour(Colour::cALARM, true);
             break;
     }
+    ProcessFlash();
 }
 
 /// Turn on some indication that a data event has occurred; depending on the system, this could
@@ -157,7 +160,7 @@ void StatusLED::ProcessFlash(void)
             } else {
                 led_flasher = ON;
             }
-            for (int i = 0; i < 2; ++i) {
+            for (int i = 0; i < 3; ++i) {
                 if (led_flasher == ON && led_state[i] == ON)
                     digitalWrite(led_pins[i], ON);
                 else
@@ -166,7 +169,7 @@ void StatusLED::ProcessFlash(void)
         }
     } else {
         // If we're not flashing, we just set the LED state
-        for (int i = 0; i < 2; ++i) {
+        for (int i = 0; i < 3; ++i) {
             digitalWrite(led_pins[i], led_state[i]);
         }
     }

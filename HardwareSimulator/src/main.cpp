@@ -1,17 +1,18 @@
-/// @mainpage	NMEATalker
-/// @file		NMEATalker.ino
-/// @brief		Main sketch
+///\file main.cpp
+///\brief Primary drivers for the hardware NMEA simulator for WIBL (2.3+)
 ///
-/// @details	Main driver for the hardware NMEA simulator
-/// @n @a		Developed with [embedXcode+](https://embedXcode.weebly.com)
+/// This sets up a simple simulator for NMEA data on the RS-422 (NMEA0183) and
+/// CANbus (NMEA2000) interfaces of the data logger.  WIBL (Wireless Inexpensive
+/// Bathymetry Logger) boards verson 2.3 and after have built-in RS-422 transmission
+/// capabilities, allowing them to act as both generators and loggers; other
+/// variants of the Open Hardware design may not be able to do this.
+///     The simulator code for NMEA2000 is straight from the example code in the
+/// NMEA2000 library; the simulator code for NMEA0183 is custom, and models a
+/// ship moving at constant rate and generating a slowly varying depth and position.
+/// GPGGA and ZDA messages are transmitted on one NMEA0183 channel, and SBDBT are
+/// transmitted on the other, so as to test simultaneous capture of data at the
+/// receiver.
 ///
-/// @author		Brian Calder
-/// @author		CCOM/JHC
-/// @date		2020-06-09 11:31
-/// @version	1.0
-///
-/// @see		ReadMe.txt for references
-/// @n
 /// Copyright 2020 Center for Coastal and Ocean Mapping & NOAA-UNH Joint
 /// Hydrographic Center, University of New Hampshire.
 ///
@@ -34,50 +35,27 @@
 /// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
 /// OR OTHER DEALINGS IN THE SOFTWARE.
 
-// Core library for code-sense - IDE-based
-// !!! Help: http://bit.ly/2AdU7cu
-#if defined(WIRING) // Wiring specific
-#include "Wiring.h"
-#elif defined(MAPLE_IDE) // Maple specific
-#include "WProgram.h"
-#elif defined(ROBOTIS) // Robotis specific
-#include "libpandora_types.h"
-#include "pandora.h"
-#elif defined(MPIDE) // chipKIT specific
-#include "WProgram.h"
-#elif defined(DIGISPARK) // Digispark specific
-#include "Arduino.h"
-#elif defined(ENERGIA) // LaunchPad specific
-#include "Energia.h"
-#elif defined(LITTLEROBOTFRIENDS) // LittleRobotFriends specific
-#include "LRF.h"
-#elif defined(MICRODUINO) // Microduino specific
-#include "Arduino.h"
-#elif defined(TEENSYDUINO) // Teensy specific
-#include "Arduino.h"
-#elif defined(REDBEARLAB) // RedBearLab specific
-#include "Arduino.h"
-#elif defined(RFDUINO) // RFduino specific
-#include "Arduino.h"
-#elif defined(SPARK) || defined(PARTICLE) // Particle / Spark specific
-#include "application.h"
-#elif defined(ESP8266) // ESP8266 specific
-#include "Arduino.h"
-#elif defined(ARDUINO) // Arduino 1.0 and 1.5 specific
-#include "Arduino.h"
-#else // error
-#error Platform not defined
-#endif // end IDE
-
 #include "NMEA0183Simulator.h"
 #include "NMEA2000Simulator.h"
 #include "StatusLED.h"
 
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
-const int rx1_pin = 13; ///< UART port 1 receive pin number (default for this system, not standard)
-const int tx1_pin = 32; ///< UART port 1 transmit pin number (default for this system, not standard)
-const int rx2_pin = 14; ///< UART port 2 receive pin number (default for this system, not standard)
-const int tx2_pin = 33; ///< UART port 2 transmit pin number (default for this system, not standard)
+#if defined(PROTOTYPE_LOGGER)
+const int rx1_pin = 13;
+const int tx1_pin = 32;
+const int rx2_pin = 14;
+const int tx2_pin = 33;
+#elif defined(BUILD_NEMO30)
+const int rx1_pin = 27; ///< UART port 1 receive pin number (default for this system, not standard)
+const int tx1_pin = 18; ///< UART port 1 transmit pin number (default for this system, not standard)
+const int rx2_pin = 33; ///< UART port 2 receive pin number (default for this system, not standard)
+const int tx2_pin = 19; ///< UART port 2 transmit pin number (default for this system, not standard)
+#else
+const int rx1_pin = 34; ///< UART port 1 receive pin
+const int tx1_pin = 18; ///< UART port 1 transmit pin
+const int rx2_pin = 35; ///< UART port 2 receive pin
+const int tx2_pin = 19; ///< UART port 2 transmit pin
+#endif
 #elif defined(__SAM3X8E__)
 // Note that these are the defaults, since there doesn't appear to be a way to adjust on Arduino Due
 const int rx1_pin = 19; ///< UART port 1 receive pin
