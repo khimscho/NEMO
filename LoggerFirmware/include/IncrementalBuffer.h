@@ -61,6 +61,17 @@ public:
         }
         return false;
     }
+
+    /// \brief Remove the last character in the buffer, if there is one
+    ///
+    /// This removes the last character added, so that you can backspace and keep a valid
+    /// buffer to send to the command processor later.
+    void RemoveLastCharacter(void)
+    {
+        if (m_insertPoint > 0) {
+            m_sentence[--m_insertPoint] = '\0';
+        }
+    }
     
     /// \brief Reset the current sentence, going back to zero length
     ///

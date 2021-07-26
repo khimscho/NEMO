@@ -72,6 +72,9 @@ public:
         BluetoothPort,  ///< Bluetooth LE connection from a mobile client
         WirelessPort    ///< WiFi socket from a client
     };
+
+    void EchoOn(void) { m_echoOn = true; }
+    void EchoOff(void) { m_echoOn = false; }
     
 private:
     nmea::N2000::Logger *m_CANLogger;   ///< Pointer for the logger object to use
@@ -81,6 +84,7 @@ private:
     BluetoothAdapter    *m_ble;         ///< Pointer for the BLE interface
     WiFiAdapter         *m_wifi;        ///< Pointer for the WiFi interface, once it comes up
     logger::IncBuffer   m_serialBuffer; ///< Space to assemble serial commands that doesn't block runtime
+    bool                m_echoOn;       ///< Flag: indicate that characters from serial should be echoed back
     
     /// \brief Print the console log on the output stream(s)
     void ReportConsoleLog(CommandSource src);
@@ -118,6 +122,8 @@ private:
     void ConfigureSerialPort(String const& command, CommandSource src);
     /// \brief Configure whether to bring on individual loggers
     void ConfigureLoggers(String const& command, CommandSource src);
+    /// \brief Configure whether to echo characters on Serial back to the host
+    void ConfigureEcho(String const& command, CommandSource src);
     /// \brief Report configuration parameters for the logger
     void ReportConfiguration(CommandSource src);
     /// \brief Show a list of known commands

@@ -47,7 +47,7 @@ const uint32_t CommandPatchVersion = 0;
 
 SerialCommand::SerialCommand(nmea::N2000::Logger *CANLogger, nmea::N0183::Logger *serialLogger,
                              logger::Manager *logManager, StatusLED *led)
-: m_CANLogger(CANLogger), m_serialLogger(serialLogger), m_logManager(logManager), m_led(led)
+: m_CANLogger(CANLogger), m_serialLogger(serialLogger), m_logManager(logManager), m_led(led), m_echoOn(true)
 {
     m_ble = BluetoothFactory::Create();
     m_wifi = WiFiAdapterFactory::Create();
@@ -105,6 +105,7 @@ void SerialCommand::ReportLogfileSizes(CommandSource src)
     int     file_count = m_logManager->CountLogFiles(filenumber);
     String  filename;
     int     filesize;
+
     for (int f = 0; f < file_count; ++f) {
         m_logManager->EnumerateLogFile(filenumber[f], filename, filesize);
         String line = String("    ") + filename + " " + filesize + " B\n";
@@ -407,6 +408,17 @@ void SerialCommand::ConfigureLoggers(String const& params, CommandSource src)
     }
 }
 
+void SerialCommand::ConfigureEcho(String const& params, CommandSource src)
+{
+    if (params.startsWith("on")) {
+        EchoOn();
+    } else if (params.startsWith("off")) {
+        EchoOff();
+    } else {
+        EmitMessage("ERR: echo can be turned 'on' or 'off' only.\n", src);
+    }
+}
+
 void SerialCommand::ReportConfiguration(CommandSource src)
 {
     bool bin_param;
@@ -450,6 +462,7 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage(String("Command Syntax (V") + CommandMajorVersion + "." + CommandMinorVersion + "." + CommandPatchVersion + "):\n", src);
     EmitMessage("  advertise bt-name                   Set BLE advertising name.\n", src);
     EmitMessage("  configure [on|off logger-name]      Configure individual loggers on/off (or report config).\n", src);
+    EmitMessage("  echo on|off                         Control character echo on serial line.\n", src);
     EmitMessage("  erase file-number|all               Remove a specific [file-number] or all log files.\n", src);
     EmitMessage("  help|syntax                         Generate this list.\n", src);
     EmitMessage("  identify                            Report the logger's unique identification string.\n", src);
@@ -537,6 +550,8 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         delay(1);
         digitalWrite(0, HIGH);
         ESP.restart();
+    } else if (cmd.startsWith("echo")) {
+        ConfigureEcho(cmd.substring(5), src);
     } else if (cmd == "help" || cmd == "syntax") {
         Syntax(src);
     } else {
@@ -556,7 +571,13 @@ void SerialCommand::ProcessCommand(void)
 {
     if (Serial.available() > 0) {
         int c = Serial.read();
-        m_serialBuffer.AddCharacter(c);
+        if (m_echoOn) Serial.printf("%c", c);
+        if (c == '\b') {
+            // Delete (or at least backspace) character
+            m_serialBuffer.RemoveLastCharacter();
+        } else {
+            m_serialBuffer.AddCharacter(c);
+        }
         if (c == '\n') {
             String cmd(m_serialBuffer.Contents());
             m_serialBuffer.Reset();
