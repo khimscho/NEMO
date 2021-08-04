@@ -139,7 +139,9 @@ void MessageAssembler::AddCharacter(const char in)
                     // so that we can try to invert later.
                     m_badStartCount++;
                 }
-                if ((m_badStartCount * 1000 / (millis() - m_lastInvertResetTime)) > 10) {
+                auto elapsed_time = millis() - m_lastInvertResetTime;
+                if (elapsed_time == 0) ++elapsed_time;
+                if ((m_badStartCount * 1000 / elapsed_time) > 10) {
                     // If we're seeing more than 10 bad starts/second, it's likely that we've
                     // got an inversion of the inputs, so we attempt to fix that.
                     m_lastInvertResetTime = millis();
