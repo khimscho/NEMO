@@ -379,12 +379,18 @@ void Manager::TransferLogFile(int file_num, Stream& output)
     // listening, and go back to ASCII mode.
     output.write((const uint8_t*)&file_size, sizeof(uint32_t));
     
+    unsigned long start = millis();
     while (f.available()) {
         output.write(f.read());
         ++bytes_transferred;
+        if ((bytes_transferred % 1024) == 0) {
+            Serial.printf("Transferred %d bytes.\n", bytes_transferred);
+        }
     }
+    unsigned long end = millis();
+    unsigned long duration = (end - start)/1000;
     f.close();
-    Serial.println(String("Sent ") + bytes_transferred + " B");
+    Serial.println(String("Sent ") + bytes_transferred + " B in " + duration + "s.");
 }
 
 #endif

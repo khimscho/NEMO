@@ -49,7 +49,7 @@ public:
     String ReceivedString(void);
     
     /// \brief Manage the transfer of a log file to the client, given the filename.
-    bool TransferFile(String const& filename);
+    bool TransferFile(String const& filename, uint32_t filesize);
     
     /// \brief Return the SSID for the WiFi adapter (stored in NVRAM).
     String GetSSID(void);
@@ -87,7 +87,7 @@ private:
     virtual String readBuffer(void) = 0;
     
     /// \brief Sub-class implementation of code to send a log file to the client.
-    virtual bool sendLogFile(String const& filename) = 0;
+    virtual bool sendLogFile(String const& filename, uint32_t filesize) = 0;
     
     /// \brief Sub-class implementation to set the SSID for the WiFi.
     virtual void set_ssid(String const& ssid) = 0;

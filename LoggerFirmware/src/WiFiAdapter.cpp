@@ -181,7 +181,7 @@ private:
     /// \param filename Name of the file to transfer to the client
     /// \return True if the transfer worked, otherwise false.
     
-    bool sendLogFile(String const& filename)
+    bool sendLogFile(String const& filename, uint32_t filesize)
     {
         if (!isConnected()) return false;
         File f = m_storage->Controller().open(filename, FILE_READ);
@@ -189,8 +189,12 @@ private:
             Serial.println("ERR: failed to open file for transfer.");
             return false;
         } else {
+            m_client.write((uint8_t *)&filesize, sizeof(uint32_t));
+            uint8_t buffer[1024];
+            size_t n_read;
             while (f.available()) {
-                m_client.write(f.read());
+                n_read = f.read(buffer, 1024);
+                m_client.write(buffer, n_read);
             }
             f.close();
         }
@@ -376,7 +380,8 @@ String WiFiAdapter::ReceivedString(void) { return readBuffer(); }
 ///
 /// \param filename Name of the log file to be transferred.
 /// \return True if the file was transferred, otherwise false.
-bool WiFiAdapter::TransferFile(String const& filename) { return sendLogFile(filename); }
+bool WiFiAdapter::TransferFile(String const& filename, uint32_t filesize)
+    { return sendLogFile(filename, filesize); }
 
 /// Pass-through implementation to the sub-class code to get the SSID in use for the WiFi adapter.
 ///

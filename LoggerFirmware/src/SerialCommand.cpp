@@ -50,6 +50,7 @@ SerialCommand::SerialCommand(nmea::N2000::Logger *CANLogger, nmea::N0183::Logger
 : m_CANLogger(CANLogger), m_serialLogger(serialLogger), m_logManager(logManager), m_led(led), m_echoOn(true)
 {
     m_ble = BluetoothFactory::Create();
+    m_ble->Startup();
     m_wifi = WiFiAdapterFactory::Create();
 }
 
@@ -191,7 +192,12 @@ void SerialCommand::ModifyLEDState(String const& command)
 void SerialCommand::ReportIdentificationString(CommandSource src)
 {
     if (src == CommandSource::SerialPort) EmitMessage("Module identification string: ", src);
-    EmitMessage(m_ble->LoggerIdentifier() + "\n", src);
+    String id;
+    if (logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_MODULEID_S, id)) {
+        EmitMessage(id + "\n", src);
+    } else {
+        EmitMessage("UNKNOWN\n", src);
+    }
 }
 
 /// Set the identification string for the logger.  This is expected to be a unique ID that can be
@@ -203,7 +209,11 @@ void SerialCommand::ReportIdentificationString(CommandSource src)
 
 void SerialCommand::SetIdentificationString(String const& identifier)
 {
-    m_ble->IdentifyAs(identifier);
+    if (!logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_MODULEID_S, identifier)) {
+            Serial.println("ERR: module identification string file failed to write.");
+            return;
+    }
+    //m_ble->IdentifyAs(identifier);
 }
 
 /// Set the advertising name for the Bluetooth LE UART service established by the module on
@@ -214,7 +224,11 @@ void SerialCommand::SetIdentificationString(String const& identifier)
 
 void SerialCommand::SetBluetoothName(String const& name)
 {
-    m_ble->AdvertiseAs(name);
+    if (!logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_BLENAME_S, name)) {
+        Serial.println("ERR: module advertising name file failed to write.");
+        return;
+    }
+    //m_ble->AdvertiseAs(name);
 }
 
 /// Set up for verbose reporting of messages received by the logger from the NMEA2000 bus.  This
@@ -302,16 +316,19 @@ void SerialCommand::GetWiFiPassword(CommandSource src)
 void SerialCommand::ManageWireless(String const& command, CommandSource src)
 {
     if (command == "on") {
+        m_ble->Shutdown();
         if (m_wifi->Startup()) {
             if (src != CommandSource::BluetoothPort)
                 EmitMessage("WiFi started on ", src);
             EmitMessage(m_wifi->GetServerAddress() + "\n", src);
         } else {
             EmitMessage("ERR: WiFi startup failed.\n", src);
+            m_ble->Startup();
         }
     } else if (command == "off") {
         m_wifi->Shutdown();
         EmitMessage("WiFi stopped.\n", src);
+        m_ble->Startup();
     } else if (command == "accesspoint") {
         m_wifi->SetWirelessMode(WiFiAdapter::WirelessMode::ADAPTER_SOFTAP);
     } else if (command == "station") {
@@ -330,7 +347,11 @@ void SerialCommand::ManageWireless(String const& command, CommandSource src)
 
 void SerialCommand::TransferLogFile(String const& filenum, CommandSource src)
 {
+    String filename;
+    int filesize;
     int file_number = filenum.toInt();
+    unsigned long tx_start, tx_end, tx_duration;
+    m_logManager->EnumerateLogFile(file_number, filename, filesize);
     switch (src) {
         case CommandSource::SerialPort:
             m_logManager->TransferLogFile(file_number, Serial);
@@ -339,7 +360,13 @@ void SerialCommand::TransferLogFile(String const& filenum, CommandSource src)
             EmitMessage("ERR: not available.\n", src);
             break;
         case CommandSource::WirelessPort:
-            m_logManager->TransferLogFile(file_number, m_wifi->Client());
+            Serial.printf("Transfering \"%s\", total %d bytes.\n", filename.c_str(), filesize);
+            tx_start = millis();
+            m_wifi->TransferFile(filename, filesize);
+            tx_end = millis();
+            tx_duration = (tx_end - tx_start) / 1000;
+            Serial.printf("Transferred in %lu seconds.\n", tx_duration);
+            //m_logManager->TransferLogFile(file_number, m_wifi->Client());
             break;
         default:
             Serial.println("ERR: command source not recognised.");
@@ -589,7 +616,7 @@ void SerialCommand::ProcessCommand(void)
             Execute(cmd, CommandSource::SerialPort);
         }
     }
-    if (m_ble->IsConnected() && m_ble->DataAvailable()) {
+    if (m_ble != nullptr && m_ble->IsConnected() && m_ble->DataAvailable()) {
         String cmd = m_ble->ReceivedString();
         cmd.trim();
 
@@ -626,7 +653,7 @@ void SerialCommand::EmitMessage(String const& msg, CommandSource src)
             Serial.print(msg);
             break;
         case CommandSource::BluetoothPort:
-            if (m_ble->IsConnected())
+            if (m_ble != nullptr && m_ble->IsConnected())
                 m_ble->WriteString(msg);
             break;
         case CommandSource::WirelessPort:
