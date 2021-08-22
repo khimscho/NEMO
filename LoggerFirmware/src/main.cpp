@@ -74,7 +74,16 @@ logger::SupplyMonitor   *supplyMonitor = nullptr;   ///< Pointer for the supply 
 
 void setup()
 {
+    uint32_t heap_size = ESP.getHeapSize();
+    uint32_t heap_free = ESP.getFreeHeap();
+    uint32_t flash_size = ESP.getFlashChipSize();
+    uint32_t flash_speed = ESP.getFlashChipSpeed();
+    FlashMode_t flash_mode = ESP.getFlashChipMode();
+
     Serial.begin(115200);
+
+    Serial.printf("DBG: At boot, heap is %d B (%d B free)\n", heap_size, heap_free);
+    Serial.printf("DBG: Flash size is %d B, at %d B/s (mode: %d)\n", flash_size, flash_speed, (uint32_t)flash_mode);
 
     Serial.println("Configuring LED indicators ...");
     LEDs = new StatusLED();
@@ -155,6 +164,9 @@ void setup()
 
     Serial.println("Setup complete, setting status for normal operations.");
     LEDs->SetStatus(StatusLED::Status::sNORMAL);
+
+    heap_free = ESP.getFreeHeap();
+    Serial.printf("DBG: After boot and configuration, free heap = %d B.\n", heap_free);
 }
 
 /// \brief General processing loop code for the logger.

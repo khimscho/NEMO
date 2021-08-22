@@ -481,6 +481,15 @@ void SerialCommand::ReportConfiguration(CommandSource src)
     EmitMessage("  WiFi Mode String: " + string_param + "\n", src);
 }
 
+void SerialCommand::ReportHeapSize(CommandSource src)
+{
+    uint32_t heap_size = ESP.getHeapSize(), heap_free = ESP.getFreeHeap(),
+             smallest_heap = ESP.getMinFreeHeap(), largest_block = ESP.getMaxAllocHeap();
+    String msg = String("Current Heap: ") + heap_size + " B total, free: " + heap_free + " B, low-water: "
+                    + smallest_heap + " B, biggest chunk: " + largest_block + " B.\n";
+    EmitMessage(msg, src);
+}
+
 /// Output a list of known commands, since there are now enough of them to make remembering them
 /// all a little difficult.
 
@@ -491,6 +500,7 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  configure [on|off logger-name]      Configure individual loggers on/off (or report config).\n", src);
     EmitMessage("  echo on|off                         Control character echo on serial line.\n", src);
     EmitMessage("  erase file-number|all               Remove a specific [file-number] or all log files.\n", src);
+    EmitMessage("  heap                                Report current free heap size.\n", src);
     EmitMessage("  help|syntax                         Generate this list.\n", src);
     EmitMessage("  identify                            Report the logger's unique identification string.\n", src);
     EmitMessage("  invert 0|1                          Invert polarity of RS-422 input on port 0|1.\n", src);
@@ -579,6 +589,8 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         ESP.restart();
     } else if (cmd.startsWith("echo")) {
         ConfigureEcho(cmd.substring(5), src);
+    } else if (cmd == "heap") {
+        ReportHeapSize(src);
     } else if (cmd == "help" || cmd == "syntax") {
         Syntax(src);
     } else {

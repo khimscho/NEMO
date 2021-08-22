@@ -126,6 +126,8 @@ private:
     void ConfigureEcho(String const& command, CommandSource src);
     /// \brief Report configuration parameters for the logger
     void ReportConfiguration(CommandSource src);
+    /// \brief Report heap size during run-time
+    void ReportHeapSize(CommandSource src);
     /// \brief Show a list of known commands
     void Syntax(CommandSource src);
     
