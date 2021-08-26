@@ -31,6 +31,7 @@
 #include "IncrementalBuffer.h"
 #include "OTAUpdater.h"
 #include "Configuration.h"
+#include "HeapMonitor.h"
 
 const uint32_t CommandMajorVersion = 1;
 const uint32_t CommandMinorVersion = 0;
@@ -49,9 +50,18 @@ SerialCommand::SerialCommand(nmea::N2000::Logger *CANLogger, nmea::N0183::Logger
                              logger::Manager *logManager, StatusLED *led)
 : m_CANLogger(CANLogger), m_serialLogger(serialLogger), m_logManager(logManager), m_led(led), m_echoOn(true)
 {
-    m_ble = BluetoothFactory::Create();
-    m_ble->Startup();
+    logger::HeapMonitor heap;
+
+    Serial.printf("DBG: Before SerialCommand setup, heap free = %d B\n", heap.CurrentSize());
+    //m_ble = BluetoothFactory::Create();
+    m_ble = nullptr;
+    //m_ble->Startup();
+
+    Serial.printf("DBG: After BLE start, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+
     m_wifi = WiFiAdapterFactory::Create();
+
+    Serial.printf("DBG: After WiFi interface create, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
 }
 
 /// Default destructor for the SerialCommand object.  This deallocates the BLE service object,
@@ -316,19 +326,36 @@ void SerialCommand::GetWiFiPassword(CommandSource src)
 void SerialCommand::ManageWireless(String const& command, CommandSource src)
 {
     if (command == "on") {
-        m_ble->Shutdown();
+        logger::HeapMonitor heap;
+        Serial.printf("DBG: Before starting WiFi, heap free = %d B\n", heap.CurrentSize());
+        if (m_ble != nullptr) {
+            m_ble->Shutdown();
+            Serial.printf("DBG: After BLE shutdown, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+        }
         if (m_wifi->Startup()) {
             if (src != CommandSource::BluetoothPort)
                 EmitMessage("WiFi started on ", src);
             EmitMessage(m_wifi->GetServerAddress() + "\n", src);
+            Serial.printf("DBG: After WiFi startup, heap fee = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
         } else {
             EmitMessage("ERR: WiFi startup failed.\n", src);
-            m_ble->Startup();
+            if (m_ble != nullptr) {
+                m_ble->Startup();
+                Serial.printf("DBG: After BLE re-enabled, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+            }
         }
     } else if (command == "off") {
+        logger::HeapMonitor heap;
+        Serial.printf("DBG: Before stopping WiFi, heap free = %d B\n", heap.CurrentSize());
+
         m_wifi->Shutdown();
         EmitMessage("WiFi stopped.\n", src);
-        m_ble->Startup();
+
+        Serial.printf("DBG: After WiFi stopped, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+        if (m_ble != nullptr) {
+            m_ble->Startup();
+            Serial.printf("DBG: After BLE re-started, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+        }
     } else if (command == "accesspoint") {
         m_wifi->SetWirelessMode(WiFiAdapter::WirelessMode::ADAPTER_SOFTAP);
     } else if (command == "station") {
@@ -483,10 +510,9 @@ void SerialCommand::ReportConfiguration(CommandSource src)
 
 void SerialCommand::ReportHeapSize(CommandSource src)
 {
-    uint32_t heap_size = ESP.getHeapSize(), heap_free = ESP.getFreeHeap(),
-             smallest_heap = ESP.getMinFreeHeap(), largest_block = ESP.getMaxAllocHeap();
-    String msg = String("Current Heap: ") + heap_size + " B total, free: " + heap_free + " B, low-water: "
-                    + smallest_heap + " B, biggest chunk: " + largest_block + " B.\n";
+    logger::HeapMonitor heap;
+    String msg = String("Current Heap: ") + heap.HeapSize() + " B total, free: " + heap.CurrentSize() + " B, low-water: "
+                    + heap.LowWater() + " B, biggest chunk: " + heap.LargestBlock() + " B.\n";
     EmitMessage(msg, src);
 }
 

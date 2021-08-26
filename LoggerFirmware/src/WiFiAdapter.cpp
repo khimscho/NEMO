@@ -190,10 +190,10 @@ private:
             return false;
         } else {
             m_client.write((uint8_t *)&filesize, sizeof(uint32_t));
-            uint8_t buffer[1024];
+            uint8_t buffer[1435]; // The biggest buffer we can send in a single packet appears to be 1436 B.
             size_t n_read;
             while (f.available()) {
-                n_read = f.read(buffer, 1024);
+                n_read = f.read(buffer, 1435);
                 m_client.write(buffer, n_read);
             }
             f.close();
