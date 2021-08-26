@@ -55,6 +55,7 @@ private:
     logger::Manager     *m_output;
     bool                m_verbose;
     Adafruit_MPU6050    *m_sensor;
+    float               m_lastAccX, m_lastAccY, m_lastAccZ;
 };
 
 }
