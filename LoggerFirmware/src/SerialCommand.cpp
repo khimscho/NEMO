@@ -51,17 +51,33 @@ SerialCommand::SerialCommand(nmea::N2000::Logger *CANLogger, nmea::N0183::Logger
 : m_CANLogger(CANLogger), m_serialLogger(serialLogger), m_logManager(logManager), m_led(led), m_echoOn(true)
 {
     logger::HeapMonitor heap;
+    bool boot_ble;
+    
+    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_BOOT_BLE_B, boot_ble);
 
     Serial.printf("DBG: Before SerialCommand setup, heap free = %d B\n", heap.CurrentSize());
-    //m_ble = BluetoothFactory::Create();
-    m_ble = nullptr;
-    //m_ble->Startup();
 
-    Serial.printf("DBG: After BLE start, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+    if (boot_ble) {
+        m_ble = BluetoothFactory::Create();
+        m_ble->Startup();
+        
+        Serial.printf("DBG: After BLE start, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+    } else {
+        // If we're not booting it at the start, then we're not even going to make the device controller.
+        m_ble = nullptr;
+    }
 
+    // WiFi always gets created, since we'll need it eventually to get data off.  The only question is
+    // whether it gets started when the system first somes up or not.
     m_wifi = WiFiAdapterFactory::Create();
 
     Serial.printf("DBG: After WiFi interface create, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+
+    if (!boot_ble) {
+        m_wifi->Startup();
+
+        Serial.printf("DBG: After WiFi interface start, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+    }
 }
 
 /// Default destructor for the SerialCommand object.  This deallocates the BLE service object,
@@ -401,7 +417,7 @@ void SerialCommand::TransferLogFile(String const& filenum, CommandSource src)
     }
 }
 
-void SerialCommand::ConfigureSerialPort(String const& params, CommandSource src)
+void SerialCommand::ConfigureSerialPortInvert(String const& params, CommandSource src)
 {
     uint32_t    port;
     bool        invert;
@@ -421,6 +437,36 @@ void SerialCommand::ConfigureSerialPort(String const& params, CommandSource src)
         return;
     }
     m_serialLogger->SetRxInvert(port, invert);
+}
+
+void SerialCommand::ConfigureSerialPortSpeed(String const& params, CommandSource src)
+{
+    uint32_t port;
+    String baud_rate_str;
+    uint32_t baud_rate;
+    logger::Config::ConfigParam channel;
+    
+    if (m_serialLogger == nullptr) {
+        EmitMessage("WARN: NMEA0183 logger disabled, expect no effect from this command.\n", src);
+    }
+    port = params.substring(0,1).toInt();
+    if (port == 1 || port == 2) {
+        if (port == 1)
+            channel = logger::Config::ConfigParam::CONFIG_BAUDRATE_1_S;
+        else
+            channel = logger::Config::ConfigParam::CONFIG_BAUDRATE_2_S;
+    } else {
+        EmitMessage("ERR: serial channel must be in {1,2}.\n", src);
+        return;
+    }
+    baud_rate_str = params.substring(2);
+    baud_rate = static_cast<uint32_t>(baud_rate_str.toInt());
+    if (baud_rate < 4800 || baud_rate > 115200) {
+        EmitMessage("ERR: baud rate implausible; ignoring command.\n", src);
+        return;
+    }
+    logger::LoggerConfig.SetConfigString(channel, baud_rate_str);
+    EmitMessage("INFO: speed set, remember to reboot to have this take effect.\n", src);
 }
 
 void SerialCommand::ConfigureLoggers(String const& params, CommandSource src)
@@ -494,6 +540,9 @@ void SerialCommand::ReportConfiguration(CommandSource src)
     EmitMessage("  SDIO-MMC Interface: ", src);
     logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_SDMMC_B, bin_param);
     EmitMessage(bin_param ? "on\n" : "off\n", src);
+    EmitMessage("  Boot Radio: ", src);
+    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_BOOT_BLE_B, bin_param);
+    EmitMessage(bin_param ? "ble\n" : "wifi\n", src);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_MODULEID_S, string_param);
     EmitMessage("  Module ID String: " + string_param + "\n", src);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_BLENAME_S, string_param);
@@ -506,6 +555,10 @@ void SerialCommand::ReportConfiguration(CommandSource src)
     EmitMessage("  WiFi IP Address String: " + string_param + "\n", src);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIMODE_S, string_param);
     EmitMessage("  WiFi Mode String: " + string_param + "\n", src);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_BAUDRATE_1_S, string_param);
+    EmitMessage("  Serial Channel 1 Speed: " + string_param + " baud\n", src);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_BAUDRATE_2_S, string_param);
+    EmitMessage("  Serial Channel 2 Speed: " + string_param + " baud\n", src);
 }
 
 void SerialCommand::ReportHeapSize(CommandSource src)
@@ -514,6 +567,18 @@ void SerialCommand::ReportHeapSize(CommandSource src)
     String msg = String("Current Heap: ") + heap.HeapSize() + " B total, free: " + heap.CurrentSize() + " B, low-water: "
                     + heap.LowWater() + " B, biggest chunk: " + heap.LargestBlock() + " B.\n";
     EmitMessage(msg, src);
+}
+
+void SerialCommand::ConfigureBootRadio(String const& params, CommandSource src)
+{
+    if (params.startsWith("ble")) {
+        logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_BOOT_BLE_B, true);
+    } else if (params.startsWith("wifi")) {
+        logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_BOOT_BLE_B, false);
+    } else {
+        EmitMessage("ERR: radio can only be 'ble' or 'wifi'.\n", src);
+        return;
+    }
 }
 
 /// Output a list of known commands, since there are now enough of them to make remembering them
@@ -529,13 +594,15 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  heap                                Report current free heap size.\n", src);
     EmitMessage("  help|syntax                         Generate this list.\n", src);
     EmitMessage("  identify                            Report the logger's unique identification string.\n", src);
-    EmitMessage("  invert 0|1                          Invert polarity of RS-422 input on port 0|1.\n", src);
+    EmitMessage("  invert 1|2                          Invert polarity of RS-422 input on port 1|2.\n", src);
     EmitMessage("  led normal|error|initialising|full  [Debug] Set the indicator LED status.\n", src);
     EmitMessage("  log                                 Output the contents of the console log.\n", src);
     EmitMessage("  ota                                 Start Over-the-Air update sequence for the logger.\n", src);
     EmitMessage("  password [wifi-password]            Set the WiFi password.\n", src);
+    EmitMessage("  radio ble|wifi                      Set the radio to boot on initialisation.\n", src);
     EmitMessage("  setid logger-name                   Set the logger's unique identification string.\n", src);
     EmitMessage("  sizes                               Output list of the extant log files, and their sizes in bytes.\n", src);
+    EmitMessage("  speed 1|2 baud-rate                 Set the baud rate for the RS-422 input channels.\n", src);
     EmitMessage("  ssid [wifi-ssid]                    Set the WiFi SSID.\n", src);
     EmitMessage("  steplog                             Close current log file, and move to the next in sequence.\n", src);
     EmitMessage("  stop                                Close files and go into self-loop for power-down.\n", src);
@@ -597,7 +664,7 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
     } else if (cmd.startsWith("transfer")) {
         TransferLogFile(cmd.substring(9), src);
     } else if (cmd.startsWith("invert")) {
-        ConfigureSerialPort(cmd.substring(7), src);
+        ConfigureSerialPortInvert(cmd.substring(7), src);
     } else if (cmd.startsWith("ota")) {
         EmitMessage("Starting OTA update sequence ...\n", src);
         OTAUpdater updater; // This puts the logger into a loop which ends with a full reset
@@ -617,6 +684,10 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         ConfigureEcho(cmd.substring(5), src);
     } else if (cmd == "heap") {
         ReportHeapSize(src);
+    } else if (cmd.startsWith("speed")) {
+        ConfigureSerialPortSpeed(cmd.substring(6), src);
+    } else if (cmd.startsWith("radio")) {
+        ConfigureBootRadio(cmd.substring(6), src);
     } else if (cmd == "help" || cmd == "syntax") {
         Syntax(src);
     } else {

@@ -119,11 +119,15 @@ private:
     /// \brief Send a log file to the client
     void TransferLogFile(String const& command, CommandSource src);
     /// \brief Set up receiver on UARTs for inverting input (to deal with polarity problems)
-    void ConfigureSerialPort(String const& command, CommandSource src);
+    void ConfigureSerialPortInvert(String const& command, CommandSource src);
+    /// \brief Set up baud rate for the UARTs
+    void ConfigureSerialPortSpeed(String const& command, CommandSource src);
     /// \brief Configure whether to bring on individual loggers
     void ConfigureLoggers(String const& command, CommandSource src);
     /// \brief Configure whether to echo characters on Serial back to the host
     void ConfigureEcho(String const& command, CommandSource src);
+    /// \brief Set which radio gets booted at power on
+    void ConfigureBootRadio(String const& command, CommandSource src);
     /// \brief Report configuration parameters for the logger
     void ReportConfiguration(CommandSource src);
     /// \brief Report heap size during run-time

@@ -47,12 +47,15 @@ class Config {
             CONFIG_MOTION_B,        /* Binary: Motion sensor logging configured on */
             CONFIG_POWMON_B,        /* Binary: Power monitoring configured on */
             CONFIG_SDMMC_B,         /* Binary: SD-MMC (SDIO) interface for log files */
+            CONFIG_BOOT_BLE_B,      /* Binary: Boot the BLE interface on start, or WiFi */
             CONFIG_MODULEID_S,      /* String: User-specified unique identifier for the module */
             CONFIG_BLENAME_S,       /* String: BLE advertising name for the module */
             CONFIG_WIFISSID_S,      /* String: WiFi SSID to use for AP/Station */
             CONFIG_WIFIPSWD_S,      /* String: WiFi password to use */
             CONFIG_WIFIIP_S,        /* String: WiFi IP address assigned */
             CONFIG_WIFIMODE_S,      /* String: WiFi mode (Station, SoftAP) */
+            CONFIG_BAUDRATE_1_S,    /* String: baud rate for NMEA0183 input channel 1 */
+            CONFIG_BAUDRATE_2_S     /* String: baud rate for NMEA0183 input channel 2 */
         };
 
         bool GetConfigString(ConfigParam const param, String& value);

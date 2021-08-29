@@ -30,6 +30,7 @@
 
 #include "LogManager.h"
 #include "IncrementalBuffer.h"
+#include "Configuration.h"
 
 namespace nmea {
 namespace N0183 {
@@ -154,6 +155,8 @@ private:
     bool                m_verbose;                ///< Verbose status for the logger
     logger::Manager    *m_logManager;             ///< Handler for log files on SD card
     MessageAssembler    m_channel[ChannelCount];  ///< Message handler for two channels
+
+    uint32_t retrieveBaudRate(logger::Config::ConfigParam channel);
 };
 
 }

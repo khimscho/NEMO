@@ -303,12 +303,25 @@ Logger::Logger(logger::Manager *output)
         used_tx2_pin = 15;
     }
 #endif
-    Serial1.begin(4800, SERIAL_8N1, rx1_pin, used_tx1_pin);
-    Serial2.begin(4800, SERIAL_8N1, rx2_pin, used_tx2_pin);
+    Serial1.begin(retrieveBaudRate(logger::Config::ConfigParam::CONFIG_BAUDRATE_1_S), SERIAL_8N1, rx1_pin, used_tx1_pin);
+    Serial2.begin(retrieveBaudRate(logger::Config::ConfigParam::CONFIG_BAUDRATE_2_S), SERIAL_8N1, rx2_pin, used_tx2_pin);
 #elif defined(__SAM3X8E__)
-    Serial1.begin(4800);
-    Serial2.begin(4800);
+    Serial1.begin(retrieveBaudRate(logger::Config::ConfigParam::CONFIG_BAUDRATE_1_S));
+    Serial2.begin(retrieveBaudRate(logger::Config::ConfigParam::CONFIG_BAUDRATE_2_S));
 #endif
+}
+
+uint32_t Logger::retrieveBaudRate(logger::Config::ConfigParam channel)
+{
+    String baud_rate_str;
+    uint32_t baud_rate;
+    logger::LoggerConfig.GetConfigString(channel, baud_rate_str);
+    if (baud_rate_str.isEmpty()) {
+        baud_rate = 4800;
+    } else {
+        baud_rate = static_cast<uint32_t>(baud_rate_str.toInt());
+    }
+    return baud_rate;
 }
                                        
 Logger::~Logger(void)

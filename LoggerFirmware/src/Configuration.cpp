@@ -37,12 +37,15 @@ const String lookup[] = {
     "IMUEnable",
     "PowMon",
     "MemModule",
+    "BootBLE",
     "modid",
     "modname",
     "ssid",
     "password",
     "ipaddress",
     "wifimode"
+    "baud1",
+    "baud2"
 };
 
 Config::Config(void)
