@@ -30,6 +30,7 @@
 #include <Arduino.h>
 #include "N2kLogger.h"
 #include "N0183Logger.h"
+#include "PointBridge.h"
 #include "LogManager.h"
 #include "StatusLED.h"
 #include "BluetoothAdapter.h"
@@ -79,6 +80,7 @@ public:
 private:
     nmea::N2000::Logger *m_CANLogger;   ///< Pointer for the logger object to use
     nmea::N0183::Logger *m_serialLogger;///< Pointer for the NMEA0183 message handler
+    nmea::N0183::PointBridge *m_bridge; ///< Pointer for the WiFi/UDP -> NEMA0183 bridge
     logger::Manager     *m_logManager;  ///< Object to write to SD files and console log
     StatusLED           *m_led;         ///< Pointer for the status LED controller
     BluetoothAdapter    *m_ble;         ///< Pointer for the BLE interface

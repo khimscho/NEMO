@@ -34,7 +34,7 @@
 #include "HeapMonitor.h"
 
 const uint32_t CommandMajorVersion = 1;
-const uint32_t CommandMinorVersion = 0;
+const uint32_t CommandMinorVersion = 1;
 const uint32_t CommandPatchVersion = 0;
 
 /// Default constructor for the SerialCommand object.  This stores the pointers for the logger and
@@ -77,6 +77,16 @@ SerialCommand::SerialCommand(nmea::N2000::Logger *CANLogger, nmea::N0183::Logger
         m_wifi->Startup();
 
         Serial.printf("DBG: After WiFi interface start, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+
+        bool start_bridge;
+        logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_BRIDGE_B, start_bridge);
+        if (start_bridge) {
+            m_bridge = new nmea::N0183::PointBridge();
+
+            Serial.printf("DBG: After UDP bridge start, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+        } else {
+            m_bridge = nullptr;
+        }
     }
 }
 
@@ -86,6 +96,7 @@ SerialCommand::SerialCommand(nmea::N2000::Logger *CANLogger, nmea::N0183::Logger
 
 SerialCommand::~SerialCommand()
 {
+    delete m_bridge;
     delete m_wifi;
     delete m_ble;
 }
@@ -268,9 +279,11 @@ void SerialCommand::SetVerboseMode(String const& mode)
     if (mode == "on") {
         if (m_CANLogger != nullptr) m_CANLogger->SetVerbose(true);
         if (m_serialLogger != nullptr) m_serialLogger->SetVerbose(true);
+        if (m_bridge != nullptr) m_bridge->SetVerbose(true);
     } else if (mode == "off") {
         if (m_CANLogger != nullptr) m_CANLogger->SetVerbose(false);
         if (m_serialLogger != nullptr) m_serialLogger->SetVerbose(false);
+        if (m_bridge != nullptr) m_bridge->SetVerbose(false);
     } else {
         Serial.println("ERR: verbose mode not recognised.");
     }
@@ -353,6 +366,16 @@ void SerialCommand::ManageWireless(String const& command, CommandSource src)
                 EmitMessage("WiFi started on ", src);
             EmitMessage(m_wifi->GetServerAddress() + "\n", src);
             Serial.printf("DBG: After WiFi startup, heap fee = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+            
+            bool start_bridge;
+            logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_BRIDGE_B, start_bridge);
+            if (start_bridge) {
+                if (m_bridge == nullptr)
+                    m_bridge = new nmea::N0183::PointBridge();
+                Serial.printf("DBG: After UDP bridge start, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+            } else {
+                m_bridge = nullptr;
+            }
         } else {
             EmitMessage("ERR: WiFi startup failed.\n", src);
             if (m_ble != nullptr) {
@@ -366,8 +389,12 @@ void SerialCommand::ManageWireless(String const& command, CommandSource src)
 
         m_wifi->Shutdown();
         EmitMessage("WiFi stopped.\n", src);
-
         Serial.printf("DBG: After WiFi stopped, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+        if (m_bridge != nullptr) {
+            delete m_bridge;
+            m_bridge = nullptr;
+            Serial.printf("DBG: After UDP bridge stopped, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+        }
         if (m_ble != nullptr) {
             m_ble->Startup();
             Serial.printf("DBG: After BLE re-started, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
@@ -503,6 +530,18 @@ void SerialCommand::ConfigureLoggers(String const& params, CommandSource src)
         }
 #endif
         logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_SDMMC_B, state);
+    } else if (logger.startsWith("bridge")) {
+        if (state) {
+            // If we're configuring on, then there should also be a port number
+            String port = logger.substring(7);
+            uint16_t port_number = port.toInt();
+            if (port_number < 1024) {
+                EmitMessage("ERR: UDP bridge port is not valid.\n", src);
+                return;
+            }
+            logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_BRIDGE_PORT_S, port);
+        }
+        logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_BRIDGE_B, state);
     } else {
         EmitMessage("ERR: logger name not recognised.\n", src);
     }
@@ -543,6 +582,9 @@ void SerialCommand::ReportConfiguration(CommandSource src)
     EmitMessage("  Boot Radio: ", src);
     logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_BOOT_BLE_B, bin_param);
     EmitMessage(bin_param ? "ble\n" : "wifi\n", src);
+    EmitMessage("  Bridge UDP: ", src);
+    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_BRIDGE_B, bin_param);
+    EmitMessage(bin_param ? "on\n" : "off\n", src);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_MODULEID_S, string_param);
     EmitMessage("  Module ID String: " + string_param + "\n", src);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_BLENAME_S, string_param);
@@ -559,6 +601,8 @@ void SerialCommand::ReportConfiguration(CommandSource src)
     EmitMessage("  Serial Channel 1 Speed: " + string_param + " baud\n", src);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_BAUDRATE_2_S, string_param);
     EmitMessage("  Serial Channel 2 Speed: " + string_param + " baud\n", src);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_BRIDGE_PORT_S, string_param);
+    EmitMessage("  Bridge UDP Port: " + string_param + "\n", src);
 }
 
 void SerialCommand::ReportHeapSize(CommandSource src)
@@ -600,6 +644,7 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  ota                                 Start Over-the-Air update sequence for the logger.\n", src);
     EmitMessage("  password [wifi-password]            Set the WiFi password.\n", src);
     EmitMessage("  radio ble|wifi                      Set the radio to boot on initialisation.\n", src);
+    EmitMessage("  restart                             Restart the logger module hardware.\n", src);
     EmitMessage("  setid logger-name                   Set the logger's unique identification string.\n", src);
     EmitMessage("  sizes                               Output list of the extant log files, and their sizes in bytes.\n", src);
     EmitMessage("  speed 1|2 baud-rate                 Set the baud rate for the RS-422 input channels.\n", src);
@@ -607,11 +652,9 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  steplog                             Close current log file, and move to the next in sequence.\n", src);
     EmitMessage("  stop                                Close files and go into self-loop for power-down.\n", src);
     EmitMessage("  transfer file-number                Transfer log file [file-number] (WiFi and serial only).\n", src);
-    EmitMessage("  version                             Report NMEA0183 and NMEA2000 logger version numbers.\n", src);
     EmitMessage("  verbose on|off                      Control verbosity of reporting for serial input strings.\n", src);
+    EmitMessage("  version                             Report NMEA0183 and NMEA2000 logger version numbers.\n", src);
     EmitMessage("  wireless on|off|accesspoint|station Control WiFi activity [on|off] and mode [accesspoint|station].\n", src);
-    EmitMessage("  restart                             Restart the logger module hardware.\n", src);
-
 }
 
 /// Execute the command strings received from the serial interface(s).  This tests the

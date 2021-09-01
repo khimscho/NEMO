@@ -38,6 +38,7 @@ const String lookup[] = {
     "PowMon",
     "MemModule",
     "BootBLE",
+    "Bridge",
     "modid",
     "modname",
     "ssid",
@@ -45,7 +46,8 @@ const String lookup[] = {
     "ipaddress",
     "wifimode"
     "baud1",
-    "baud2"
+    "baud2",
+    "BridgePort"
 };
 
 Config::Config(void)
