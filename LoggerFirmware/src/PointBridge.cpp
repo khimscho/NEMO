@@ -45,9 +45,10 @@ PointBridge::PointBridge(void)
     }
     if (m_bridge->listen(IP_ADDR_BROADCAST, port_number)) {
         Serial.println("INFO: UDP bridge connected.");
-        m_bridge->onPacket([=](AsyncUDPPacket packet) {
+        /*m_bridge->onPacket([=](AsyncUDPPacket& packet) {
             this->HandlePacket(packet);
-        });
+        });*/
+        m_bridge->onPacket(std::bind(&PointBridge::HandlePacket, this, std::placeholders::_1));
     }
 }
 

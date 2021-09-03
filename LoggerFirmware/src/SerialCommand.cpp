@@ -48,7 +48,7 @@ const uint32_t CommandPatchVersion = 0;
 
 SerialCommand::SerialCommand(nmea::N2000::Logger *CANLogger, nmea::N0183::Logger *serialLogger,
                              logger::Manager *logManager, StatusLED *led)
-: m_CANLogger(CANLogger), m_serialLogger(serialLogger), m_logManager(logManager), m_led(led), m_echoOn(true)
+: m_CANLogger(CANLogger), m_serialLogger(serialLogger), m_logManager(logManager), m_led(led), m_echoOn(true), m_passThrough(false)
 {
     logger::HeapMonitor heap;
     bool boot_ble;
@@ -74,18 +74,20 @@ SerialCommand::SerialCommand(nmea::N2000::Logger *CANLogger, nmea::N0183::Logger
     Serial.printf("DBG: After WiFi interface create, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
 
     if (!boot_ble) {
-        m_wifi->Startup();
+        if (m_wifi->Startup()) {
+            Serial.printf("DBG: After WiFi interface start, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
 
-        Serial.printf("DBG: After WiFi interface start, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+            bool start_bridge;
+            logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_BRIDGE_B, start_bridge);
+            if (start_bridge) {
+                m_bridge = new nmea::N0183::PointBridge();
 
-        bool start_bridge;
-        logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_BRIDGE_B, start_bridge);
-        if (start_bridge) {
-            m_bridge = new nmea::N0183::PointBridge();
-
-            Serial.printf("DBG: After UDP bridge start, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+                Serial.printf("DBG: After UDP bridge start, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+            } else {
+                m_bridge = nullptr;
+            }
         } else {
-            m_bridge = nullptr;
+            Serial.printf("ERR: Failed to start WiFi interface.\n");
         }
     }
 }
@@ -558,6 +560,16 @@ void SerialCommand::ConfigureEcho(String const& params, CommandSource src)
     }
 }
 
+void SerialCommand::ConfigurePassthrough(String const& params, CommandSource src)
+{
+    if (params == "on") {
+        m_passThrough = true;
+    } else {
+        m_passThrough = false;
+    }
+    EmitMessage("INF: passthrough mode set to: " + params + "\n", src);
+}
+
 void SerialCommand::ReportConfiguration(CommandSource src)
 {
     bool bin_param;
@@ -731,6 +743,8 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         ConfigureSerialPortSpeed(cmd.substring(6), src);
     } else if (cmd.startsWith("radio")) {
         ConfigureBootRadio(cmd.substring(6), src);
+    } else if (cmd == "passthrough") {
+        ConfigurePassthrough("on", src);
     } else if (cmd == "help" || cmd == "syntax") {
         Syntax(src);
     } else {
@@ -760,12 +774,19 @@ void SerialCommand::ProcessCommand(void)
         if (c == '\n') {
             String cmd(m_serialBuffer.Contents());
             m_serialBuffer.Reset();
-            
-            cmd.trim();
-            
-            Serial.printf("Found console command: \"%s\"\n", cmd.c_str());
+            if (m_passThrough) {
+                if (cmd.startsWith("passthrough")) {
+                    ConfigurePassthrough("off", CommandSource::SerialPort);
+                } else {
+                    Serial1.print(cmd);
+                }
+            } else {
+                cmd.trim();
+                
+                Serial.printf("Found console command: \"%s\"\n", cmd.c_str());
 
-            Execute(cmd, CommandSource::SerialPort);
+                Execute(cmd, CommandSource::SerialPort);
+            }
         }
     }
     if (m_ble != nullptr && m_ble->IsConnected() && m_ble->DataAvailable()) {

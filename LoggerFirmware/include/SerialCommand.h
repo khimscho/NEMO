@@ -87,6 +87,7 @@ private:
     WiFiAdapter         *m_wifi;        ///< Pointer for the WiFi interface, once it comes up
     logger::IncBuffer   m_serialBuffer; ///< Space to assemble serial commands that doesn't block runtime
     bool                m_echoOn;       ///< Flag: indicate that characters from serial should be echoed back
+    bool                m_passThrough;  ///< Flag: indicate that strings should be passed through to NMEA0183 transmit
     
     /// \brief Print the console log on the output stream(s)
     void ReportConsoleLog(CommandSource src);
@@ -128,6 +129,8 @@ private:
     void ConfigureLoggers(String const& command, CommandSource src);
     /// \brief Configure whether to echo characters on Serial back to the host
     void ConfigureEcho(String const& command, CommandSource src);
+    /// \brief Configure whether to pass through characters on Serial to NMEA0183
+    void ConfigurePassthrough(String const& command, CommandSource src);
     /// \brief Set which radio gets booted at power on
     void ConfigureBootRadio(String const& command, CommandSource src);
     /// \brief Report configuration parameters for the logger

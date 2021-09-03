@@ -85,9 +85,15 @@ private:
             Serial.print(String("Connecting to ") + get_ssid() + ": ");
             wl_status_t status = WiFi.begin(get_ssid().c_str(), get_password().c_str());
             Serial.print(String("(status: ") + static_cast<int>(status) + ")");
+            uint32_t wait_loops = 0;
             while (WiFi.status() != WL_CONNECTED) {
                 delay(500);
                 Serial.print(".");
+                ++wait_loops;
+                if (wait_loops > 100) {
+                    Serial.printf("\nINFO: Failed to connect on WiFi.\n");
+                    return false;
+                }
             }
             Serial.println("");
             IPAddress server_address = WiFi.localIP();
