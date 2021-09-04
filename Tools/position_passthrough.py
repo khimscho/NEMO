@@ -19,8 +19,6 @@ s = socket.socket(type = socket.SOCK_DGRAM)
 s.bind(('', udp_port))
 
 serport = serial.Serial(serial_port, serial_speed)
-serport.write(b'help\r\n')
-report_buffer()
 
 serport.write(b'echo off\r\n')
 serport.write(b'passthrough\r\n')
@@ -35,6 +33,7 @@ try:
 
 except KeyboardInterrupt:
     print("Shutting down.")
+    serport.flush()
     serport.write(b'passthrough\r\n')
     serport.write(b'echo on\r\n')
     serport.flush()

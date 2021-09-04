@@ -173,8 +173,8 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
             last_elapsed = pkt.elapsed
             
             if isinstance(pkt, LoggerFile.Metadata):
-                platform_name = pkt.ship_name
-                platform_UUID = pkt.ship_id
+                logger_name = pkt.ship_name
+                platform_name = pkt.ship_id
             if isinstance(pkt, LoggerFile.SystemTime):
                 if use_systime:
                     time_table_t.append(pkt.elapsed + elapsed_offset)
@@ -198,130 +198,134 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
                     no_elapsed_time = True
                 else:
                     no_elapsed_time = False
-                data = pkt.payload.decode('ASCII')
-                if len(data) > 11:
-                    try:
-                        msg = nmea.parse(data)
-                        if isinstance(msg, nmea.ZDA):
-                            if use_zda:
+                try:
+                    data = pkt.payload.decode('ASCII')
+                    if len(data) > 11:
+                        try:
+                            msg = nmea.parse(data)
+                            if isinstance(msg, nmea.ZDA):
+                                if use_zda:
+                                    if no_elapsed_time:
+                                        pkt_real_time = dt.datetime.combine(msg.datestamp, msg.timestamp)
+                                        if real_time_elapsed_zero is None:
+                                            # First time around: this is our reference time
+                                            real_time_elapsed_zero = pkt_real_time
+                                            timestamp = 0
+                                        else:
+                                            timestamp = 1000.0*(pkt_real_time.timestamp() - real_time_elapsed_zero.timestamp())
+                                    else:
+                                        timestamp = pkt.elapsed + elapsed_offset
+                                    reftime = dt.datetime.combine(msg.datestamp, msg.timestamp)
+                                    time_table_t.append(timestamp)
+                                    time_table_reftime.append(reftime.timestamp())
+                                    while len(pending_packet_times) > 0:
+                                        packet_time = pending_packet_times.pop()
+                                        packet_message = pending_packet_messages.pop()
+                                        # We have a pending packet that we have to emit, now we have the timestamp
+                                        mean_elapsed_time = (timestamp + packet_time)/2
+                                        if isinstance(packet_message, nmea.DBT):
+                                            depth = float(packet_message.depth_meters)
+                                            depth_table_t.append(mean_elapsed_time)
+                                            depth_table_z.append(depth)
+                                        elif isinstance(packet_message, nmea.HDT):
+                                            heading = float(packet_message.heading)
+                                            hdg_table_t.append(mean_elapsed_time)
+                                            hdg_table_h.append(heading)
+                                        elif isinstance(packet_message, nmea.MWD):
+                                            direction = float(packet_message.direction_true)
+                                            speed = float(packet_message.wind_speed_meters)
+                                            wind_table_t.append(mean_elapsed_time)
+                                            wind_table_dir.append(direction)
+                                            wind_table_spd.append(speed)
+                                        elif isinstance(packet_message, nmea.MTW):
+                                            temp = float(packet_message.temperature)
+                                            wattemp_table_t.append(mean_elapsed_time)
+                                            wattemp_table_temp.append(temp)
+                                        else:
+                                            longitude = packet_message.longitude
+                                            latitude = packet_message.latitude
+                                            position_table_t.append(mean_elapsed_time)
+                                            position_table_lat.append(latitude)
+                                            position_table_lon.append(longitude)
+                            if isinstance(msg, nmea.GGA) or isinstance(msg, nmea.RMC):
                                 if no_elapsed_time:
-                                    pkt_real_time = dt.datetime.combine(msg.datestamp, msg.timestamp)
-                                    if real_time_elapsed_zero is None:
-                                        # First time around: this is our reference time
-                                        real_time_elapsed_zero = pkt_real_time
-                                        timestamp = 0
-                                    else:
-                                        timestamp = 1000.0*(pkt_real_time.timestamp() - real_time_elapsed_zero.timestamp())
+                                    # Since we don't have an elapsed time, we need to hold on to this message
+                                    # until we get the next time event and can approximate the elapsed timestamp
+                                    if len(time_table_t) > 0:
+                                        pending_packet_times.append(time_table_t[-1])
+                                        pending_packet_messages.append(msg)
                                 else:
+                                    # Convert all of the elements first to make sure we have valid conversion
                                     timestamp = pkt.elapsed + elapsed_offset
-                                reftime = dt.datetime.combine(msg.datestamp, msg.timestamp)
-                                time_table_t.append(timestamp)
-                                time_table_reftime.append(reftime.timestamp())
-                                while len(pending_packet_times) > 0:
-                                    packet_time = pending_packet_times.pop()
-                                    packet_message = pending_packet_messages.pop()
-                                    # We have a pending packet that we have to emit, now we have the timestamp
-                                    mean_elapsed_time = (timestamp + packet_time)/2
-                                    if isinstance(packet_message, nmea.DBT):
-                                        depth = float(packet_message.depth_meters)
-                                        depth_table_t.append(mean_elapsed_time)
-                                        depth_table_z.append(depth)
-                                    elif isinstance(packet_message, nmea.HDT):
-                                        heading = float(packet_message.heading)
-                                        hdg_table_t.append(mean_elapsed_time)
-                                        hdg_table_h.append(heading)
-                                    elif isinstance(packet_message, nmea.MWD):
-                                        direction = float(packet_message.direction_true)
-                                        speed = float(packet_message.wind_speed_meters)
-                                        wind_table_t.append(mean_elapsed_time)
-                                        wind_table_dir.append(direction)
-                                        wind_table_spd.append(speed)
-                                    elif isinstance(packet_message, nmea.MTW):
-                                        temp = float(packet_message.temperature)
-                                        wattemp_table_t.append(mean_elapsed_time)
-                                        wattemp_table_temp.append(temp)
+                                    latitude = msg.latitude
+                                    longitude = msg.longitude
+                                    # Add all of the elements as a group
+                                    position_table_t.append(timestamp)
+                                    position_table_lat.append(latitude)
+                                    position_table_lon.append(longitude)
+                            if isinstance(msg, nmea.DBT):
+                                if msg.depth_meters is None:
+                                    print('Undefined depth: ' + str(msg))
+                                else:
+                                    if no_elapsed_time:
+                                        if len(time_table_t) > 0:
+                                            pending_packet_times.append(time_table_t[-1])
+                                            pending_packet_messages.append(msg)
                                     else:
-                                        longitude = packet_message.longitude
-                                        latitude = packet_message.latitude
-                                        position_table_t.append(mean_elapsed_time)
-                                        position_table_lat.append(latitude)
-                                        position_table_lon.append(longitude)
-                        if isinstance(msg, nmea.GGA) or isinstance(msg, nmea.RMC):
-                            if no_elapsed_time:
-                                # Since we don't have an elapsed time, we need to hold on to this message
-                                # until we get the next time event and can approximate the elapsed timestamp
-                                if len(time_table_t) > 0:
-                                    pending_packet_times.append(time_table_t[-1])
-                                    pending_packet_messages.append(msg)
-                            else:
-                                # Convert all of the elements first to make sure we have valid conversion
-                                timestamp = pkt.elapsed + elapsed_offset
-                                latitude = msg.latitude
-                                longitude = msg.longitude
-                                # Add all of the elements as a group
-                                position_table_t.append(timestamp)
-                                position_table_lat.append(latitude)
-                                position_table_lon.append(longitude)
-                        if isinstance(msg, nmea.DBT):
-                            if msg.depth_meters is None:
-                                print('Undefined depth: ' + str(msg))
-                            else:
+                                        timestamp = pkt.elapsed + elapsed_offset
+                                        depth = float(msg.depth_meters)
+                                        depth_table_t.append(timestamp)
+                                        depth_table_z.append(depth)
+                            if isinstance(msg, nmea.HDT):
                                 if no_elapsed_time:
                                     if len(time_table_t) > 0:
                                         pending_packet_times.append(time_table_t[-1])
                                         pending_packet_messages.append(msg)
                                 else:
                                     timestamp = pkt.elapsed + elapsed_offset
-                                    depth = float(msg.depth_meters)
-                                    depth_table_t.append(timestamp)
-                                    depth_table_z.append(depth)
-                        if isinstance(msg, nmea.HDT):
-                            if no_elapsed_time:
-                                if len(time_table_t) > 0:
-                                    pending_packet_times.append(time_table_t[-1])
-                                    pending_packet_messages.append(msg)
-                            else:
-                                timestamp = pkt.elapsed + elapsed_offset
-                                heading = float(msg.heading)
-                                hdg_table_t.append(timestamp)
-                                hdg_table_h.append(heading)
-                        if isinstance(msg, nmea.MWD):
-                            if no_elapsed_time:
-                                if len(time_table_t) > 0:
-                                    pending_packet_times.append(time_table_t[-1])
-                                    pending_packet_messages.append(msg)
-                            else:
-                                timestamp = pkt.elapsed + elapsed_offset
-                                direction = float(msg.direction_true)
-                                speed = float(msg.wind_speed_meters)
-                                wind_table_t.append(timestamp)
-                                wind_table_dir.append(direction)
-                                wind_table_spd.append(speed)
-                        if isinstance(msg, nmea.MTW):
-                            if no_elapsed_time:
-                                if len(time_table_t) > 0:
-                                    pending_packet_times.append(time_table_t[-1])
-                                    pending_packet_messages.append(msg)
-                            else:
-                                timestamp = pkt.elapsed + elapsed_offset
-                                temp = float(msg.temperature)
-                                wattemp_table_t.append(timestamp)
-                                wattemp_table_temp.append(temp)
-                    except nmea.ParseError as e:
-                        if verbose:
-                            print('Parse error: {}'.format(e))
-                        continue
-                    except AttributeError as e:
-                        print('Attribute error: {}'.format(e))
-                        continue
-                    except ChecksumError as e:
-                        print('Checksum error: {}'.format(e))
-                        continue
-                else:
-                    # Packets have to be at least 11 characters to contain all of the mandatory elements.
-                    # Usually a short packet is broken in some fashion, and should be ignored.
-                    print('Ignoring short message: ' + str(data))
-
+                                    heading = float(msg.heading)
+                                    hdg_table_t.append(timestamp)
+                                    hdg_table_h.append(heading)
+                            if isinstance(msg, nmea.MWD):
+                                if no_elapsed_time:
+                                    if len(time_table_t) > 0:
+                                        pending_packet_times.append(time_table_t[-1])
+                                        pending_packet_messages.append(msg)
+                                else:
+                                    timestamp = pkt.elapsed + elapsed_offset
+                                    direction = float(msg.direction_true)
+                                    speed = float(msg.wind_speed_meters)
+                                    wind_table_t.append(timestamp)
+                                    wind_table_dir.append(direction)
+                                    wind_table_spd.append(speed)
+                            if isinstance(msg, nmea.MTW):
+                                if no_elapsed_time:
+                                    if len(time_table_t) > 0:
+                                        pending_packet_times.append(time_table_t[-1])
+                                        pending_packet_messages.append(msg)
+                                else:
+                                    timestamp = pkt.elapsed + elapsed_offset
+                                    temp = float(msg.temperature)
+                                    wattemp_table_t.append(timestamp)
+                                    wattemp_table_temp.append(temp)
+                        except nmea.ParseError as e:
+                            if verbose:
+                                print('Parse error: {}'.format(e))
+                            continue
+                        except AttributeError as e:
+                            print('Attribute error: {}'.format(e))
+                            continue
+                        except ChecksumError as e:
+                            print('Checksum error: {}'.format(e))
+                            continue
+                    else:
+                        # Packets have to be at least 11 characters to contain all of the mandatory elements.
+                        # Usually a short packet is broken in some fashion, and should be ignored.
+                        print('Ignoring short message: ' + str(data)) 
+                except UnicodeDecodeError:
+                    if verbose:
+                        print('Decode error: {}'.format(e))
+                    continue
     if verbose:
         print('Reference time table length = ', len(time_table_t))
         print('Position table length = ', len(position_table_t))
@@ -348,8 +352,8 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
     wind_lon = np.interp(wind_table_t, position_table_t, position_table_lon)
 
     return {
-        'name': platform_name,
-        'uniqid': platform_UUID,
+        'loggername': logger_name,
+        'platform': platform_name,
         'depth' : {
             't': z_times,
             'lat': z_lat,
