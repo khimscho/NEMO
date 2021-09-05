@@ -670,8 +670,8 @@ class Metadata(DataPacket):
         base += 4
         convert_string = "<" + str(id_len) + "s"
         unique_id, = struct.unpack_from(convert_string, buffer, base);
-        self.ship_name = name.decode("UTF-8")
-        self.ship_id = unique_id.decode("UTF-8")
+        self.logger_name = name.decode("UTF-8")
+        self.ship_name = unique_id.decode("UTF-8")
         DataPacket.__init__(self, 0, 0.0, 0)
     
     ## Provide the fixed-text string name for this data packet
@@ -690,7 +690,7 @@ class Metadata(DataPacket):
     # \param self   Pointer to the object
     # \return String representation of the object
     def __str__(self):
-        rtn = DataPacket.__str__(self) + " " + self.name() + ": ship name = " + self.ship_name + ", identifier = " + self.ship_id
+        rtn = DataPacket.__str__(self) + " " + self.name() + ": logger name = " + self.logger_name + ", identifier = " + self.ship_name
         return rtn
         
 ## Translate packets out of the binary file, reconstituing as an appropriate class

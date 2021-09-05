@@ -172,6 +172,8 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
                 elapsed_offset = elapsed_offset + elapsed_time_quantum
             last_elapsed = pkt.elapsed
             
+            if isinstance(pkt, LoggerFile.Version):
+                logger_version = str(pkt.major) + "." + str(pkt.minor) + "/" + pkt.nmea2000_version + "/" + pkt.nmea0183_version
             if isinstance(pkt, LoggerFile.Metadata):
                 logger_name = pkt.ship_name
                 platform_name = pkt.ship_id
@@ -354,6 +356,8 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
     return {
         'loggername': logger_name,
         'platform': platform_name,
+        'loggerversion': logger_version,
+        'outputfilename': "",
         'depth' : {
             't': z_times,
             'lat': z_lat,

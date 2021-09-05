@@ -53,6 +53,8 @@ def lambda_handler(event, context):
         s3.Bucket(source_bucket).download_file(source_object, local_file)
                 
         source_data = ts.time_interpolation(local_file)
+        source_data.outputfilename = "UNHJHC-" + source_object
+        
         submit_data = gj.translate(source_data)
         
         # The GeoJSON gets written out to a separate bucket so that it can be sent to DCDB

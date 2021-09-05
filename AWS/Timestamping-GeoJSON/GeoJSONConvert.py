@@ -61,16 +61,28 @@ def translate(data):
     final_json_dict = {
         "type": "FeatureCollection",
         "crs": {
-        "type": "name",
-        "properties": {
-            "name": "EPSG:4326"
-        }
+            "type": "name",
+            "properties": {
+                "name": "EPSG:4326"
+            }
         },
         "properties": {
-        "platform": {
-            "name": data['name'],
-            "uniqueID": data['uniqid']
-        }
+            "convention": "CSB 2.0",
+            "platform": {
+                "uniqueID": data['outputfilename'],
+                "type": "Ship",
+                "name": data['platform'],
+                "IDType": "LoggerName",
+                "IDNumber": data['loggername']
+            },
+            "providerContactPoint": {
+                "orgName": "CCOM/JHC, UNH",
+                "email": "wibl@ccom.unh.edu",
+                "logger": "WIBL",
+                "loggerVersion": data['loggerversion']
+            },
+            "depthUnits": "meters",
+            "timeUnits": "ISO 8601"
         },
         "features": feature_lst
     }
