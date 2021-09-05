@@ -30,6 +30,7 @@
 #include "LogManager.h"
 #include "StatusLED.h"
 #include "MemController.h"
+#include "ProcessingManager.h"
 
 namespace logger {
 
@@ -151,6 +152,8 @@ void Manager::StartNewLog(void)
     m_outputLog = m_storage->Controller().open(filename, FILE_WRITE);
     if (m_outputLog) {
         m_serialiser = new Serialiser(m_outputLog);
+        logger::ProcessingManager pm(m_storage);
+        pm.SerialiseAlgorithms(m_serialiser);
         m_consoleLog.println(String("INFO: started logging to ") + filename);
     } else {
         m_serialiser = nullptr;
@@ -351,7 +354,7 @@ uint32_t Manager::GetNextLogNumber(void)
 
 String Manager::MakeLogName(uint32_t log_num)
 {
-    String filename("/logs/nmea2000.");
+    String filename("/logs/wibl-raw.");
     filename += log_num;
     return filename;
 }
