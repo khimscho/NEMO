@@ -660,7 +660,12 @@ void SerialCommand::ReportAlgRequests(CommandSource src)
 void SerialCommand::ConfigureAlgRequest(String const& params, CommandSource src)
 {
     logger::ProcessingManager pm;
-    pm.SerialiseAlgorithms(m_logManager->OutputChannel());
+    String alg_name, alg_params;
+    int split = params.indexOf(' ');
+    alg_name = params.substring(0, split-1);
+    alg_params = params.substring(split+1);
+    pm.AddAlgorithm(alg_name, alg_params);
+    EmitMessage("INF: added algorithm \"" + alg_name + "\" with parameters \"" + alg_params + "\"\n", src);
 }
 
 /// Output a list of known commands, since there are now enough of them to make remembering them
