@@ -29,6 +29,7 @@
 
 import sys
 import pandas
+import numpy as np
 import argparse as arg
 
 def main():
@@ -49,15 +50,19 @@ def main():
     else:
         print('Error: must have an output file.');
         sys.exit(1)
-    
-    with open(out_file, 'w') as f:
-        f.write('Time,Epoch,Longitude,Latitude,Depth\n')
-        current_depth = 0
-        for n in range(0,len(data)):
-            if data['Depth'][n] != current_depth:
-                f.write('%s,%.3f,%.8f,%.8f,%.2f\n' % (data['Time'][n], data['Epoch'][n], data['Longitude'][n], data['Latitude'][n], data['Depth'][n]))
-                current_depth = data['Depth'][n]
+        
+    current_depth = 0
+    d = np.ndarray(len(data), dtype=bool)
+    index = pandas.Series(dtype = bool, data = d)
+    for n in range(0, len(data)):
+        if data['Depth'][n] != current_depth:
+            index[n] = True
+            current_depth = data['Depth'][n]
+        else:
+            index[n] = False
 
+    filtered = data[index]
+    filtered.to_csv(out_file, index = False)
         
 if __name__ == "__main__":
     main()
