@@ -133,8 +133,12 @@ private:
     void ConfigurePassthrough(String const& command, CommandSource src);
     /// \brief Set which radio gets booted at power on
     void ConfigureBootRadio(String const& command, CommandSource src);
+    /// \brief Set up algorithm requests for later post-processing
+    void ConfigureAlgRequest(String const& command, CommandSource src);
     /// \brief Report configuration parameters for the logger
     void ReportConfiguration(CommandSource src);
+    /// \brief Report algorithms that the logger requests be run on the data
+    void ReportAlgRequests(CommandSource src);
     /// \brief Report heap size during run-time
     void ReportHeapSize(CommandSource src);
     /// \brief Show a list of known commands

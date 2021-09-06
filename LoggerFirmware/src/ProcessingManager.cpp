@@ -28,12 +28,11 @@
 
 #include "ProcessingManager.h"
 #include "LogManager.h"
-#include "MemController.h"
+#include "SPIFFS.h"
 
 namespace logger {
 
-ProcessingManager::ProcessingManager(mem::MemController *store)
-: m_store(store)
+ProcessingManager::ProcessingManager(void)
 {
     m_algorithms = "/algorithms.txt";
     m_parameters = "/parameters.txt";
@@ -45,23 +44,23 @@ ProcessingManager::~ProcessingManager(void)
 
 void ProcessingManager::AddAlgorithm(String const& alg_name, String const& alg_params)
 {
-    File alg = m_store->Controller().open(m_algorithms, FILE_APPEND);
+    File alg = SPIFFS.open(m_algorithms, FILE_APPEND);
     alg.println(alg_name);
     alg.close();
-    File param = m_store->Controller().open(m_parameters, FILE_APPEND);
+    File param = SPIFFS.open(m_parameters, FILE_APPEND);
     param.println(alg_params);
     param.close();
 }
 
 void ProcessingManager::ListAlgorithms(Stream& s)
 {
-    File alg = m_store->Controller().open(m_algorithms, FILE_READ);
-    File params = m_store->Controller().open(m_parameters, FILE_READ);
+    File alg = SPIFFS.open(m_algorithms, FILE_READ);
+    File params = SPIFFS.open(m_parameters, FILE_READ);
 
     while (alg.available()) {
         String algorithm = alg.readString();
         String parameters = params.readString();
-        s.printf("alg = \"%s\", params = \"%s\"\n", algorithm, parameters);
+        s.printf("alg = \"%s\", params = \"%s\"\n", algorithm.c_str(), parameters.c_str());
     }
     alg.close();
     params.close();
@@ -69,8 +68,8 @@ void ProcessingManager::ListAlgorithms(Stream& s)
 
 void ProcessingManager::SerialiseAlgorithms(Serialiser *s)
 {
-    File alg = m_store->Controller().open(m_algorithms, FILE_READ);
-    File params = m_store->Controller().open(m_parameters, FILE_READ);
+    File alg = SPIFFS.open(m_algorithms, FILE_READ);
+    File params = SPIFFS.open(m_parameters, FILE_READ);
 
     while (alg.available()) {
         Serialisable ser(255);

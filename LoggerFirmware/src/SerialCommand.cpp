@@ -32,6 +32,7 @@
 #include "OTAUpdater.h"
 #include "Configuration.h"
 #include "HeapMonitor.h"
+#include "ProcessingManager.h"
 
 const uint32_t CommandMajorVersion = 1;
 const uint32_t CommandMinorVersion = 1;
@@ -637,6 +638,31 @@ void SerialCommand::ConfigureBootRadio(String const& params, CommandSource src)
     }
 }
 
+void SerialCommand::ReportAlgRequests(CommandSource src)
+{
+    logger::ProcessingManager pm;
+    switch (src) {
+        case CommandSource::SerialPort:
+            pm.ListAlgorithms(Serial);
+            break;
+        case CommandSource::BluetoothPort:
+            m_ble->WriteString("ERR: Cannot report algorithm requests on BLE.\n");
+            break;
+        case CommandSource::WirelessPort:
+            pm.ListAlgorithms(m_wifi->Client());
+            break;
+        default:
+            EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
+            break;
+    }
+}
+
+void SerialCommand::ConfigureAlgRequest(String const& params, CommandSource src)
+{
+    logger::ProcessingManager pm;
+    pm.SerialiseAlgorithms(m_logManager->OutputChannel());
+}
+
 /// Output a list of known commands, since there are now enough of them to make remembering them
 /// all a little difficult.
 
@@ -644,6 +670,7 @@ void SerialCommand::Syntax(CommandSource src)
 {
     EmitMessage(String("Command Syntax (V") + CommandMajorVersion + "." + CommandMinorVersion + "." + CommandPatchVersion + "):\n", src);
     EmitMessage("  advertise bt-name                   Set BLE advertising name.\n", src);
+    EmitMessage("  algorithm [name params]             Add (or report) an algorithm request to the cloud processing.\n", src);
     EmitMessage("  configure [on|off logger-name]      Configure individual loggers on/off (or report config).\n", src);
     EmitMessage("  echo on|off                         Control character echo on serial line.\n", src);
     EmitMessage("  erase file-number|all               Remove a specific [file-number] or all log files.\n", src);
@@ -745,6 +772,12 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         ConfigureBootRadio(cmd.substring(6), src);
     } else if (cmd == "passthrough") {
         ConfigurePassthrough("on", src);
+    } else if (cmd.startsWith("algorithm")) {
+        if (cmd.length() == 9) {
+            ReportAlgRequests(src);
+        } else {
+            ConfigureAlgRequest(cmd.substring(10), src);
+        }
     } else if (cmd == "help" || cmd == "syntax") {
         Syntax(src);
     } else {

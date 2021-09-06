@@ -39,7 +39,7 @@ namespace logger {
 /// \brief Hold information on algorithms that need to be run on the data in the cloud
 class ProcessingManager {
 public:
-    ProcessingManager(mem::MemController *store);
+    ProcessingManager(void);
     ~ProcessingManager(void);
 
     void AddAlgorithm(String const& alg_name, String const& alg_params);
@@ -47,7 +47,6 @@ public:
     void SerialiseAlgorithms(Serialiser *s);
 
 private:
-    mem::MemController  *m_store;
     String  m_algorithms;
     String  m_parameters;
 };

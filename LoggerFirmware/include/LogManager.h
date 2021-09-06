@@ -87,6 +87,8 @@ public:
     
     /// \brief Write a packet into the current log file
     void Record(PacketIDs pktID, Serialisable const& data);
+    /// \brief Provide a pointer to the current serialiser
+    Serialiser *OutputChannel(void) { return m_serialiser; }
     
     /// \brief Call-through for the console log file handle
     Stream& Console(void);

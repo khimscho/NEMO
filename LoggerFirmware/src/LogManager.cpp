@@ -152,7 +152,7 @@ void Manager::StartNewLog(void)
     m_outputLog = m_storage->Controller().open(filename, FILE_WRITE);
     if (m_outputLog) {
         m_serialiser = new Serialiser(m_outputLog);
-        logger::ProcessingManager pm(m_storage);
+        logger::ProcessingManager pm;
         pm.SerialiseAlgorithms(m_serialiser);
         m_consoleLog.println(String("INFO: started logging to ") + filename);
     } else {
