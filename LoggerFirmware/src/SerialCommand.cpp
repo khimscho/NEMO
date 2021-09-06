@@ -33,6 +33,7 @@
 #include "Configuration.h"
 #include "HeapMonitor.h"
 #include "ProcessingManager.h"
+#include "MetadataManager.h"
 
 const uint32_t CommandMajorVersion = 1;
 const uint32_t CommandMinorVersion = 1;
@@ -668,6 +669,13 @@ void SerialCommand::ConfigureAlgRequest(String const& params, CommandSource src)
     EmitMessage("INF: added algorithm \"" + alg_name + "\" with parameters \"" + alg_params + "\"\n", src);
 }
 
+void SerialCommand::StoreMetadataElement(String const& params, CommandSource src)
+{
+    logger::MetadataManager mm;
+    mm.WriteMetadata(params);
+    EmitMessage("INO: added metadata element to local configuration.\n", src);
+}
+
 /// Output a list of known commands, since there are now enough of them to make remembering them
 /// all a little difficult.
 
@@ -685,6 +693,7 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  invert 1|2                          Invert polarity of RS-422 input on port 1|2.\n", src);
     EmitMessage("  led normal|error|initialising|full  [Debug] Set the indicator LED status.\n", src);
     EmitMessage("  log                                 Output the contents of the console log.\n", src);
+    EmitMessage("  metadata platform-specific          Store a platform-specific metadata JSON element.\n", src);
     EmitMessage("  ota                                 Start Over-the-Air update sequence for the logger.\n", src);
     EmitMessage("  password [wifi-password]            Set the WiFi password.\n", src);
     EmitMessage("  radio ble|wifi                      Set the radio to boot on initialisation.\n", src);
@@ -783,6 +792,8 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         } else {
             ConfigureAlgRequest(cmd.substring(10), src);
         }
+    } else if (cmd.startsWith("metadata")) {
+        StoreMetadataElement(cmd.substring(9), src);
     } else if (cmd == "help" || cmd == "syntax") {
         Syntax(src);
     } else {

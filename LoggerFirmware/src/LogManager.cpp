@@ -31,6 +31,7 @@
 #include "StatusLED.h"
 #include "MemController.h"
 #include "ProcessingManager.h"
+#include "MetadataManager.h"
 
 namespace logger {
 
@@ -154,6 +155,8 @@ void Manager::StartNewLog(void)
         m_serialiser = new Serialiser(m_outputLog);
         logger::ProcessingManager pm;
         pm.SerialiseAlgorithms(m_serialiser);
+        logger::MetadataManager mm;
+        mm.SerialiseMetadata(m_serialiser);
         m_consoleLog.println(String("INFO: started logging to ") + filename);
     } else {
         m_serialiser = nullptr;

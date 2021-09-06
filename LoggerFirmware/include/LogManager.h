@@ -82,7 +82,8 @@ public:
         Pkt_NMEAString = 10,    ///< A generic NMEA0183 string, in raw format
         Pkt_LocalIMU = 11,      ///< Logger's on-board IMU
         Pkt_Metadata = 12,      ///< Logger identification information
-        Pkt_Algorithms = 13     ///< Algorithms and parameters to apply to the data, by preference
+        Pkt_Algorithms = 13,    ///< Algorithms and parameters to apply to the data, by preference
+        Pkt_JSON = 14           ///< JSON metadata element to pass on to cloud processing
     };
     
     /// \brief Write a packet into the current log file

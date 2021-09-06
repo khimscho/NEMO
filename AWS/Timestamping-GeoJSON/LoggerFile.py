@@ -720,9 +720,9 @@ class AlgorithmRequest(DataPacket):
         self.parameters = algparams
         DataPacket.__init__(self, 0, 0.0, 0)
     
-    ## Provide the fixed-test string name fro this data packet
+    ## Provide the fixed-text string name for this data packet
     #
-    # This simply report the human-readable name for the class so that reporting is possiuble
+    # This simply report the human-readable name for the class so that reporting is possible
     #
     # \param self   Pointer to the object
     # \return String with the human-readable name of the packet
@@ -737,6 +737,42 @@ class AlgorithmRequest(DataPacket):
     # \return String representation of the obect
     def __str__(self):
         rtn = DataPacket.__str__(self) + " " + self.name() + ": algorithm = " + self.algorithm + ", parameters = " + self.parameters
+        return rtn
+
+## Implement the JSON metadata packet
+#
+# This picks out information on metadata elements that the logger would like to send into the JSON
+# file being constructed for each data file being transmitted to the database.  This is provided by
+# the user and cached on the logger, and then transmitted as is, without interpretation.
+class JSONMetadata(DataPacket):
+    ## Initialise the object using the supplied buffer of binary data
+    #
+    # The buffer should contain a single string, which may contain any printable content.  This is
+    # intended, however, to the JSON for the "platform" component of the GeoJSON metadata to be
+    # passed to the database.
+    def __init__(self, buffer):
+        base = 0
+        meta_len, = struct.unpack_from("<I", buffer, base)
+        base += 4
+        convert_string = "<" + str(meta_len) + "s"
+        meta, = struct.unpack_from(convert_string, buffer, base)
+        self.metadata_element = meta
+        DataPacket.__init__(self, 0, 0.0, 0)
+        
+    ## Provide the fixed-texzt string name for this data packet
+    #
+    # This simply reports the human-readable name for the class so that reporting is possible
+    def name(self):
+        return "JSONMetadata"
+    
+    ## Implement the printable interface for this class, allowing it to be streamed
+    #
+    # This converts to human-readable version of the data packet for the standard streaming output interface
+    #
+    # \param self
+    # \return String representation of the object
+    def __str__(self):
+        rtn = DataPacket.__str__(self) + " " + self.name() + ": metadata element = \"" + self.metadata_element + "\""
         return rtn
     
 ## Translate packets out of the binary file, reconstituing as an appropriate class
@@ -803,6 +839,10 @@ class PacketFactory:
             rtn = Motion(buffer)
         elif pkt_id == 12:
             rtn = Metadata(buffer)
+        elif pkt_id == 13:
+            rtn = AlgorithmRequest(buffer)
+        elif pkt_id == 14:
+            rtn = JSONMetata(buffer)
         else:
             print("Unknown packet with ID " + str(pkt_id) + " in input stream; ignored.")
             rtn = None
