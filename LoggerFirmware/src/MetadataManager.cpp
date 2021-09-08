@@ -26,9 +26,10 @@
 
 #include <stdint.h>
 #include "Arduino.h"
+#include "SPIFFS.h"
+#include "serialisation.h"
 #include "MetadataManager.h"
 #include "LogManager.h"
-#include "serialisation.h"
 
 namespace logger {
 
@@ -45,24 +46,29 @@ void MetadataManager::WriteMetadata(String const& meta)
 {
     File f = SPIFFS.open(m_backingFile, FILE_WRITE);
     f.print(meta);
-    f.print('\0'); // The metadata may have \r\n in it, so this marks the end of the string
     f.close();
+}
+
+String MetadataManager::GetMetadata(void)
+{
+    File f = SPIFFS.open(m_backingFile, FILE_READ);
+    String meta;
+    char buffer[256];
+
+    while (f.available()) {
+        size_t n = f.readBytes(buffer, 255);
+        if (n > 0) {
+            buffer[n] = '\0';
+            meta += String(buffer);
+        }
+    }
+    return meta;
 }
 
 void MetadataManager::SerialiseMetadata(Serialiser *ser)
 {
-    File f = SPIFFS.open(m_backingFile, FILE_READ);
-    String meta;
     Serialisable packet;
-    uint8_t buffer[256];
-
-    while (f.available()) {
-        size_t n = f.readBytesUntil('\0', buffer, 255);
-        if (n > 0) {
-            buffer[n] = '\0';
-            meta += String((char*)buffer);
-        }
-    }
+    String meta = GetMetadata();
 
     packet += meta.length();
     packet += meta.c_str();

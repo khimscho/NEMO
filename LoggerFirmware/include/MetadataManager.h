@@ -27,8 +27,6 @@
  */
 
 #include "Arduino.h"
-#include "SPIFFS.h"
-#include "serialisation.h"
 
 #ifndef __METADATA_MANAGER_H__
 #define __METADATA_MANAGER_H__
@@ -43,6 +41,7 @@ public:
     ~MetadataManager(void);
 
     void WriteMetadata(String const& meta);
+    String GetMetadata(void);
     void SerialiseMetadata(Serialiser *ser);
 
 private:

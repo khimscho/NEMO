@@ -145,7 +145,8 @@ private:
     void Syntax(CommandSource src);
     /// \brief Store a metdata element to be added to each data file
     void StoreMetadataElement(String const& command, CommandSource src);
-    
+    /// \brief Dump out the metadata element stored in the flash memory
+    void ReportMetadataElement(CommandSource src);
     /// \brief Check for commands, and execute them if found
     void Execute(String const& cmd, CommandSource src);
     

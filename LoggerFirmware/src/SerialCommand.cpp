@@ -676,6 +676,13 @@ void SerialCommand::StoreMetadataElement(String const& params, CommandSource src
     EmitMessage("INO: added metadata element to local configuration.\n", src);
 }
 
+void SerialCommand::ReportMetadataElement(CommandSource src)
+{
+    logger::MetadataManager mm;
+    String metadata = mm.GetMetadata();
+    EmitMessage("Metadata element: |" + metadata + "|\n", src);
+}
+
 /// Output a list of known commands, since there are now enough of them to make remembering them
 /// all a little difficult.
 
@@ -793,7 +800,11 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
             ConfigureAlgRequest(cmd.substring(10), src);
         }
     } else if (cmd.startsWith("metadata")) {
-        StoreMetadataElement(cmd.substring(9), src);
+        if (cmd.length() == 8) {
+            ReportMetadataElement(src);
+        } else {
+            StoreMetadataElement(cmd.substring(9), src);
+        }
     } else if (cmd == "help" || cmd == "syntax") {
         Syntax(src);
     } else {
