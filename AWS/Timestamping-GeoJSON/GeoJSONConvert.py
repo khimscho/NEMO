@@ -31,6 +31,7 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
+import json
 
 def translate(data):
     # Original comment was:
@@ -69,7 +70,7 @@ def translate(data):
         "properties": {
             "convention": "CSB 2.0",
             "platform": {
-                "uniqueID": data['outputfilename'],
+                "uniqueID": data['loggername'],
                 "type": "Ship",
                 "name": data['platform'],
                 "IDType": "LoggerName",
@@ -86,4 +87,7 @@ def translate(data):
         },
         "features": feature_lst
     }
+    if data['metadata'] is not None:
+        final_json_dict['properties']['platform'] = json.loads(data['metadata'])
+
     return final_json_dict

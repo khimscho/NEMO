@@ -1,4 +1,4 @@
-# \file timestamp_data.py
+# \file Timestamping.py
 # \brief Read a binary data file from the SB2030 data logger, and generate timestamped data
 #
 # The SB2030 data logger reports, for each packet received, the elapsed time with respect
@@ -144,8 +144,9 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
     wind_table_t = []
     wind_table_dir = []
     wind_table_spd = []
-    platform_name = "UNKNOWN"
-    platform_UUID = "UNKNOWN"
+    logger_name = None
+    platform_name = None
+    metadata = None
 
     seconds_per_day = 24.0 * 60.0 * 60.0
 
@@ -177,6 +178,8 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
             if isinstance(pkt, LoggerFile.Metadata):
                 logger_name = pkt.ship_name
                 platform_name = pkt.ship_id
+            if isinstance(pkt, LoggerFile.JSONMetadata):
+                metadata = pkt.metdata_element
             if isinstance(pkt, LoggerFile.SystemTime):
                 if use_systime:
                     time_table_t.append(pkt.elapsed + elapsed_offset)
@@ -357,7 +360,7 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
         'loggername': logger_name,
         'platform': platform_name,
         'loggerversion': logger_version,
-        'outputfilename': "",
+        'metadata': metadata,
         'depth' : {
             't': z_times,
             'lat': z_lat,
