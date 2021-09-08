@@ -52,16 +52,8 @@ void MetadataManager::WriteMetadata(String const& meta)
 String MetadataManager::GetMetadata(void)
 {
     File f = SPIFFS.open(m_backingFile, FILE_READ);
-    String meta;
-    char buffer[256];
-
-    while (f.available()) {
-        size_t n = f.readBytes(buffer, 255);
-        if (n > 0) {
-            buffer[n] = '\0';
-            meta += String(buffer);
-        }
-    }
+    String meta = f.readString();
+    f.close();
     return meta;
 }
 
