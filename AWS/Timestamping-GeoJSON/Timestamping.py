@@ -147,6 +147,7 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
     logger_name = None
     platform_name = None
     metadata = None
+    algorithms = []
 
     seconds_per_day = 24.0 * 60.0 * 60.0
 
@@ -180,6 +181,12 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
                 platform_name = pkt.ship_id
             if isinstance(pkt, LoggerFile.JSONMetadata):
                 metadata = pkt.metdata_element
+            if isinstance(pkt, LoggerFile.AlgorithmRequest):
+                algo = {
+                    "name": pkt.algorithm,
+                    "params": pkt.parameters
+                }
+                algorithms.append(algo)
             if isinstance(pkt, LoggerFile.SystemTime):
                 if use_systime:
                     time_table_t.append(pkt.elapsed + elapsed_offset)
@@ -361,6 +368,7 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
         'platform': platform_name,
         'loggerversion': logger_version,
         'metadata': metadata,
+        'algorithms': algorithms,
         'depth' : {
             't': z_times,
             'lat': z_lat,

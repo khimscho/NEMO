@@ -89,5 +89,7 @@ def translate(data):
     }
     if data['metadata'] is not None:
         final_json_dict['properties']['platform'] = json.loads(data['metadata'])
+    if len(data['algorithms']) > 0:
+        final_json_dict['properties']['processing'] = data['algorithms']
 
     return final_json_dict
