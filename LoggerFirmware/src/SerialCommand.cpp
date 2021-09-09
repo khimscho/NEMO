@@ -36,7 +36,7 @@
 #include "MetadataManager.h"
 
 const uint32_t CommandMajorVersion = 1;
-const uint32_t CommandMinorVersion = 1;
+const uint32_t CommandMinorVersion = 2;
 const uint32_t CommandPatchVersion = 0;
 
 /// Default constructor for the SerialCommand object.  This stores the pointers for the logger and
@@ -270,6 +270,25 @@ void SerialCommand::SetBluetoothName(String const& name)
         return;
     }
     //m_ble->AdvertiseAs(name);
+}
+
+/// Report the advertising name for the Bluetooth LE UART service established by the module when
+/// configured.  This is persisted in non-volatile memory on the logger so that it comes up the
+/// same on every start
+///
+/// \param src  Channel on which to report information
+
+void SerialCommand::ReportBluetoothName(CommandSource src)
+{
+    String name;
+    if (src == CommandSource::SerialPort) {
+        EmitMessage("BLE Advertising Name: ", src);
+    }
+    if (logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_BLENAME_S, name)) {
+        EmitMessage(name + "\n", src);
+    } else {
+        EmitMessage("UNSET\n", src);
+    }
 }
 
 /// Set up for verbose reporting of messages received by the logger from the NMEA2000 bus.  This
@@ -689,23 +708,22 @@ void SerialCommand::ReportMetadataElement(CommandSource src)
 void SerialCommand::Syntax(CommandSource src)
 {
     EmitMessage(String("Command Syntax (V") + CommandMajorVersion + "." + CommandMinorVersion + "." + CommandPatchVersion + "):\n", src);
-    EmitMessage("  advertise bt-name                   Set BLE advertising name.\n", src);
+    EmitMessage("  advertise [bt-name]                 Set BLE advertising name.\n", src);
     EmitMessage("  algorithm [name params]             Add (or report) an algorithm request to the cloud processing.\n", src);
     EmitMessage("  configure [on|off logger-name]      Configure individual loggers on/off (or report config).\n", src);
     EmitMessage("  echo on|off                         Control character echo on serial line.\n", src);
     EmitMessage("  erase file-number|all               Remove a specific [file-number] or all log files.\n", src);
     EmitMessage("  heap                                Report current free heap size.\n", src);
     EmitMessage("  help|syntax                         Generate this list.\n", src);
-    EmitMessage("  identify                            Report the logger's unique identification string.\n", src);
+    EmitMessage("  uniqueid [logger-name]              Set or report the logger's unique identification string.\n", src);
     EmitMessage("  invert 1|2                          Invert polarity of RS-422 input on port 1|2.\n", src);
     EmitMessage("  led normal|error|initialising|full  [Debug] Set the indicator LED status.\n", src);
     EmitMessage("  log                                 Output the contents of the console log.\n", src);
-    EmitMessage("  metadata platform-specific          Store a platform-specific metadata JSON element.\n", src);
+    EmitMessage("  metadata [platform-specific]        Store or report a platform-specific metadata JSON element.\n", src);
     EmitMessage("  ota                                 Start Over-the-Air update sequence for the logger.\n", src);
     EmitMessage("  password [wifi-password]            Set the WiFi password.\n", src);
     EmitMessage("  radio ble|wifi                      Set the radio to boot on initialisation.\n", src);
     EmitMessage("  restart                             Restart the logger module hardware.\n", src);
-    EmitMessage("  setid logger-name                   Set the logger's unique identification string.\n", src);
     EmitMessage("  sizes                               Output list of the extant log files, and their sizes in bytes.\n", src);
     EmitMessage("  speed 1|2 baud-rate                 Set the baud rate for the RS-422 input channels.\n", src);
     EmitMessage("  ssid [wifi-ssid]                    Set the WiFi SSID.\n", src);
@@ -745,11 +763,17 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
     } else if (cmd.startsWith("led")) {
         ModifyLEDState(cmd.substring(4));
     } else if (cmd.startsWith("advertise")) {
-        SetBluetoothName(cmd.substring(10));
-    } else if (cmd.startsWith("identify")) {
-        ReportIdentificationString(src);
-    } else if (cmd.startsWith("setid")) {
-        SetIdentificationString(cmd.substring(6));
+        if (cmd.length() == 9) {
+            ReportBluetoothName(src);
+        } else {
+            SetBluetoothName(cmd.substring(10));
+        }
+    } else if (cmd.startsWith("uniqueid")) {
+        if (cmd.length() == 8) {
+            ReportIdentificationString(src);
+        } else {
+            SetIdentificationString(cmd.substring(9));
+        }
     } else if (cmd == "stop") {
         Shutdown();
     } else if (cmd.startsWith("ssid")) {
@@ -778,10 +802,6 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
             ConfigureLoggers(cmd.substring(10), src);
         }
     } else if (cmd == "restart") {
-        pinMode(0, OUTPUT);
-        digitalWrite(0, LOW);
-        delay(1);
-        digitalWrite(0, HIGH);
         ESP.restart();
     } else if (cmd.startsWith("echo")) {
         ConfigureEcho(cmd.substring(5), src);

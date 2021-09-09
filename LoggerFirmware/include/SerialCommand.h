@@ -105,6 +105,8 @@ private:
     void SetIdentificationString(String const& identifier);
     /// \brief Set the advertising name for the BLE service
     void SetBluetoothName(String const& name);
+    /// \brief Report the advertising name for the BLE service
+    void ReportBluetoothName(CommandSource src);
     /// \brief Turn on/off verbose information on messages received
     void SetVerboseMode(String const& mode);
     /// \brief Shut down logging for safe power removal
