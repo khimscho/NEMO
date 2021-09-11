@@ -30,6 +30,7 @@
 #include <cstring>
 #include "N0183Logger.h"
 #include "Configuration.h"
+#include "NVMFile.h"
 
 namespace nmea {
 namespace N0183 {
@@ -76,6 +77,17 @@ bool Sentence::Valid(void) const
 String Sentence::Token(void) const
 {
     String s = String(Contents()).substring(1,6);
+    return s;
+}
+
+/// Extract from the sentence just the message ID (rather than including the
+/// talker identifier as with Token()).
+///
+/// \return Three-letter message ID
+
+String Sentence::MessageID(void) const
+{
+    String s = String(Contents()).substring(3,6);
     return s;
 }
 
@@ -309,7 +321,15 @@ Logger::Logger(logger::Manager *output)
     Serial1.begin(retrieveBaudRate(logger::Config::ConfigParam::CONFIG_BAUDRATE_1_S));
     Serial2.begin(retrieveBaudRate(logger::Config::ConfigParam::CONFIG_BAUDRATE_2_S));
 #endif
+
+    retrieveIDFilter();
 }
+
+/// Retrieve from NVM the baud rate parameters configured for the logger by the user
+/// interface.
+///
+/// \param channel  Indicator of which channel to retrieve (CONFIG_BAUDRATE_1_S, CONFIG_BAUDRATE_2_S)
+/// \return Baud rate for the indicated channel
 
 uint32_t Logger::retrieveBaudRate(logger::Config::ConfigParam channel)
 {
@@ -322,6 +342,29 @@ uint32_t Logger::retrieveBaudRate(logger::Config::ConfigParam channel)
         baud_rate = static_cast<uint32_t>(baud_rate_str.toInt());
     }
     return baud_rate;
+}
+
+/// Pick up the list of known NMEA0183 message IDs that should be accepted by the logger
+/// and written to SD card.  This is done using a std::set<String> so that looking should
+/// be relatively fast.
+
+void Logger::retrieveIDFilter(void)
+{
+    logger::N0183IDStore filt;
+    filt.BuildSet(m_filter);
+}
+
+/// Determine whether the message recorded is to be filtered out, or written to the SD card
+/// for delivery to the database.  This is based on the set of NMEA0183 message identifiers
+/// configured by the user (logger::N0183IDStore).  A blank list implies that all messages
+/// are to be accepted and logged.
+///
+/// \param s    Pointer to the Sentence received.
+/// \return True if the Sentence is to be filtered (i.e., dropped), or False if it is to be logged.
+
+bool Logger::filterMessage(Sentence const *s)
+{
+    return m_filter.find(s->MessageID()) == m_filter.end();
 }
                                        
 Logger::~Logger(void)
@@ -344,8 +387,14 @@ void Logger::ProcessMessages(void)
     }
     for (int channel = 0; channel < ChannelCount; ++channel) {
         while ((sentence = m_channel[channel].NextSentence()) != nullptr) {
+            if (filterMessage(sentence)) {
+                if (m_verbose) {
+                    Serial.printf("DBG: rejecting sentence \"%s\" due to filtering constraints.\n", sentence->Contents());
+                }
+                continue;
+            }
             if (m_verbose) {
-                Serial.println(String("debug: logging ") + sentence->Contents());
+                Serial.printf("DBG: logging \"%s\"\n", sentence->Contents());
             }
             Serialisable s;
             s += (uint32_t)(sentence->Timestamp());
@@ -393,10 +442,17 @@ void Logger::SetVerbose(bool verbose)
     }
 }
 
+/// Configure the hardware inversion for one channel of the logger's NMEA0183 interface
+/// so that all bits are flipped before they appear at the UART input.  This can be used
+/// to fix reversed polarity on NMEA0183 inputs, a common problem during installation.
+///
+/// \param port     Port (1/2) to invert
+/// \param invert   Flag: True => invert, False => as is.
+
 void Logger::SetRxInvert(uint32_t port, bool invert)
 {
     if (port < 1 || port > ChannelCount) {
-        Serial.println(String("ERR: can't set rx-invert for port ") + port);
+        Serial.printf("ERR: can't set rx-invert for port %d\n", port);
     } else {
         if (port == 1)
             Serial1.setRxInvert(invert);

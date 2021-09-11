@@ -149,8 +149,12 @@ private:
     void StoreMetadataElement(String const& command, CommandSource src);
     /// \brief Dump out the metadata element stored in the flash memory
     void ReportMetadataElement(CommandSource src);
+    /// \brief Dump out the list of NMEA0183 messages that are accepted
+    void ReportNMEAFilter(CommandSource src);
+    /// \brief Add/reset the NMEA0183 messages accepted for logging
+    void AddNMEAFilter(String const& command, CommandSource src);
     /// \brief Check for commands, and execute them if found
-    void Execute(String const& cmd, CommandSource src);
+    void Execute(String const& command, CommandSource src);
     
     /// \brief Generate a string on the appropriate output stream
     void EmitMessage(String const& msg, CommandSource src);

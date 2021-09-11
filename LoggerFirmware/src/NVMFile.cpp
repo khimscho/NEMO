@@ -24,6 +24,7 @@
  * OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <set>
 #include "NVMFile.h"
 #include "SPIFFS.h"
 #include "LogManager.h"
@@ -197,10 +198,15 @@ N0183IDStore::N0183IDStore(void)
     m_backingStore = "/NMEA0183IDs.txt";
 }
 
-void N0183IDStore::AddID(String const& msgid, bool restart)
+void N0183IDStore::AddID(String const& msgid)
 {
-    NVMFileWriter w(m_backingStore, ~restart);
+    NVMFileWriter w(m_backingStore);
     w.AddEntry(msgid);
+}
+
+void N0183IDStore::ResetFilter(void)
+{
+    NVMFileWriter w(m_backingStore, false);
 }
 
 void N0183IDStore::ListIDs(Stream& s)
@@ -221,6 +227,16 @@ void N0183IDStore::SerialiseIDs(Serialiser *s)
         ser += IDname.length();
         ser += IDname.c_str();
         s->Process(logger::Manager::PacketIDs::Pkt_NMEA0183ID, ser);
+    }
+}
+
+void N0183IDStore::BuildSet(std::set<String>& s)
+{
+    NVMFileReader r(m_backingStore);
+    
+    s.clear();
+    while (r.HasMore()) {
+        s.insert(r.NextEntry());
     }
 }
 

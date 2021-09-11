@@ -28,6 +28,7 @@
 #ifndef __N0183_LOGGER_H__
 #define __N1083_LOGGER_H__
 
+#include <set>
 #include "LogManager.h"
 #include "IncrementalBuffer.h"
 #include "Configuration.h"
@@ -73,6 +74,9 @@ public:
     
     /// \brief Provide the recognition token from the start of the sentence
     String Token(void) const;
+
+    /// \brief Provide the NMEA0183 message ID from the start of the sentence
+    String MessageID(void) const;
     
 private:
     unsigned long   m_timestamp;    ///< Timestamp associated with the "$" that started the sentence
@@ -155,8 +159,11 @@ private:
     bool                m_verbose;                ///< Verbose status for the logger
     logger::Manager    *m_logManager;             ///< Handler for log files on SD card
     MessageAssembler    m_channel[ChannelCount];  ///< Message handler for two channels
+    std::set<String>    m_filter;                 ///< Set of NMEA0183 IDs to accept
 
     uint32_t retrieveBaudRate(logger::Config::ConfigParam channel);
+    void retrieveIDFilter(void);
+    bool filterMessage(Sentence const *s);
 };
 
 }

@@ -701,12 +701,43 @@ void SerialCommand::ReportMetadataElement(CommandSource src)
     EmitMessage("Metadata element: |" + metadata + "|\n", src);
 }
 
+void SerialCommand::ReportNMEAFilter(CommandSource src)
+{
+    logger::N0183IDStore filter;
+    EmitMessage("NMEA0183 message IDs accepted for logging:\n", src);
+    switch (src) {
+        case CommandSource::SerialPort:
+            filter.ListIDs(Serial);
+            break;
+        case CommandSource::BluetoothPort:
+            m_ble->WriteString("ERR: Cannot report NMEA0183 filter specification on BLE.\n");
+            break;
+        case CommandSource::WirelessPort:
+            filter.ListIDs(m_wifi->Client());
+            break;
+        default:
+            EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
+            break;
+    }
+}
+
+void SerialCommand::AddNMEAFilter(String const& params, CommandSource src)
+{
+    logger::N0183IDStore filter;
+    if (params == "any") {
+        filter.ResetFilter();
+    } else {
+        filter.AddID(params);
+    }
+}
+
 /// Output a list of known commands, since there are now enough of them to make remembering them
 /// all a little difficult.
 
 void SerialCommand::Syntax(CommandSource src)
 {
     EmitMessage(String("Command Syntax (V") + CommandMajorVersion + "." + CommandMinorVersion + "." + CommandPatchVersion + "):\n", src);
+    EmitMessage("  accept [NMEA0183-ID | all]          Configure which NMEA0183 messages to accept.\n", src);
     EmitMessage("  advertise [bt-name]                 Set BLE advertising name.\n", src);
     EmitMessage("  algorithm [name params]             Add (or report) an algorithm request to the cloud processing.\n", src);
     EmitMessage("  configure [on|off logger-name]      Configure individual loggers on/off (or report config).\n", src);
@@ -823,6 +854,12 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
             ReportMetadataElement(src);
         } else {
             StoreMetadataElement(cmd.substring(9), src);
+        }
+    } else if (cmd.startsWith("accept")) {
+        if (cmd.length() == 6) {
+            ReportNMEAFilter(src);
+        } else {
+            AddNMEAFilter(cmd.substring(7), src);
         }
     } else if (cmd == "help" || cmd == "syntax") {
         Syntax(src);

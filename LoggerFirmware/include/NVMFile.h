@@ -27,6 +27,7 @@
 #ifndef __NVMFILE_H__
 #define __NVMFILE_H__
 
+#include <set>
 #include "Arduino.h"
 #include "serialisation.h"
 
@@ -102,9 +103,11 @@ class N0183IDStore {
 public:
     N0183IDStore(void);
 
-    void AddID(String const& msgid, bool restart = false);
+    void AddID(String const& msgid);
+    void ResetFilter(void);
     void ListIDs(Stream& s);
     void SerialiseIDs(Serialiser *s);
+    void BuildSet(std::set<String>& s);
 
 private:
     String  m_backingStore;
