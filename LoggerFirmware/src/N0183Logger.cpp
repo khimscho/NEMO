@@ -364,6 +364,7 @@ void Logger::retrieveIDFilter(void)
 
 bool Logger::filterMessage(Sentence const *s)
 {
+    if (m_filter.empty()) return false; // No IDs means accept everything
     return m_filter.find(s->MessageID()) == m_filter.end();
 }
                                        
