@@ -30,8 +30,7 @@
 #include "LogManager.h"
 #include "StatusLED.h"
 #include "MemController.h"
-#include "ProcessingManager.h"
-#include "MetadataManager.h"
+#include "NVMFile.h"
 
 namespace logger {
 
@@ -153,10 +152,10 @@ void Manager::StartNewLog(void)
     m_outputLog = m_storage->Controller().open(filename, FILE_WRITE);
     if (m_outputLog) {
         m_serialiser = new Serialiser(m_outputLog);
-        logger::ProcessingManager pm;
-        pm.SerialiseAlgorithms(m_serialiser);
-        logger::MetadataManager mm;
-        mm.SerialiseMetadata(m_serialiser);
+        logger::AlgoRequestStore algstore;
+        algstore.SerialiseAlgorithms(m_serialiser);
+        logger::MetadataStore metastore;
+        metastore.SerialiseMetadata(m_serialiser);
         m_consoleLog.println(String("INFO: started logging to ") + filename);
     } else {
         m_serialiser = nullptr;

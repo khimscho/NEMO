@@ -32,8 +32,7 @@
 #include "OTAUpdater.h"
 #include "Configuration.h"
 #include "HeapMonitor.h"
-#include "ProcessingManager.h"
-#include "MetadataManager.h"
+#include "NVMFile.h"
 
 const uint32_t CommandMajorVersion = 1;
 const uint32_t CommandMinorVersion = 2;
@@ -660,16 +659,16 @@ void SerialCommand::ConfigureBootRadio(String const& params, CommandSource src)
 
 void SerialCommand::ReportAlgRequests(CommandSource src)
 {
-    logger::ProcessingManager pm;
+    logger::AlgoRequestStore algstore;
     switch (src) {
         case CommandSource::SerialPort:
-            pm.ListAlgorithms(Serial);
+            algstore.ListAlgorithms(Serial);
             break;
         case CommandSource::BluetoothPort:
             m_ble->WriteString("ERR: Cannot report algorithm requests on BLE.\n");
             break;
         case CommandSource::WirelessPort:
-            pm.ListAlgorithms(m_wifi->Client());
+            algstore.ListAlgorithms(m_wifi->Client());
             break;
         default:
             EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
@@ -679,26 +678,26 @@ void SerialCommand::ReportAlgRequests(CommandSource src)
 
 void SerialCommand::ConfigureAlgRequest(String const& params, CommandSource src)
 {
-    logger::ProcessingManager pm;
+    logger::AlgoRequestStore algstore;
     String alg_name, alg_params;
     int split = params.indexOf(' ');
     alg_name = params.substring(0, split-1);
     alg_params = params.substring(split+1);
-    pm.AddAlgorithm(alg_name, alg_params);
+    algstore.AddAlgorithm(alg_name, alg_params);
     EmitMessage("INF: added algorithm \"" + alg_name + "\" with parameters \"" + alg_params + "\"\n", src);
 }
 
 void SerialCommand::StoreMetadataElement(String const& params, CommandSource src)
 {
-    logger::MetadataManager mm;
-    mm.WriteMetadata(params);
+    logger::MetadataStore metastore;
+    metastore.WriteMetadata(params);
     EmitMessage("INO: added metadata element to local configuration.\n", src);
 }
 
 void SerialCommand::ReportMetadataElement(CommandSource src)
 {
-    logger::MetadataManager mm;
-    String metadata = mm.GetMetadata();
+    logger::MetadataStore metastore;
+    String metadata = metastore.GetMetadata();
     EmitMessage("Metadata element: |" + metadata + "|\n", src);
 }
 
