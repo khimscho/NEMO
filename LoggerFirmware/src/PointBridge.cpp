@@ -31,6 +31,10 @@
 namespace nmea {
 namespace N0183 {
 
+/// Bring up a UDP to RS-422 packet bridge that captures packets on a known UDP broadcast port via the
+/// WiFi interface, and passes them to the first RS-422 serial interface, making the system into a transmitter
+/// as well as a receiver.
+
 PointBridge::PointBridge(void)
 : m_verbose(false)
 {
@@ -45,9 +49,6 @@ PointBridge::PointBridge(void)
     }
     if (m_bridge->listen(IP_ADDR_BROADCAST, port_number)) {
         Serial.println("INFO: UDP bridge connected.");
-        /*m_bridge->onPacket([=](AsyncUDPPacket& packet) {
-            this->HandlePacket(packet);
-        });*/
         m_bridge->onPacket(std::bind(&PointBridge::HandlePacket, this, std::placeholders::_1));
     }
 }
@@ -57,10 +58,20 @@ PointBridge::~PointBridge(void)
     delete m_bridge;
 }
 
+/// Configure the bridge for verbose mode, where it reports all of the packets being transferred to the
+/// output RS-422 interface.
+///
+/// \param state    Flag: True => verbose output, False => quiet output
+
 void PointBridge::SetVerbose(bool state)
 {
     m_verbose = state;
 }
+
+/// Call-back member function to handle the reception of a packet on the asynchronous UDP thread.  This
+/// provides simple logging, and routes the data out through the first RS-422 interface (Serial1)
+///
+/// \param packet   Packet of UDP information to transfer to output serial
 
 void PointBridge::HandlePacket(AsyncUDPPacket& packet)
 {

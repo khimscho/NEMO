@@ -60,8 +60,8 @@ public:
     
 private:
     mem::MemController *m_storage;  ///< Pointer to the storage object to use
-    WiFiServer  *m_server;      ///< Pointer to the server object, if started.
-    WiFiClient  m_client;       ///< Pointer to the current client connection, if there is one.
+    WiFiServer  *m_server;          ///< Pointer to the server object, if started.
+    WiFiClient  m_client;           ///< Pointer to the current client connection, if there is one.
     
     /// Bring up the WiFi adapter, which in this case includes bring up the soft access point.  This
     /// uses the ParamStore to get the information required for the soft-AP, and then interrogates the

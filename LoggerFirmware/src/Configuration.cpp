@@ -31,34 +31,51 @@
 
 namespace logger {
 
+// Lookup table to translate the Enums in logger::Config::ConfigParam into the strings used to look
+// up the keys in ParamStore.  This list has to be in exactly the same order as the elements in the
+// Enum, of course, or everything will fall apart.
+
 const String lookup[] = {
-    "N1Enable",
-    "N2Enable",
-    "IMUEnable",
-    "PowMon",
-    "MemModule",
-    "BootBLE",
-    "Bridge",
-    "modid",
-    "modname",
-    "ssid",
-    "password",
-    "ipaddress",
-    "wifimode"
-    "baud1",
-    "baud2",
-    "BridgePort"
+    "N1Enable",         ///< Control logging of NMEA0183 data (binary)
+    "N2Enable",         ///< Control logging of NMEA2000 data (binary)
+    "IMUEnable",        ///< Control logging of motion sensor data (binary)
+    "PowMon",           ///< Control whether power monitoring and emergency shutdown is done (binary)
+    "MemModule",        ///< Control whether SD/MMC or SPI is used to access the SD card (binary)
+    "BootBLE",          ///< Control whether to start BLE or WiFi on boot (binary)
+    "Bridge",           ///< Control whether to start the UDP->RS-422 bridge on WiFi startup (binary)
+    "modid",            ///< Set the module's Unique ID (string)
+    "modname",          ///< Set the ship's name (string)
+    "ssid",             ///< Set the WiFi SSID (string)
+    "password",         ///< Set the WiFi password (string)
+    "ipaddress",        ///< Set the IP address assigned to the WiFI module (string)
+    "wifimode"          ///< Set the WiFi mode (access point, station) to start in (string)
+    "baud1",            ///< Set the baud rate of NMEA0183 input channel 1
+    "baud2",            ///< Set the baud rate of NMEA0183 input channel 2
+    "BridgePort"        ///< Set the UDP port for broadcast packets to bridge to RS-422 (string)
 };
+
+/// Default constructor.  This sets up for a dummy parameter store, which is configured
+/// on the first instance it's called, to avoid committing the memory until it's actually
+/// required.
 
 Config::Config(void)
 {
     m_params = nullptr;
 }
 
+/// Default destructor.  Simply removes the parameter store interface, if configured.
+
 Config::~Config(void)
 {
     delete m_params;
 }
+
+/// Extact a configuration string from the parameter store, if it exists (see ParamStore
+/// for details).
+///
+/// \param param    Enum for the key to extract
+/// \param value    Reference for where to store the associated value
+/// \returns True if the key was successfully extracted, otherwise False
 
 bool Config::GetConfigString(ConfigParam const param, String& value)
 {
@@ -67,12 +84,25 @@ bool Config::GetConfigString(ConfigParam const param, String& value)
     return m_params->GetKey(key, value);
 }
 
+/// Set a configuration key's associated value string (see ParamStore for details).
+///
+/// \param param    Enum for the key to set
+/// \param value    String to set as the key's associated value
+/// \return True if the key was successfully extracted, otherwise False
+
 bool Config::SetConfigString(ConfigParam const param, String const& value)
 {
     String key;
     Lookup(param, key);
     return m_params->SetKey(key, value);
 }
+
+/// Extract a binary flag associated with the key provided, if it exists (see
+/// ParamStore for details).
+///
+/// \param param    Enum for the key to extract
+/// \param value    Reference for where to store the associated value
+/// \return True if the key was extracted successfully, otherwise False
 
 bool Config::GetConfigBinary(ConfigParam const param, bool& value)
 {
@@ -81,6 +111,12 @@ bool Config::GetConfigBinary(ConfigParam const param, bool& value)
     return m_params->GetBinaryKey(key, value);
 }
 
+/// Set a binary configuration key to the provided value.
+///
+/// \param param    Enum for the key to set
+/// \param value    Value to set for the associated key
+/// \return True if the key was set, otherwise False
+
 bool Config::SetConfigBinary(ConfigParam const param, bool value)
 {
     String key;
@@ -88,12 +124,18 @@ bool Config::SetConfigBinary(ConfigParam const param, bool value)
     return m_params->SetBinaryKey(key, value);
 }
 
+/// Map from the Enum key for the parameter into the string used to look up the
+/// parameter in the ParamStore.
+///
+/// \param param    Enum to convert into a standard string
+/// \param key      Reference for where to store the key's string equivalent
+
 void Config::Lookup(ConfigParam const param, String& key)
 {
     if (m_params == nullptr) m_params = ParamStoreFactory::Create();
     key = lookup[static_cast<int>(param)];
 }
 
-Config LoggerConfig;
+Config LoggerConfig;    ///< Static parameter to use for lookups (rather than making them on the heap)
 
 }

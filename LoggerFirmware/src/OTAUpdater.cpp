@@ -37,10 +37,15 @@
 #include "SerialCommand.h"
 #include "LogManager.h"
 
-extern nmea::N2000::Logger *N2000Logger;
-extern nmea::N0183::Logger *N0183Logger;
-extern logger::Manager     *logManager;
-extern SerialCommand       *CommandProcessor;
+extern nmea::N2000::Logger *N2000Logger;        ///< Pointer to the NMEA2000 logger object (for shutdown)
+extern nmea::N0183::Logger *N0183Logger;        ///< Pointer to the NMEA0183 logger object (for shutdown)
+extern logger::Manager     *logManager;         ///< Pointer to the log manager (for shutdown)
+extern SerialCommand       *CommandProcessor;   ///< Pointer to the current command processor (for shutdown)
+
+/// Set up for over-the-air update of the logger firmware.  This is a one-way street: once the OTA starts,
+/// the only way back is to reset the logger at the end of the update.  The system also takes down the
+/// various loggers, the command processor, and the log manager to recover enough memory to allow the update
+/// to take place (there's apparently some limit based on available heap).
 
 OTAUpdater::OTAUpdater(void)
 {

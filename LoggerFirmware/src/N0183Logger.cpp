@@ -346,7 +346,7 @@ uint32_t Logger::retrieveBaudRate(logger::Config::ConfigParam channel)
 
 /// Pick up the list of known NMEA0183 message IDs that should be accepted by the logger
 /// and written to SD card.  This is done using a std::set<String> so that looking should
-/// be relatively fast.
+/// be relatively fast.  No IDs in the set implies that all IDs shoud be accepted.
 
 void Logger::retrieveIDFilter(void)
 {

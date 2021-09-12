@@ -30,6 +30,12 @@
 
 namespace logger {
 
+/// If configured, bring up the power supply monitoring code, using the given pin.  The code
+/// checks the voltage on the supplied pin, and expects it to stay at least above the half-supply
+/// level, or it sounds the alarm.
+///
+/// \param monitor_pin  GPIO pin number to use for monitoring
+
 SupplyMonitor::SupplyMonitor(uint8_t monitor_pin)
 : m_monitorPower(false), m_monitorPin(monitor_pin)
 {
@@ -47,6 +53,13 @@ SupplyMonitor::SupplyMonitor(uint8_t monitor_pin)
         Serial.printf("DBG: monitor voltage level = %hu\n", v);
     }
 }
+
+/// Check the emergency power pin to see whether the main power supply is on.  The code assumes that
+/// all is well so long as the voltage on the input pin is at least half the full range of the converter
+/// (i.e., 3.3V/2 = 1.65V).
+///
+/// \param value    Pointer to where to store the value read from the ADC, or nullptr if you don't need it
+/// \return True if the module need to switch to emergency power, or False if the main power is on
 
 bool SupplyMonitor::EmergencyPower(uint16_t *value)
 {

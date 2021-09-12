@@ -45,7 +45,7 @@ const uint32_t CommandPatchVersion = 0;
 /// \param CANLogger    Pointer to the NMEA2000 data source
 /// \param serialLogger Pointer to the NMEA0183 data source
 /// \param logManager   Pointer to the object used to access the log files
-/// \param led      Pointer to the status LED controller object
+/// \param led          Pointer to the status LED controller object
 
 SerialCommand::SerialCommand(nmea::N2000::Logger *CANLogger, nmea::N0183::Logger *serialLogger,
                              logger::Manager *logManager, StatusLED *led)
@@ -466,6 +466,13 @@ void SerialCommand::TransferLogFile(String const& filenum, CommandSource src)
     }
 }
 
+/// Configure whether to invert the bits on either of the NMEA0183 serial ports, in hardware, prior
+/// to reception.   This can be used to compensate for reverse polarity connections on the NMEA0183
+/// inputs, which is a common problem in intallation.
+///
+/// \param params   Parameters string for the command: on | off <port-number>
+/// \param src      Channel to report information on (Serial, WiFi, BLE)
+
 void SerialCommand::ConfigureSerialPortInvert(String const& params, CommandSource src)
 {
     uint32_t    port;
@@ -487,6 +494,13 @@ void SerialCommand::ConfigureSerialPortInvert(String const& params, CommandSourc
     }
     m_serialLogger->SetRxInvert(port, invert);
 }
+
+/// Set up the baud rate for either of the NMEA0183 serial ports.  By default, this should be
+/// 4800 baud, as specified in NMEA0183, but some systems run at different rates, and it's
+/// possible that this might need to configured.
+///
+/// \param params   Parameters for the command: <port-number> <baud-rate>
+/// \param src      Channel to report information on (Serial, WiFi, BLE)
 
 void SerialCommand::ConfigureSerialPortSpeed(String const& params, CommandSource src)
 {
@@ -517,6 +531,18 @@ void SerialCommand::ConfigureSerialPortSpeed(String const& params, CommandSource
     logger::LoggerConfig.SetConfigString(channel, baud_rate_str);
     EmitMessage("INFO: speed set, remember to reboot to have this take effect.\n", src);
 }
+
+/// General interface to set up whether the various data interfaces and optional modules are actually
+/// actively being recorded or used, respecitvely, on the logger.  Interfaces include:
+///     nmea2000    on | off                NMEA2000 CAN-bus data
+///     nmea0183    on | off                NMEA0183 RS-422 data
+///     imu         on | off                MPU-6050 motion sensor data
+///     power       on | off                Power monitoring and emergency shutdown
+///     sdio        on | off                SD/MMC interface for SD card (otherwise SPI)
+///     bridge      on <port-number> | off  UDP->RS-422 bridge (port number for the UDP broadcast packet)
+///
+/// \param params   Parameters for the command: on|off <optional>
+/// \param src      Channel to report information on (Serial, WiFi, BLE)
 
 void SerialCommand::ConfigureLoggers(String const& params, CommandSource src)
 {
@@ -569,6 +595,12 @@ void SerialCommand::ConfigureLoggers(String const& params, CommandSource src)
     }
 }
 
+/// Set whether the logger echos back characters to the host on the interface so that humans can see
+/// what they're typing.
+///
+/// \param params   Parameters for the command: on | off
+/// \param src      Channel on which to report the results (Serial, WiFi, BLE)
+
 void SerialCommand::ConfigureEcho(String const& params, CommandSource src)
 {
     if (params.startsWith("on")) {
@@ -580,6 +612,17 @@ void SerialCommand::ConfigureEcho(String const& params, CommandSource src)
     }
 }
 
+/// Stealth command to turn on "pass through" mode for the logger, which allows the serial interface host
+/// computer to send data through the ESP32's UART0, which then gets sent out the TX1 serial interface as
+/// an RS-422 signal.  This can be used either to have the logger act as a transmitter without having to
+/// reflash with the hardware simulator firmware, or to act as its own data source by looping back TX1 A/B
+/// to one of the RX inputs.  The special mode ends when the user sends the string "passthrough" exactly
+/// to the interface.  It's wise to also send "echo off" before and "echo on" afterwards to avoid all of
+/// the data the host's sending coming back up the USB line.
+///
+/// \param params   Parameters for the command: [on] (no parameter => switch back to standard operation)
+/// \param src      Channel on which to report the results of the command.
+
 void SerialCommand::ConfigurePassthrough(String const& params, CommandSource src)
 {
     if (params == "on") {
@@ -589,6 +632,13 @@ void SerialCommand::ConfigurePassthrough(String const& params, CommandSource src
     }
     EmitMessage("INF: passthrough mode set to: " + params + "\n", src);
 }
+
+/// Provide summary report of all of the configuration parameters being managed by the Confgiuration
+/// module.  Some of this information can be determined from other locations, but this might be simpler
+/// for some purposes (e.g., getting a synoptic list of all of the configuration parameters to set up
+/// a GUI for configuration purposes).
+///
+/// \param src  Channel on which to report the configuration (Serial, WiFi, BLE)
 
 void SerialCommand::ReportConfiguration(CommandSource src)
 {
@@ -637,6 +687,12 @@ void SerialCommand::ReportConfiguration(CommandSource src)
     EmitMessage("  Bridge UDP Port: " + string_param + "\n", src);
 }
 
+/// Report the current state of heap usage in the system.  This reports the maximmum size of the heap,
+/// the current free memory in the heap, the low-water mark (lowest free memory since boot), and the
+/// largest available chunk of memory on the heap (allowing for monitoring of fragmentation).
+///
+/// \param src  Channel on which to report summary (Serial, WiFi, BLE).
+
 void SerialCommand::ReportHeapSize(CommandSource src)
 {
     logger::HeapMonitor heap;
@@ -644,6 +700,16 @@ void SerialCommand::ReportHeapSize(CommandSource src)
                     + heap.LowWater() + " B, biggest chunk: " + heap.LargestBlock() + " B.\n";
     EmitMessage(msg, src);
 }
+
+/// Configure which radio engine is brought up on boot.  The ESP32 can do both WiFi and Bluetooth (optionally
+/// Low Energy), and can actually do both simultaneously.  However, the heap usage to set up both systems can
+/// be sufficiently high that you end up with so little free memory left that all sorts of bad things happen
+/// (particuarly that send/receive can quietly fail, potentially with reboots).  In order to ensure that we
+/// don't have that happen, the user can choose to bring up one or the other by default when the logger starts
+/// (although the WiFi can also be brought up separately later if required).
+///
+/// \param params   Parameters for the command: ble | wifi
+/// \param src      Channel on which to report command results (Serial, WiFi, BLE)
 
 void SerialCommand::ConfigureBootRadio(String const& params, CommandSource src)
 {
@@ -656,6 +722,14 @@ void SerialCommand::ConfigureBootRadio(String const& params, CommandSource src)
         return;
     }
 }
+
+/// Report the list of algorithms that the logger would request that the post-processing applies to the data
+/// from this system (e.g., de-duplication of depth, reputation computation, etc.).  There is no obligation
+/// for the post-processing to do this, but knowing which to do, and in which order, is useful.  The algorithms
+/// are specified directly by the user, and the logger does no checking: it just replicates what the user
+/// requires.
+///
+/// \param src  Channel on which to report command results (Serial, WiFi, BLE)
 
 void SerialCommand::ReportAlgRequests(CommandSource src)
 {
@@ -676,6 +750,13 @@ void SerialCommand::ReportAlgRequests(CommandSource src)
     }
 }
 
+/// Set up the list of requests for algorithms to be run on the data at the post-processing stage.
+/// Algorithms are specified by a simple string name, and a string of parameters, which can be in
+/// any form that the algorithm can parse.
+///
+/// \param params   Parameters for the algorithm: <alg-name> <alg-params>
+/// \param src      Channel on which to report results of command (Serial, WiFi, BLE)
+
 void SerialCommand::ConfigureAlgRequest(String const& params, CommandSource src)
 {
     logger::AlgoRequestStore algstore;
@@ -687,6 +768,17 @@ void SerialCommand::ConfigureAlgRequest(String const& params, CommandSource src)
     EmitMessage("INF: added algorithm \"" + alg_name + "\" with parameters \"" + alg_params + "\"\n", src);
 }
 
+/// Set the string for additional metadata to be applied to the data when it's converted to GeoJSON
+/// in post-processing.  The post-processing code can generate a default "platform" element, but if the user
+/// sets up a string here, it can be used to completely replaces this (and provide a lot more information)
+/// if required.  The code here does not check that the metadata is valid JSON, and just replicates it into
+/// the output data files so that the post-processing code has the option to use it if appropriate.  Note
+/// that the JSON should be collapsed into a single line so that there are no \r\n in the data (otherwise
+/// it'll get split into multiple WIBL commands, and will not be recognised).
+///
+/// \param params   Parameters for the command: <arbitrary-text>
+/// \param src      Channel on which to report results of the command (Serial, WiFi, BLE)
+
 void SerialCommand::StoreMetadataElement(String const& params, CommandSource src)
 {
     logger::MetadataStore metastore;
@@ -694,12 +786,23 @@ void SerialCommand::StoreMetadataElement(String const& params, CommandSource src
     EmitMessage("INO: added metadata element to local configuration.\n", src);
 }
 
+/// Report the user-specified string for auxiliary metadata generation, if set.  This metadata
+/// element is optional, but if available, is reported verbatuim, without interpretation.
+///
+/// \param src  Channel on which to report command results (Serial, WiFi, BLE)
+
 void SerialCommand::ReportMetadataElement(CommandSource src)
 {
     logger::MetadataStore metastore;
     String metadata = metastore.GetMetadata();
     EmitMessage("Metadata element: |" + metadata + "|\n", src);
 }
+
+/// Report the currently configured set of NMEA0183 message IDs that are acceptable for logging.
+/// All sentences with a message ID in the list will be written to the log; all others are rejected
+/// after reception.
+///
+/// \param src  Channel on which to report the IDs configured for logging (Serial, WiFi, BLE)
 
 void SerialCommand::ReportNMEAFilter(CommandSource src)
 {
@@ -720,6 +823,17 @@ void SerialCommand::ReportNMEAFilter(CommandSource src)
             break;
     }
 }
+
+/// Add to the list of NMEA0183 sentence message IDs that are allowed to be logged to SD card on
+/// reception.  Any sentence with a message ID on the list will be logged; all others will be
+/// rejected.  Note that the code does not check the syntax of the message IDs, or that they are
+/// exactly three characters, etc. --- that's up to the user.  The string is therefore case
+/// sensitive.  The special ID "any" will reset the filter back to the default state where
+/// everything is logged.  Note that the code does not consider the talker ID, so INGGA and
+/// GPGGA will both be logged if GGA is on the list.
+///
+/// \param params   Parameters for the command: any | <arbitrary-text>
+/// \param src      Channel on which to report the results of the command (Serial, WiFi, BLE)
 
 void SerialCommand::AddNMEAFilter(String const& params, CommandSource src)
 {

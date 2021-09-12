@@ -28,9 +28,13 @@
 
 namespace nemo30 {
 
-const int enable_pin = 25;
-const int reset_pin = 26;
-const int reset_delay = 1; // milliseconds, for Toshiba 4GB part (THGBMNG5D1LBAIL)
+const int enable_pin = 25;  ///< Pin number to enable the eMMC module
+const int reset_pin = 26;   ///< Pin number to reset the eMMC module
+const int reset_delay = 1;  ///< Milliseconds to hold reset, for Toshiba 4GB part (THGBMNG5D1LBAIL)
+
+/// Constructor to control the eMMC module embedded in NEMO30 boards.  This by default
+/// sets up the pins for enabling and resetting the module, but does not take eiter action
+/// (you need to do that explicitly); outputs on both pins are set high since they're active low.
 
 eMMCController::eMMCController(void)
 {
@@ -41,11 +45,18 @@ eMMCController::eMMCController(void)
     digitalWrite(reset_pin, HIGH);
 }
 
+/// Destructor for the controller.  This resets both enable and rest pin to HIGH, but leaves them
+/// configured for output mode.
+
 eMMCController::~eMMCController(void)
 {
     digitalWrite(enable_pin, HIGH);
     digitalWrite(reset_pin, HIGH);
 }
+
+/// Exercise the enable pin on the module to enable/disable operations.
+///
+/// \param enabled  Flag: True => module is enabled, False => module disabled
 
 void eMMCController::setModuleStatus(const bool enabled)
 {
@@ -55,6 +66,9 @@ void eMMCController::setModuleStatus(const bool enabled)
         digitalWrite(enable_pin, HIGH);
     }
 }
+
+/// Reset the module.  This holds the reset pin low for the duration set at
+/// compile time, then pulls it high again.
 
 void eMMCController::resetModule(void)
 {

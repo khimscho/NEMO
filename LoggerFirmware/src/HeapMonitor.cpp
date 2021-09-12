@@ -29,10 +29,20 @@
 
 namespace logger {
 
+/// Report the total size of the current heap, in bytes.
+///
+/// \return Total size of the heap in bytes.
+
 uint32_t HeapMonitor::HeapSize(void)
 {
     return ESP.getHeapSize();
 }
+
+/// Report the current size of the free space in the heap, in bytes.  This also keeps
+/// track of what the size of the heap was at the last call so that DeltaSinceLast() is
+/// possible.
+///
+/// \return Size of the free space in the heap, in bytes.
 
 uint32_t HeapMonitor::CurrentSize(void)
 {
@@ -41,10 +51,21 @@ uint32_t HeapMonitor::CurrentSize(void)
     return last_reported_size;
 }
 
+/// Report the size of the biggest available contiguous block in the heap, in bytes.  This
+/// is apparently the largest size that can be allocated.
+///
+/// \return Largest available block in the current heap
+
 uint32_t HeapMonitor::LargestBlock(void)
 {
     return ESP.getMaxAllocHeap();
 }
+
+/// Report the change in the free space in the heap since the last time that the CurrentSize()
+/// was called.  Used cautiously, this allows the user to compute the memory in the heap used
+/// by a particular call, module, or setup.
+///
+/// \return Size of heap change between the last two CurrentSize() calls
 
 int32_t HeapMonitor::DeltaSinceLast(void)
 {
@@ -52,10 +73,19 @@ int32_t HeapMonitor::DeltaSinceLast(void)
            static_cast<int32_t>(previous_reported_size);
 }
 
+/// Report the minimum size of free space on the heap since boot.
+///
+/// \returns Minimum size of the heap's free space since boot, in bytes.
+
 uint32_t HeapMonitor::LowWater(void)
 {
     return ESP.getMinFreeHeap();
 }
+
+/// Generate a summary report on the flash memory size in the current module, mainly for reporting
+/// to the user.  This is automatically sent out to anything that supports the Stream interface.
+///
+/// \param s    Anything Stream-like that can support the printf() method.
 
 void HeapMonitor::FlashMemoryReport(Stream& s)
 {

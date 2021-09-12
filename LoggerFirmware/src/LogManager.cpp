@@ -361,6 +361,11 @@ String Manager::MakeLogName(uint32_t log_num)
     return filename;
 }
 
+/// Output the contents of the system console log to something that implements the Stream
+/// interface.
+///
+/// \param output   Anything Stream-like that supports the write() interface.
+
 void Manager::DumpConsoleLog(Stream& output)
 {
     m_consoleLog.close();
@@ -371,6 +376,14 @@ void Manager::DumpConsoleLog(Stream& output)
     m_consoleLog.close();
     m_consoleLog = m_storage->Controller().open("/console.log", FILE_APPEND);
 }
+
+/// Generic interface to transfer a given log file to any output that supports the Stream
+/// interface.  This is not necessarily the fastest way to do this, but it is the most
+/// general.  Output protocol is to write the file size as a uint32_t first, then the
+/// binary data from the file in order.
+///
+/// \param file_num Number of the log file to transfer
+/// \param output   Anything Stream-like that supports the write() interface.
 
 void Manager::TransferLogFile(int file_num, Stream& output)
 {
