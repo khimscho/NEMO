@@ -34,10 +34,20 @@ namespace imu {
 
 /// \class Logger
 /// \brief Provide interface and logging services for a module's IMU
+///
+/// On some versions of WIBL loggers, there is a small motion sensor that can be used to provide
+/// some information on motion.  This class provides the interface to the sensor, although only
+/// to the extent of telling the system to pull data from the sensor and write it to SD card, if
+/// any data is ready for transfer.
+///     Since it's possible that you can get replicated data on the stream (if it's converting slower
+/// than you're reading), so the algorithm here keeps track of the last acceleration values that
+/// were written to the SD card and only writes new data if any of the three axes are different.
 
 class Logger {
 public:
+    /// \brief Default constructor, for data to a given log manager
     Logger(logger::Manager *output);
+    /// \brief Default destructor
     ~Logger(void);
 
     /// \brief Process any data waiting at the IMU into the output log
@@ -52,10 +62,12 @@ public:
     void SetVerbose(bool verbose);
 
 private:
-    logger::Manager     *m_output;
-    bool                m_verbose;
-    Adafruit_MPU6050    *m_sensor;
-    float               m_lastAccX, m_lastAccY, m_lastAccZ;
+    logger::Manager     *m_output;      ///< Pointer to the log manager to use for reporting data
+    bool                m_verbose;      ///< Flag: True => write more data about operations, False => quiet mode
+    Adafruit_MPU6050    *m_sensor;      ///< Pointer to the motion sensor interface library
+    float               m_lastAccX,     ///< Last acceleration value, x-axis (m/s^2)
+                        m_lastAccY,     ///< Last acceleration value, y-axis (m/s^2)
+                        m_lastAccZ;     ///< Last acceleration value, z-axis (m/s^2)
 };
 
 }

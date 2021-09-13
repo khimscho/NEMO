@@ -30,13 +30,20 @@ namespace nemo30 {
 
 /// \class eMMCController
 /// \brief Provide an abstracted interface to the eMMC module control signals
+///
+/// On the NEMO-30 implementation of WIBL, the eMMC module needs to have hardware control
+/// to enable and reset it.  This class provides that interface.
 
 class eMMCController {
 public:
+    /// \brief Default constructor
     eMMCController(void);
+    /// \brief Default destructor
     ~eMMCController(void);
 
+    /// \brief Control the eMMC module enable pin
     void setModuleStatus(const bool enabled);
+    /// \brief Reset the eMMC to a "well know" state
     void resetModule(void);
 };
 

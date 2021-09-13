@@ -31,24 +31,48 @@
 
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
 #ifdef PROTOTYPE_LOGGER
+
+// The prototype logger is made up of standard modules, and an ESP32 development
+// module to do the work.  There isn't a lot of use for this now that WIBL exists,
+// but it's here for historical reasons.
+
+/// ESP32 GPIO pin to use for the RED indicator LED
 #define DEFAULT_RED_LED_PIN 25
+/// ESP32 GPIO pin to use for the GREEN indicator LED
 #define DEFAULT_GREEN_LED_PIN 26
+/// ESP32 GPIO pin to use for the BLUE indiator LED
 #define DEFAULT_BLUE_LED_PIN 27
+
 #elif defined(BUILD_NEMO30)
+
+// The NEMO-30 implementation of WIBL uses different LED pins from the standard model
+// due to certain pins being required for other purposes with its particular hardware.
+
 /// ESP32 GPIO pin to use for the RED indicator LED
 #define DEFAULT_RED_LED_PIN 34
 /// ESP32 GPIO pin to use for the GREEN indicator LED
 #define DEFAULT_GREEN_LED_PIN 35
 /// ESP32 GPIO pin to use for the BLUE indicator LED
 #define DEFAULT_BLUE_LED_PIN 32
+
 #else
+
+// The standard setup for WIBL
+
+/// ESP32 GPIO pin to use for the RED indicator LED
 #define DEFAULT_RED_LED_PIN     25
+/// ESP32 GPIO pin to use for the GREEN indicator LED
 #define DEFAULT_GREEN_LED_PIN   26
+/// ESP32 GPIO pin to use for the BLUE indicator LED
 #define DEFAULT_BLUE_LED_PIN    27
 #endif
 #endif
 
 #if defined(__SAM3X8E__)
+
+// As a legacy, there is an option to use an Arduino Due for the logger prototype
+// (at the breadboard level).
+
 /// Arduino Due GPIO pin to use for the RED indicator LED
 #define DEFAULT_RED_LED_PIN 8
 /// Arduino Due GPIO pin to use for the GREEN indicator LED

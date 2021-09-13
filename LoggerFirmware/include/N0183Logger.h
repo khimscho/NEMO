@@ -107,9 +107,11 @@ public:
     Sentence const *NextSentence(void);
     
 private:
+    /// \enum State
+    /// \brief States in the FSM used to assemble sentences from raw characters
     enum State {
-        STATE_SEARCHING,
-        STATE_CAPTURING
+        STATE_SEARCHING,    ///< Looking for a new sentence start character
+        STATE_CAPTURING     ///< In the middle of a sentence, looking for the end character(s)
     };
 
     static const int RingBufferLength = 10; ///< Maximum number of sentences we'll attempt to buffer
@@ -161,8 +163,11 @@ private:
     MessageAssembler    m_channel[ChannelCount];  ///< Message handler for two channels
     std::set<String>    m_filter;                 ///< Set of NMEA0183 IDs to accept
 
+    /// \brief Find the configured baud rate for the given channel
     uint32_t retrieveBaudRate(logger::Config::ConfigParam channel);
+    /// \brief Pull the configured specification of which NMEA messages are allowed to be logged back into memory
     void retrieveIDFilter(void);
+    /// \brief Determine whether the given sentence should be logged
     bool filterMessage(Sentence const *s);
 };
 

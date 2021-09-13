@@ -30,8 +30,18 @@
 #ifndef __OTA_UPDATER_H__
 #define __OTA_UPDATER_H__
 
+/// \class OTAUpdater
+/// \brief RAII object to start the process of doing an over-the-air update of firmware
+///
+/// The module can update the firmware for the logger over the WiFi connection using a standard
+/// protocol that's specific to the module.  Creating an instance of this object kicks the
+/// module into OTA mode, allowing this to occur.  Note that this is a one-way street: once you
+/// start the OTA process, the only way out is to restart the logger (either at the end of a
+/// successful upload, or through a power cycle).
+
 class OTAUpdater {
 public:
+    /// \brief Default constructor: start the OTA cycle.
     OTAUpdater(void);    
 };
 

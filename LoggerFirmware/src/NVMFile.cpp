@@ -366,6 +366,7 @@ void N0183IDStore::SerialiseIDs(Serialiser *s)
 /// provided output set is cleared before being set up.
 ///
 /// \param s    Reference for the set to store the message IDs.
+
 void N0183IDStore::BuildSet(std::set<String>& s)
 {
     NVMFileReader r(m_backingStore);

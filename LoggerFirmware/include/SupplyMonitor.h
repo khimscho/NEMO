@@ -31,20 +31,28 @@
 
 namespace logger {
 
-const uint8_t default_monitor_pin = GPIO_NUM_36;
+const uint8_t default_monitor_pin = GPIO_NUM_36;    ///< GPIO pin to use for monitoring the supply voltage
 
 /// \class SupplyMonitor
 /// \brief Object to check on supply voltage and indicate backup power startup
+///
+/// In order to know when the main power has been pulled, and the system is working on the backup
+/// power provided by the super-capacitor, this class can be used to sample an input pin's voltage
+/// and check whether it looks like something acceptable for running the system.  A "true" return from
+/// EmergencyPower() indicates that the module should start to shut down immediately, since there
+/// isn't a lot of time left.
 
 class SupplyMonitor {
 public:
+    /// \brief Default constructor, specifying the monitoring pin
     SupplyMonitor(uint8_t monitor_pin = default_monitor_pin);
 
+    /// \brief Sample the voltage on the monitoring pin, and determine whether we're on emergency power
     bool EmergencyPower(uint16_t *value = nullptr);
 
 private:
-    bool    m_monitorPower;
-    uint8_t m_monitorPin;
+    bool    m_monitorPower; ///< Flag: True => power monitoring is happening, False => we don't care about power
+    uint8_t m_monitorPin;   ///< GPIO pin being used to monitor the power.
 };
 
 }

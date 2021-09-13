@@ -74,7 +74,9 @@ public:
         WirelessPort    ///< WiFi socket from a client
     };
 
+    /// \brief Turn on character echo on the Serial interface so that the user can see what's being typed
     void EchoOn(void) { m_echoOn = true; }
+    /// \brief Turn off character echo on the Serial interface
     void EchoOff(void) { m_echoOn = false; }
     
 private:

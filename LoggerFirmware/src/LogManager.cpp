@@ -34,29 +34,75 @@
 
 namespace logger {
 
+// We roll over files at approximately the following size, although we might go over
+// a little depending on the size of the last block of data being sent to the file.
+// This should be sufficiently large that we don't change files often, but not so large
+// that losing a file would be a big problem (and take too long to transfer from the
+// logger).  We also have a limited number of file numbers that are used before restarting,
+// so we might not use all of the available SD card storage if the log size and maximum
+// number of files are set too low.
+//    The default configuration is 10MB for files, and 1,000 files, which results in about
+// 9.8GB total; if the SD card is bigger than this, it might be appropriate to raise the
+// limits (although you'd have to collect data for quite a file to get to this level).
+
 const int MAX_LOG_FILE_SIZE = 10*1024*1024; ///< Maximum size of a single log file before swapping
 
 #ifdef DEBUG_LOG_MANAGER
+
+// When bringing up new hardware designs, it can be problematic if the hardware doesn't
+// work, since the logger basically won't run without a log sink.  In order to allow for
+// debugging, this implementation of the logger::Manager interface can be used, which
+// will provide the same facilities as the full interface, but just throw away all of
+// the data, and ignore all commands.
+
+/// \brief Default constuctor
+///
+/// Construct the log manager.  Normally, the \a StatusLED object would be used to flash
+/// one of the LEDs when data is being written to the SD card; in this dummy version,
+/// it's simply ignored.
+///
+/// \param led  Pointer to the LED manager object for the board
+
 Manager::Manager(StatusLED *led)
 : m_led(led)
 {
     Serial.println("INF: Starting dummy log manager - NO LOGGING WILL BE DONE.");
 }
 
+/// \brief Default destructor
+
 Manager::~Manager(void)
 {
     // Nothing to be done here
 }
+
+/// \brief Close the current log, and start a new one with the next number
+///
+/// Normally, this would close the current log (if there is one), and start the
+/// next one in numeric sequence.  In this dummy version, it simply writes a debug message.
 
 void Manager::StartNewLog(void)
 {
     Serial.println("DBG: Call to start new log file");
 }
 
+/// \brief Close the current log file
+///
+/// Normally, this would close the current log file; in this dummy version, it simply writes
+/// a debug message.
+
 void Manager::CloseLogfile(void)
 {
     Serial.println("DBG: Call to close log file.");
 }
+
+/// \brief Remove a log file from the SD card
+///
+/// Normally, this would remove a specific file from the SD card; in this dummy version,
+/// it simply writes a debug message, and always returns True.
+///
+/// \param file_num The file number to attempt to remove
+/// \return True (always)
 
 boolean Manager::RemoveLogFile(const uint32_t file_num)
 {
@@ -64,16 +110,40 @@ boolean Manager::RemoveLogFile(const uint32_t file_num)
     return true;
 }
 
+/// \brief Remove all log files from the SD card
+///
+/// Normally, this would remove all available log files from the SD card; in this dummy version,
+/// it simply writes a debug message.
+
 void Manager::RemoveAllLogfiles(void)
 {
     Serial.println("DBG: Call to remove all log files.");
 }
+
+/// \brief Count the number of log files on SD card, and provide their file reference numbers
+///
+/// Normally, this finds all of the log files on the SD card, counts the total number, and returns
+/// the internal reference numbers that are being used so that the user can request more details
+/// about a specific file later.  In this dummy version, it simply prints a debug message, and returns
+/// zero.
+///
+/// \param filenumbers  Fixed size array (of \a MaxLogFiles) written with the internal reference numbers for the files
+/// \return Total number of files available on the SD card
 
 int Manager::CountLogFiles(int filenumbers[MaxLogFiles])
 {
     Serial.println("DBG: Call to count log files; returning zero.");
     return 0;
 }
+
+/// \brief Determine the size and file name of the specified file
+///
+/// Normally, this would look up the specified file, and report the filename and size in
+/// bytes; in this dummy version, it always reports "UNKNOWN" and a file size of zero.
+///
+/// \param lognumber    Number of the log to look up
+/// \param filename     Reference for where to store the file's name
+/// \param filesize     Reference for where to store the file's size
 
 void Manager::EnumerateLogFile(int lognumber, String& filename, int& filesize)
 {
@@ -82,32 +152,79 @@ void Manager::EnumerateLogFile(int lognumber, String& filename, int& filesize)
     filesize = 0;
 }
 
+/// \brief Record a packet into the curent log file
+///
+/// Normally, this would write a \a Serialisable packet of data into the current log file
+/// with the ID specified; in this dummy version, it simply prints a debug message.
+///
+/// \param pktID    Reference ID for the type of data being written
+/// \param data     Reference for the data to write to the file
+
 void Manager::Record(PacketIDs pktID, Serialisable const& data)
 {
     Serial.printf("DBG: Call to serialise a packet with ID %d.\n", (uint32_t)pktID);
 }
+
+/// \brief Getter for the stream on which console information is being written
+///
+/// Normally, this would return the \a Stream reference for the file being used for console
+/// messages (i.e., the permanent log for debug messages); in this dummy version, it simply
+/// returns a reference for the hardware \a Serial interface, so messages go on to the
+/// standard hardware output.
+///
+/// \return Reference for the current console output log file
 
 Stream& Manager::Console(void)
 {
     return Serial;
 }
 
+/// \brief Close the current console log file
+///
+/// Normally, this would close the console log file being used for permanent debug messages,
+/// usually in preparation to stop logging; in this dummy version, it simply writes a 
+/// debug message.
+
 void Manager::CloseConsole(void)
 {
     Serial.println("DBG: Call to close console log.");
 }
+
+/// \brief Output the contents of the console log file
+///
+/// Normally, this would serialise the console log file on the given stream; in this dummy
+/// version, it simply writes a debug message.
+///
+/// \param output   \a Stream reference on with to write the contents of the console log
 
 void Manager::DumpConsoleLog(Stream& output)
 {
     Serial.println("DBG: Call to dump console log to stream.");
 }
 
+/// \brief Transfer a log file to a given \a Stream output
+///
+/// Normally, this is the default log file transfer mechanism (although a specialist version
+/// for the WiFi interface also exists), and is used to get data off the logger; in this dummy
+/// version, it simply reports a debug mesage with the number of the file requested.
+///
+/// \param file_num File number to transfer
+/// \param output   Reference for a \a Stream on which to write the contents of the file.
+
 void Manager::TransferLogFile(int file_num, Stream& output)
 {
     Serial.printf("DBG: Call to transfer log file %d to stream.\n", file_num);
 }
 
-#else
+#else   // DEBUG_LOG_MANAGER
+
+/// \brief Default constructor.
+///
+/// Set up for writing to logs, and also for the console log (same idea as a Unix-style
+/// syslog).  The system uses the \a StatusLED object to flash one of the LED channels when
+/// data is added to the current log file.
+///
+/// \param led  Pointer to the LED controller for the logger (external owner)
 
 Manager::Manager(StatusLED *led)
 : m_led(led)
@@ -122,6 +239,11 @@ Manager::Manager(StatusLED *led)
     m_consoleLog.flush();
     Serial.println("info: started console log.");
 }
+
+/// \brief Default destructor.
+///
+/// This closes any current output log file, makes a note in the console log, and then shuts
+/// everything down.
 
 Manager::~Manager(void)
 {

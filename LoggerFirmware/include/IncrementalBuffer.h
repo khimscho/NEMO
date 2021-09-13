@@ -66,6 +66,7 @@ public:
     ///
     /// This removes the last character added, so that you can backspace and keep a valid
     /// buffer to send to the command processor later.
+
     void RemoveLastCharacter(void)
     {
         if (m_insertPoint > 0) {
@@ -77,6 +78,7 @@ public:
     ///
     /// This resets the buffer to zero contents, invalidates the timestamp, and sets the insertion
     /// point back to zero, effectively removing the old data without having to reconstruct.
+
     virtual void Reset(void)
     {
         bzero(m_sentence, MAX_SENTENCE_LENGTH);
@@ -91,7 +93,9 @@ public:
     int MaxLength(void) const { return MAX_SENTENCE_LENGTH; }
     
 protected:
+    /// \brief Getter for the current insertion point in the buffer
     int InsertPoint(void) const { return m_insertPoint; }
+    /// \brief Value in the buffer at the specified point
     char BufferChar(uint32_t pt) const { return m_sentence[pt]; }
     
 private:

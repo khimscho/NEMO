@@ -38,17 +38,27 @@ namespace N0183 {
 
 /// \class PointBridge
 /// \brief Use the asynchronous UDP facilities to capture broadcast packets in the background
+///
+/// Under certain circumstances, it may be necessary to capture UDP packets on the WiFi network
+/// that contain NMEA0183 messages, and then pass them on to the transmitters on the WIBL board
+/// so that the system can act as a network bridge (e.g., to provide data where a NMEA0183 feed
+/// isn't available, as on many research ships).  This object provides the means to run a thread
+/// in the background to do this, handling packets as they arrive.
 
 class PointBridge {
 public:
+    /// \brief Default constructor, with RAII implementation for the bridge
     PointBridge(void);
+    /// \brief Default destructor, with brings down the bridge
     ~PointBridge(void);
 
+    /// \brief Set the verbosity of message reporting during capture on the bridge
     void SetVerbose(bool state);
 private:
-    AsyncUDP    *m_bridge;
-    bool        m_verbose;
+    AsyncUDP    *m_bridge;  ///< Pointer to the control object for the background capture thread
+    bool        m_verbose;  ///< Flag: True => print more information, False => quiet mode
 
+    /// \brief Call-back method to extract the NMEA strings from the UDP packet and write them to the transmitters
     void HandlePacket(AsyncUDPPacket& packet);
 };
 

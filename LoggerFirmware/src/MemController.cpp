@@ -165,8 +165,6 @@ private:
     }
 };
 
-/// \brief Construct an appropriate memory controller for the current hardware
-///
 /// All WIBL-based loggers have to provide some large-scale storage for the logged data, but the particular
 /// interface on which that storage is provided can change.  This provides a mechanism to abstact away the
 /// details of the interfacing by providing a uniform MemController pointer to use for control.

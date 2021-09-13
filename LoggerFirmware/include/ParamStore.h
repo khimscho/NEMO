@@ -32,6 +32,12 @@
 
 /// \class ParamStore
 /// \brief Abstract interface for the parameter store key-value object
+///
+/// The logger needs to be able to store configuration parameters.  This module
+/// provides the mechanism to do so as key-value pairs, backed by some appropriate
+/// non-voltile memory on the logger.  The specific details of the NVM may depend
+/// on the particular implementation hardware, but this abstract interface allows
+/// for some accommodation.
 
 class ParamStore {
 public:
@@ -56,6 +62,9 @@ private:
 
 /// \class ParamStoreFactory
 /// \brief Provide a a factory method for the parameter store access object
+///
+/// This provides a single static method to generate the appropriate parameter store access
+/// object for the current hardware.
 
 class ParamStoreFactory {
 public:

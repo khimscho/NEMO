@@ -30,6 +30,10 @@
 
 /// \class WiFiAdapter
 /// \brief Abstract base class for WiFi access.
+///
+/// A number of different potential method to provide WiFi access are possible with different implementations
+/// of WIBL, so this class is provided to allow this detail to be abstracted for the rest of the code.  This
+/// assumes that there's a basic start/stop model, along with facilities to test for data waiting, etc.
 
 class WiFiAdapter {
 public:
@@ -112,6 +116,9 @@ private:
 
 /// \class WiFiAdapterFactory
 /// \brief Factory object to generate a WiFiAdapter for the particular hardware module in use
+///
+/// This provides a single static method to generate an appropriate WiFi interface for the hardware
+/// associated with the specific WIBL implementation.
 
 class WiFiAdapterFactory {
 public:
