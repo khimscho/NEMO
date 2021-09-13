@@ -174,11 +174,11 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
                 elapsed_offset = elapsed_offset + elapsed_time_quantum
             last_elapsed = pkt.elapsed
             
-            if isinstance(pkt, LoggerFile.Version):
+            if isinstance(pkt, LoggerFile.SerialiserVersion):
                 logger_version = str(pkt.major) + "." + str(pkt.minor) + "/" + pkt.nmea2000_version + "/" + pkt.nmea0183_version
             if isinstance(pkt, LoggerFile.Metadata):
-                logger_name = pkt.ship_name
-                platform_name = pkt.ship_id
+                logger_name = pkt.logger_name
+                platform_name = pkt.ship_name
             if isinstance(pkt, LoggerFile.JSONMetadata):
                 metadata = pkt.metdata_element
             if isinstance(pkt, LoggerFile.AlgorithmRequest):
