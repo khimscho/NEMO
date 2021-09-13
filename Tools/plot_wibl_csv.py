@@ -61,7 +61,7 @@ def plot_timestrip(data, file_prefix):
     plt.grid()
     plt.ylabel('Latitude (deg)')
     plt.subplot(3,1,3)
-    plt.plot(timebase, data['Depth'])
+    plt.plot(timebase, data['Depth'], '.')
     plt.grid()
     plt.ylabel('Depth (m)')
     plt.xlabel('Elapsed Time (' + time_label + ')')
