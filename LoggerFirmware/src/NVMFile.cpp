@@ -86,7 +86,9 @@ public:
         if (m_mode != READ)
             return String("");
         
-        return m_source->readString();
+        String rtn = m_source->readStringUntil('\n');
+        rtn.trim();
+        return rtn;
     }
 
     /// \brief Write a new entry into the file
@@ -254,14 +256,22 @@ AlgoRequestStore::AlgoRequestStore(void)
 ///
 /// \param alg_name     Name of the algorithm being requested
 /// \param alg_params   Parameters associate with the algorithm being requested
-/// \param restart      Flag: True => restart the algorithm file, False => add a new entry to the file
 
-void AlgoRequestStore::AddAlgorithm(String const& alg_name, String const& alg_params, bool restart)
+void AlgoRequestStore::AddAlgorithm(String const& alg_name, String const& alg_params)
 {
-    NVMFileWriter alg(m_algoBackingStore, ~restart);
-    NVMFileWriter par(m_paramBackingStore, ~restart);
+    NVMFileWriter alg(m_algoBackingStore);
+    NVMFileWriter par(m_paramBackingStore);
     alg.AddEntry(alg_name);
     par.AddEntry(alg_params);
+}
+
+/// Empty the list of algorithms being stored by the logger, so that no requests are made of the
+/// post-processing code.
+
+void AlgoRequestStore::ResetList(void)
+{
+    NVMFileWriter names(m_algoBackingStore, false);
+    NVMFileWriter params(m_paramBackingStore, false);
 }
 
 /// Write a list of the algorithms and parameters being recommended to the post-processing unit onto
@@ -337,9 +347,11 @@ void N0183IDStore::ResetFilter(void)
 
 void N0183IDStore::ListIDs(Stream& s)
 {
+    uint32_t n = 0;
     NVMFileReader r(m_backingStore);
     while (r.HasMore()) {
-        s.println(r.NextEntry());
+        s.printf("%d: %s\n", n, r.NextEntry().c_str());
+        ++n;
     }
 }
 

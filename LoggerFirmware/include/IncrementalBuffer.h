@@ -24,6 +24,8 @@
  * OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <stdint.h>
+
 #ifndef __INCREMENT_BUFFER_H__
 #define __INCREMENT_BUFFER_H__
 
@@ -37,12 +39,20 @@ namespace logger {
 
 class IncBuffer {
 public:
-    static const int MAX_SENTENCE_LENGTH = 128; ///< Maximum is probably order 100 characters; this is safe
+    static const int DEFAULT_MAX_SENTENCE_LENGTH = 128; ///< Maximum is probably order 100 characters; this is safe
     
     /// \brief Default constructor, just resetting the buffer insertion point
-    IncBuffer(void)
+    IncBuffer(uint32_t max_stencence_length = DEFAULT_MAX_SENTENCE_LENGTH)
+    : m_bufferLength(max_stencence_length)
     {
+        m_sentence = new char[m_bufferLength];
         Reset();
+    }
+
+    /// \brief Default destructor
+    ~IncBuffer(void)
+    {
+        delete m_sentence;
     }
     
     /// \brief Add a new character into the buffer, with length management
@@ -55,7 +65,7 @@ public:
     
     bool AddCharacter(char const a)
     {
-        if (m_insertPoint < MAX_SENTENCE_LENGTH-1) {
+        if (m_insertPoint < m_bufferLength-1) {
             m_sentence[m_insertPoint++] = a;
             return true;
         }
@@ -81,8 +91,24 @@ public:
 
     virtual void Reset(void)
     {
-        bzero(m_sentence, MAX_SENTENCE_LENGTH);
+        bzero(m_sentence, m_bufferLength);
         m_insertPoint = 0;
+    }
+
+    /// \brief Reset the size of the buffer to the length given
+    ///
+    /// If, at compile time, you don't know what length you need in the buffer, this code
+    /// can be used to reset the length to the runtime size required.  Note that this will also
+    /// remove anything that's currently in the buffer, and reset the insertion point.
+    ///
+    /// \param  max_len Maximum length of the buffer to set
+
+    void ResetLength(uint32_t max_len)
+    {
+        delete m_sentence;
+        m_sentence = new char[max_len];
+        m_bufferLength = max_len;
+        Reset();
     }
     
     /// \brief Provide a pointer to the current sentence in the buffer
@@ -90,7 +116,7 @@ public:
     /// \brief Provide a legnth-count for the current contents of the buffer
     int Length(void) const { return m_insertPoint; }
     /// \brief Provide a count for the maximum possible sentence length
-    int MaxLength(void) const { return MAX_SENTENCE_LENGTH; }
+    int MaxLength(void) const { return m_bufferLength; }
     
 protected:
     /// \brief Getter for the current insertion point in the buffer
@@ -99,8 +125,9 @@ protected:
     char BufferChar(uint32_t pt) const { return m_sentence[pt]; }
     
 private:
-    char    m_sentence[MAX_SENTENCE_LENGTH];    ///< Sentence assembly space
-    int     m_insertPoint;  ///< Location for next character to be placed in the buffer
+    uint32_t    m_bufferLength; ///< Length of the buffer to assemble sentences
+    char        *m_sentence;    ///< Sentence assembly space
+    uint32_t    m_insertPoint;  ///< Location for next character to be placed in the buffer
 };
 
 }

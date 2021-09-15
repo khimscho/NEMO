@@ -53,10 +53,12 @@ SerialCommand::SerialCommand(nmea::N2000::Logger *CANLogger, nmea::N0183::Logger
 {
     logger::HeapMonitor heap;
     bool boot_ble;
-    
+
     logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_BOOT_BLE_B, boot_ble);
 
     Serial.printf("DBG: Before SerialCommand setup, heap free = %d B\n", heap.CurrentSize());
+
+    m_serialBuffer.ResetLength(1024);
 
     if (boot_ble) {
         m_ble = BluetoothFactory::Create();
@@ -761,8 +763,12 @@ void SerialCommand::ConfigureAlgRequest(String const& params, CommandSource src)
 {
     logger::AlgoRequestStore algstore;
     String alg_name, alg_params;
+    if (params.startsWith("none")) {
+        algstore.ResetList();
+        return;
+    }
     int split = params.indexOf(' ');
-    alg_name = params.substring(0, split-1);
+    alg_name = params.substring(0, split);
     alg_params = params.substring(split+1);
     algstore.AddAlgorithm(alg_name, alg_params);
     EmitMessage("INF: added algorithm \"" + alg_name + "\" with parameters \"" + alg_params + "\"\n", src);
@@ -838,7 +844,7 @@ void SerialCommand::ReportNMEAFilter(CommandSource src)
 void SerialCommand::AddNMEAFilter(String const& params, CommandSource src)
 {
     logger::N0183IDStore filter;
-    if (params == "any") {
+    if (params == "all") {
         filter.ResetFilter();
     } else {
         filter.AddID(params);
@@ -853,7 +859,7 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage(String("Command Syntax (V") + CommandMajorVersion + "." + CommandMinorVersion + "." + CommandPatchVersion + "):\n", src);
     EmitMessage("  accept [NMEA0183-ID | all]          Configure which NMEA0183 messages to accept.\n", src);
     EmitMessage("  advertise [bt-name]                 Set BLE advertising name.\n", src);
-    EmitMessage("  algorithm [name params]             Add (or report) an algorithm request to the cloud processing.\n", src);
+    EmitMessage("  algorithm [name params | none]      Add (or report) an algorithm request to the cloud processing.\n", src);
     EmitMessage("  configure [on|off logger-name]      Configure individual loggers on/off (or report config).\n", src);
     EmitMessage("  echo on|off                         Control character echo on serial line.\n", src);
     EmitMessage("  erase file-number|all               Remove a specific [file-number] or all log files.\n", src);

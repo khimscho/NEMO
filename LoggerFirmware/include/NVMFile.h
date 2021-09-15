@@ -129,7 +129,9 @@ public:
     AlgoRequestStore(void);
 
     /// \brief Add an algorithm to the list, optionally resetting the list
-    void AddAlgorithm(String const& alg_name, String const& alg_params, bool restart = false);
+    void AddAlgorithm(String const& alg_name, String const& alg_params);
+    /// \brief Reset the list of known algorithms
+    void ResetList(void);
     /// \brief Generate a list of all requested algorithms to the output managed by \a Stream
     void ListAlgorithms(Stream& s);
     /// \brief Write the list of all requested algorithms to the log file associated with \a Serialiser
