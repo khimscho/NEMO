@@ -1,5 +1,5 @@
 find_library(N2K_LIB NAMES nmea2000)
-find_path(N2K_INCLUDE "N2kMessages.h" DOC "The path to the N2K decoder library" HINTS ENV HOME)
+find_path(N2K_INCLUDE "N2kMessages.h" DOC "The path to the N2K decoder library" HINTS /usr/local/include/nmea2000)
 if(N2K_INCLUDE)
 	include_directories(${N2K_INCLUDE})
 	status("N2K include: " ${N2K_INCLUDE})

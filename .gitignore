@@ -37,6 +37,7 @@ build/
 *.o
 *.LinkFileList
 *.hmap
+Builds
 
 # Automatic backup files
 *~.nib/

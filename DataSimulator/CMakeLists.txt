@@ -1,9 +1,9 @@
 # \file CMakeLists.txt
-# \brief Make the executable for VBI log data conversion
+# \brief Make the executable for a simple software data simulator that generates WIBL binary files.
 #
-# This generates a single executable that allows conversion of a variety of input data
-# formats from volunteer bathymetric information loggers into a standard format that can
-# then be decoded or further processed.
+# This generates a single executable that allows simulated data to be generated in software on the host
+# machine, rather than relying on the embedded processor running the hardware simulator code.  As such, it
+# generates bogus data, and it's not hardware accurate, but this may be all that's required for testing.
 #
 # Copyright (c) 2021, University of New Hampshire, Center for Coastal and Ocean Mapping and
 # NOAA/UNH Joint Hydrographic Center.  All Rights Reserved.
@@ -23,22 +23,33 @@
 # DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-set(DECODER_SRC
+cmake_minimum_required(VERSION 3.19 FATAL_ERROR)
+
+project(SimulateData)
+set(SIM_VERSION_MAJOR 1)
+set(SIM_VERSION_MINOR 0)
+set(SIM_VERSION_PATCH 0)
+
+if(APPLE)
+    # Note warnings being turned off here for CLang and Boost interactions that spawn hundreds of warnings from Boost headers
+    add_definitions("-Wno-unused-local-typedefs")
+    add_definitions("-Wno-error=unused-local-typedefs")
+	# Enforce C++11 for the compiler
+    add_definitions("-std=c++11")
+endif()
+
+set (SIM_SRC
+	Simulator.cpp
+	Writer.cpp
 	serialisation.cpp
-	SerialisableFactory.cpp
-	PacketSource.cpp
-	YDVRSource.cpp
-    TeamSurvSource.cpp
-	logconvert.cpp)
-		
-set(DECODER_HDR
-	serialisation.h
-	SerialisableFactory.h
-	PacketSource.h
-	YDVRSource.h
-    TeamSurvSource.h)
+	simulate_data.cpp)
 
-add_executable(logconvert ${DECODER_SRC} ${DECODER_HDR})
-target_link_libraries(logconvert ${LIBS})
+set (SIM_HDR
+	Simulator.h
+	Writer.h
+	serialisation.h)
 
-install(TARGETS logconvert RUNTIME DESTINATION ${CMAKE_BINARY_DIR}/bin)
+add_executable(simulate_data ${SIM_SRC} ${SIM_HDR})
+target_link_libraries(simulate_data ${LIBS})
+
+install(TARGETS simulate_data RUNTIME DESTINATION ${CMAKE_BINARY_DIR}/bin)

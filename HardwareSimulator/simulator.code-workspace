@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "../LoggerFirmware"
+		},
+		{
+			"name": "HardwareSimulator",
+			"path": "."
+		}
+	],
+	"settings": {}
+}
