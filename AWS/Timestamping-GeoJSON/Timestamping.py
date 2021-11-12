@@ -59,6 +59,7 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
     systime_packets = 0  # Count of NMEA2000 SystemTime packets
     depth_packets = 0  # Count of NMEA2000 Depth packets
     gnss_packets = 0  # Count of NMEA2000 GNSS packets
+    motion_packets = 0 # Count of motion sensor packets
     ascii_packets = 0  # Count of all NMEA0183 packets (which all show up as the same type to start with)
     gga_packets = 0  # Count of NMEA0183 GGA packets.
     rmc_packets = 0 # Count of NMEA0183 RMC packets (if GGA is not available)
@@ -94,6 +95,8 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
                     if verbose:
                         print("Error parsing NMEA0183 payload \"" + str(pkt.payload) + "\"\n")
                     pass
+            if isinstance(pkt, LoggerFile.Motion):
+                motion_packets += 1
             packet_count += 1
 
     if verbose:
@@ -101,6 +104,7 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
         print("Found " + str(systime_packets) + " NMEA2000 SystemTime packets")
         print("Found " + str(depth_packets) + " NMEA2000 Depth packets")
         print("Found " + str(gnss_packets) + " NMEA2000 Position packets")
+        print("Found " + str(motion_packets) + " Local IMU packets")
         print("Found " + str(ascii_packets) + " NMEA0183 packets")
         print("Found " + str(gga_packets) + " NMEA0183 GGA packets")
         print("found " + str(rmc_packets) + " NMEA0183 RMC packets")

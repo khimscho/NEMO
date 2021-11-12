@@ -161,7 +161,7 @@ class Window(QtWidgets.QMainWindow):
         elif cmd.startswith("translate"):
             try:
                 file_number = cmd.split(' ')[1]
-                file_name = "nmea2000." + file_number
+                file_name = "wibl-raw." + str(file_number) + ".wibl"
                 self.translateFile(file_name)
             except:
                 buffer = "Failed\nSyntax: translate <file number>\n"
@@ -169,7 +169,7 @@ class Window(QtWidgets.QMainWindow):
         elif cmd.startswith("upload"):
             try:
                 file_number = cmd.split(' ')[1]
-                file_name = "nmea2000." + file_number
+                file_name = "wibl-raw." + str(file_number) + ".wibl"
                 self.uploadFile(file_name)
             except:
                 buffer = "Failed\nSyntax: upload <file number>\n"
@@ -183,7 +183,7 @@ class Window(QtWidgets.QMainWindow):
                     if cmd.startswith("transfer"):
                         set_transfer_mode(True)
                         file_number = cmd.split(' ')[1]
-                        file_name = 'nmea2000.' + file_number
+                        file_name = "wibl-raw." + str(file_number) + ".wibl"
                         set_transfer_filename(file_name)
                     else:
                         set_transfer_mode(False)
