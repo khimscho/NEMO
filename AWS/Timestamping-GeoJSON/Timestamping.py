@@ -109,13 +109,15 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
 
     # We need to decide on the source of master time provision.  In general, we prefer to use NMEA2000
     # SystemTime if it's available, but otherwise use either GNSS information for NMEA2000, or ZDA
-    # information for NMEA0183, preferring GNSS if both are available.  The ordering reflects the idea
-    # that NMEA2000 should have lower (or at least better controlled) latency than NMEA0183 due to not
+    # information for NMEA0183, preferring GNSS if both are available.  In extremis, we'll even try to
+    # do something useful with the GGA serial strings (but on your own head be it!).  The ordering reflects
+    # the idea that NMEA2000 should have lower (or at least better controlled) latency than NMEA0183 due to not
     # being on a 4800-baud serial line.
 
     use_systime = False
     use_zda = False
     use_gnss = False
+    use_rmc = False
     if systime_packets > 0:
         use_systime = True
     else:
@@ -125,7 +127,10 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
             if zda_packets > 0:
                 use_zda = True
             else:
-                raise NoTimeSource()
+                if rmc_packets > 0:
+                    use_rmc = True
+                else:
+                    raise NoTimeSource()
 
     # Second pass through the file, converting into the lists needed for interpolation, using the time source
     # determined above.
@@ -215,8 +220,8 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
                     if len(data) > 11:
                         try:
                             msg = nmea.parse(data)
-                            if isinstance(msg, nmea.ZDA):
-                                if use_zda:
+                            if isinstance(msg, nmea.ZDA) or isinstance(msg, nmea.RMC):
+                                if use_zda or use_rmc:
                                     if no_elapsed_time:
                                         pkt_real_time = dt.datetime.combine(msg.datestamp, msg.timestamp)
                                         if real_time_elapsed_zero is None:
@@ -259,7 +264,7 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
                                             position_table_t.append(mean_elapsed_time)
                                             position_table_lat.append(latitude)
                                             position_table_lon.append(longitude)
-                            if isinstance(msg, nmea.GGA) or isinstance(msg, nmea.RMC):
+                            if isinstance(msg, nmea.GGA):
                                 if no_elapsed_time:
                                     # Since we don't have an elapsed time, we need to hold on to this message
                                     # until we get the next time event and can approximate the elapsed timestamp
@@ -327,7 +332,10 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
                         except AttributeError as e:
                             print('Attribute error: {}'.format(e))
                             continue
-                        except ChecksumError as e:
+                        except TypeError as e:
+                            print('Type error: {}'.format(e))
+                            continue
+                        except nmea.ChecksumError as e:
                             print('Checksum error: {}'.format(e))
                             continue
                     else:
