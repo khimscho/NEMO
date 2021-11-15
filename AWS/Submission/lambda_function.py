@@ -34,14 +34,15 @@ from urllib.parse import unquote_plus
 
 s3 = boto3.resource('s3')
 
-def transmit_geojson(source_object, local_file):
+def transmit_geojson(source_object: str, provider_id: str, provider_auth: str, local_file: str):
     print('Source object is: ' + source_object)
     
     headers = {
-        'x-auth-token': 'eyJpc3MiOiJOQ0VJIiwic3ViIjoiVEVTVEVSIiwiYXVkIjoiaW5nZXN0LWV4dGVybmFsIiwicm9sZXMiOiJST0xFX1RFU1RfQ09OVFJJQlVUT1IifQ==.1DUCdyoKbscbRb+3D/zDyFDNdtAlIyhRL0PRKmMEeCg='
+        'x-auth-token': provider_auth
     }
-    dest_object = 'UNHJHC-' + source_object.replace(".json", "")
+    dest_object = provider_id + '-' + source_object.replace(".json", "")
     print('Destination object uniqueID is: ' + dest_object)
+    print('Authorisation token is: ' + provider_auth)
     files = {
         'file': (local_file, open(local_file, 'rb')),
         'metadataInput': (None, '{\n    "uniqueID": "' + dest_object + '"\n}')
@@ -49,13 +50,29 @@ def transmit_geojson(source_object, local_file):
     
     response = requests.post('https://www.ngdc.noaa.gov/ingest-external/upload/csb/test/geojson/' + dest_object, headers=headers, files=files)
     
-    return response.json()['success']
+    print(response)
+    
+    try:
+        rc = response.json()['success']
+        if not rc:
+            rc = None
+    except json.decoder.JSONDecodeError:
+        rc = None
+
+    return rc
 
 def lambda_handler(event, context):
     rtn = {
         'statusCode': 200,
         'body': 'Transmission complete.'
     }
+    
+    # We need to find the provider's authorisation ID and identifier so that we can
+    # annotate the call to the DCDB upload point.  These are stored in a JSON file in
+    # the same directory as the Lambda source, with a well-known name
+    with open('credentials.json') as f:
+        creds = json.load(f)
+    
     for record in event['Records']:
         source_bucket = record['s3']['bucket']['name']
         source_object =  unquote_plus(record['s3']['object']['key'])
@@ -63,9 +80,9 @@ def lambda_handler(event, context):
         
         s3.Bucket(source_bucket).download_file(source_object, local_file)
         
-        rc = transmit_geojson(str(source_object), local_file)
-        
-        if not rc:
+        rc = transmit_geojson(str(source_object), creds['provider_id'], creds['provider_auth'], local_file)
+        if rc is None:
+            # This indicates that something went wrong in determining the return code, so we indicate
             rtn = {
                 'statusCode': 400,
                 'body': 'Transmission failed: ' + source_object
