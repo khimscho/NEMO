@@ -32,6 +32,7 @@
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
 import json
+from datetime import datetime
 
 def translate(data):
     # Original comment was:
@@ -40,19 +41,21 @@ def translate(data):
 
     feature_lst = []
     
-    for i in range(len(data['z'])):
+    for i in range(len(data['depth']['z'])):
+        timestamp = datetime.fromtimestamp(data['depth']['t'][i]).isoformat()
+        
         feature_dict = {
         "type": "Feature",
         "geometry": {
             "type": "Point",
             "coordinates": [
-            data['lon'][i],
-            data['lat'][i]
+            data['depth']['lon'][i],
+            data['depth']['lat'][i]
             ]
         },
         "properties": {
-            "depth": data['z'][i],
-            "time": data['t'][i]
+            "depth": data['depth']['z'][i],
+            "time": timestamp
         }
         }
 
