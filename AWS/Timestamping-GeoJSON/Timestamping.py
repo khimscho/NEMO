@@ -46,6 +46,23 @@ class NoTimeSource(Exception):
 class NoData(Exception):
     pass
 
+class NewerDataFile(Exception):
+    pass
+
+# We need to make sure that we aren't asked to process a version of the data format newer than we know
+# (although we should accept anything older).  These define the latest version of the protocol that's
+# understood by the code.
+protocol_version_major = 1
+protocol_version_minor = 1
+
+def protocol_version(major: int, minor: int) -> int:
+    """Convert the version information for the serialiser protocol to an integer so that we can do simple
+       comparisons against what we find in the file being processed.
+    """
+    return major * 1000 + minor
+    
+maximum_version = protocol_version(protocol_version_major, protocol_version_minor)
+
 def time_interpolation(filename, elapsed_time_quantum, verbose):
     # Assume that we're dealing with a file, rather than a stream, which is provided as the first
     # argument on the command line; it's a requirement that this is also rewind-able, so that we
@@ -184,6 +201,8 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
             last_elapsed = pkt.elapsed
             
             if isinstance(pkt, LoggerFile.SerialiserVersion):
+                if protocol_version(pkt.major, pkt.minor) > maximum_version:
+                    raise NewerDataFile()
                 logger_version = str(pkt.major) + "." + str(pkt.minor) + "/" + pkt.nmea2000_version + "/" + pkt.nmea0183_version
             if isinstance(pkt, LoggerFile.Metadata):
                 logger_name = pkt.logger_name

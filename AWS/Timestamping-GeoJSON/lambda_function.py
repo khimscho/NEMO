@@ -89,7 +89,7 @@ def read_local_event(event_file: str) -> Dict:
         event = json.load(f)
     return event
 
-def process_item(item: ds.DataItem, controller: ds.CloudController, config: Dict[str,Any]) -> None:
+def process_item(item: ds.DataItem, controller: ds.CloudController, config: Dict[str,Any]) -> bool:
     """Implement the business logic to translate the file from WIBL binary into a GeoJSON file.  The
        file with metadata in 'item' is pulled from object store using 'controller.obtain()', run through
        the translation and time-stamping from the Timestamping module, and then converted to GeoJSON
@@ -99,10 +99,21 @@ def process_item(item: ds.DataItem, controller: ds.CloudController, config: Dict
        might potentially stay in the input object store unless otherwise deleted.
     """
     local_file = controller.obtain(item)
-    source_data = ts.time_interpolation(local_file, config['elapsed_time_quantum'], config['verbose'])
+    try:
+        source_data = ts.time_interpolation(local_file, config['elapsed_time_quantum'], config['verbose'])
+    except ts.NoTimeSource:
+        print('Failed to convert data: no time source known.')
+        return False
+    except ts.NewerDataFile:
+        print('Failed to convert data: file data format is newer than latest version known to code.')
+        return False
+    except ts.NoData:
+        print('Failed to convert data: no bathymetric data in file.')
+        return False
     submit_data = gj.translate(source_data)
     encoded_data = json.dumps(submit_data).encode('utf-8')
     controller.transmit(item, encoded_data)
+    return True
     
     
 def lambda_handler(event, context):
@@ -124,7 +135,8 @@ def lambda_handler(event, context):
     
     p = source.nextSource()
     while p is not None:
-        process_item(p, controller, config)
+        if not process_item(p, controller, config):
+            print(f'Abandoning processing of {p.sourcekey} due to errors.')
         p = source.nextSource()
 
     return {
