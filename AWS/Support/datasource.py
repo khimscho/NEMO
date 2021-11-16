@@ -47,6 +47,7 @@ from dataclasses import dataclass
 from abc import ABC
 from urllib.parse import unquote_plus
 from shutil import copyfile
+import json
 
 @dataclass
 class DataItem:
@@ -110,5 +111,7 @@ class AWSController(CloudController):
     def transmit(self, meta: DataItem, data: str) -> None:
         if self.local_mode:
             print(f'Transmitting to {meta.dest}, output object key {meta.destkey} with data {data}')
+            with open(meta.destkey, 'w') as f:
+                json.dump(json.loads(data.decode('utf-8')), f, indent=4)
         else:
             s3.Bucket(self.destination).put_object(Key=meta.destkey, Body=data)

@@ -31,41 +31,64 @@ import json
 import requests
 import boto3
 from urllib.parse import unquote_plus
+from typing import Dict, Any
+
+# Local modules
+import config as conf
+import datasource as ds
 
 s3 = boto3.resource('s3')
 
-def transmit_geojson(source_object: str, provider_id: str, provider_auth: str, local_file: str):
-    print('Source object is: ' + source_object)
+def read_local_event(event_file: str) -> Dict:
+    """For local testing, you need to simulate an AWS Lambda event stucture to give the code something
+       to do.  You can download the JSON for a typical event from the AWS Lambda console and store it
+       locally.  This helper function can be called interactively to load this information.
+    """
+    with open(event_file) as f:
+        event = json.load(f)
+    return event
+
+def transmit_geojson(source_object: str, provider_id: str, provider_auth: str, local_file: str, config: Dict[str,Any]) -> bool:
+    if config['verbose']:
+        print('Source object is: ' + source_object)
     
     headers = {
         'x-auth-token': provider_auth
     }
     dest_object = provider_id + '-' + source_object.replace(".json", "")
-    print('Destination object uniqueID is: ' + dest_object)
-    print('Authorisation token is: ' + provider_auth)
+    if config['verbose']:
+        print('Destination object uniqueID is: ' + dest_object)
+        print('Authorisation token is: ' + provider_auth)
+
     files = {
         'file': (local_file, open(local_file, 'rb')),
         'metadataInput': (None, '{\n    "uniqueID": "' + dest_object + '"\n}')
     }
     
-    response = requests.post('https://www.ngdc.noaa.gov/ingest-external/upload/csb/test/geojson/' + dest_object, headers=headers, files=files)
-    
-    print(response)
-    
-    try:
-        rc = response.json()['success']
-        if not rc:
+    if config['local']:
+        upload_point = config['upload_point']
+        print(f'Transmitting to {upload_point} for source object {source_object} to destination {dest_object}.')
+        rc = True
+    else:
+        response = requests.post(config['upload_point'] + dest_object, headers=headers, files=files)
+        print(response)
+        try:
+            rc = response.json()['success']
+            if not rc:
+                rc = None
+        except json.decoder.JSONDecodeError:
             rc = None
-    except json.decoder.JSONDecodeError:
-        rc = None
 
     return rc
 
 def lambda_handler(event, context):
-    rtn = {
-        'statusCode': 200,
-        'body': 'Transmission complete.'
-    }
+    try:
+        config = conf.read_config('configure.json')
+    except conf.BadConfiguration:
+        return {
+            'statusCode':   400,
+            'body':         'Bad configuration file.'
+            }
     
     # We need to find the provider's authorisation ID and identifier so that we can
     # annotate the call to the DCDB upload point.  These are stored in a JSON file in
@@ -73,20 +96,37 @@ def lambda_handler(event, context):
     with open('credentials.json') as f:
         creds = json.load(f)
     
-    for record in event['Records']:
-        source_bucket = record['s3']['bucket']['name']
-        source_object =  unquote_plus(record['s3']['object']['key'])
-        local_file = '/tmp/{}'.format(source_object)
-        
-        s3.Bucket(source_bucket).download_file(source_object, local_file)
-        
-        rc = transmit_geojson(str(source_object), creds['provider_id'], creds['provider_auth'], local_file)
-        if rc is None:
-            # This indicates that something went wrong in determining the return code, so we indicate
-            rtn = {
-                'statusCode': 400,
-                'body': 'Transmission failed: ' + source_object
-            }
-            print('Transmission failed for ' + source_object)
+    # Construct a data source to handle the input items, and a controller to manage the transmission of
+    # data from buckets to local files.  We instanatiate the DataSource and CloudController sub-classes
+    # explicitly, since this code is also specific to AWS.
+    source = ds.AWSSource(event, config)
+    controller = ds.AWSController(config)
     
+    # Loop through all of the source files in the incoming bucket, attempting to upload each in turn, and
+    # keeping track of those that succeed and fail.
+    item = source.nextSource()
+    succeeded = []
+    failed = []
+    while item is not None:
+        local_file = controller.obtain(item)
+        rc = transmit_geojson(item.sourcekey, creds['provider_id'], creds['provider_auth'], local_file, config)
+        if rc is None:
+            failed.append(item)
+        else:
+            succeeded.append(item)
+        item = source.nextSource()
+    
+    # Status report for the user
+    if failed:
+        status_code = 400
+    else:
+        status_code = 200
+    n_succeed = len(succeeded)
+    n_fail = len(failed)
+    n_total = n_succeed + n_fail
+    rtn = {
+        'statusCode':   status_code,
+        'body':         f'Success on {n_succeed}, failed on {n_fail}; total {n_total}.'
+    }
+
     return rtn
