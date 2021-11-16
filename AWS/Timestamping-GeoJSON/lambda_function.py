@@ -38,47 +38,13 @@ from urllib.parse import unquote_plus
 import uuid
 from typing import Dict, Any
 
+# Local modules
+import config as conf
 import datasource as ds
 import Timestamping as ts
 import GeoJSONConvert as gj
 
-class BadConfiguration(Exception):
-    pass
-
 s3 = boto3.resource('s3')
-
-def read_config(config_file: str) -> Dict[str, Any]:
-    """There are a number of configuration parameters for the algorithm, such as the provider ID name
-       to write into the metadata, and use for filenames; where to stage the intermediate GeoJSON files
-       before they're uploaded to the database; and where to send the files.  There are also parameters
-       to control the local algorithm, including:
-    
-            elapsed_time_width:     Width (bits) of the elapsed time data in the WIBL file (usu. 32)
-            verbose:                Boolean (text) for verbose reporting of processing (usu. False)
-            local:                  Boolean (text) for local testing (usu. False for cloud deployment)
-       
-       This code reads the JSON file with these parameters, and does appropriate translations to them so
-       that the rest of the code can just read from the resulting dictionary.
-    """
-    with open(config_file) as f:
-        config = json.load(f)
-        
-    # We need to tell the timestamping code what the roll-over size is for the elapsed times
-    # stored in the WIBL file.  This allows it to determine when to add a day to the count
-    # so that we don't wrap the interpolation.
-    config['elapsed_time_quantum'] = 1 << int(config['elapsed_time_width'])
-    
-    # Normally, the script attempts to be relatively quiet, but under some circumstances, it might
-    # be appropriate to provide a little more debugging.  The 'verbose' tag in the configuration
-    # allows for this.
-    if config['verbose'] == 'True':
-        config['verbose'] = True
-    elif config['verbose'] == 'False':
-        config['verbose'] = False
-    else:
-        raise BadConfiguration()
-    
-    return config
     
 def read_local_event(event_file: str) -> Dict:
     """For local testing, you need to simulate an AWS Lambda event stucture to give the code something
@@ -121,8 +87,8 @@ def lambda_handler(event, context):
         # The configuration file for the algorithm should be in the same directory as the lambda function file,
         # and has a "well known" name.  We could attempt to something smarter here, but this is probably enough
         # for now.
-        config = read_config('configure.json')
-    except BadConfiguration:
+        config = conf.read_config('configure.json')
+    except conf.BadConfiguration:
         return {
             'statusCode': 400,
             'body': 'Bad configuration'
