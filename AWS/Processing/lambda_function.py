@@ -43,6 +43,7 @@ import config as conf
 import datasource as ds
 import Timestamping as ts
 import GeoJSONConvert as gj
+from algorithms.deduplicate import deduplicate as dedup
 
 s3 = boto3.resource('s3')
     
@@ -76,6 +77,18 @@ def process_item(item: ds.DataItem, controller: ds.CloudController, config: Dict
     except ts.NoData:
         print('Failed to convert data: no bathymetric data in file.')
         return False
+    
+    # We now have the option to run any sub-algorithms on the data before converting to GeoJSON
+    # and encoding for output to the staging area for upload.
+    for alg in source_data['algorithms']:
+        algname = alg['name']
+        if algname == 'deduplicate':
+            if config['verbose']:
+                print(f'Applying algorithm {algname}')
+            source_data = dedup.deduplicate_depth(source_data, alg['params'], config)
+        else:
+            print(f'Warning: unknown algorithm {algname}')
+    
     submit_data = gj.translate(source_data)
     encoded_data = json.dumps(submit_data).encode('utf-8')
     controller.transmit(item, encoded_data)

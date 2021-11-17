@@ -48,6 +48,9 @@ from abc import ABC
 from urllib.parse import unquote_plus
 from shutil import copyfile
 import json
+import boto3
+
+s3 = boto3.resource('s3')
 
 @dataclass
 class DataItem:

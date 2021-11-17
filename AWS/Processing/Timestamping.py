@@ -404,25 +404,25 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
             't': z_times,
             'lat': z_lat,
             'lon': z_lon,
-            'z': depth_table_z
+            'z': np.array(depth_table_z)
         },
         'heading' : {
             't': hdg_times,
             'lat': hdg_lat,
             'lon': hdg_lon,
-            'heading': hdg_table_h
+            'heading': np.array(hdg_table_h)
         },
         'watertemp' : {
             't': wt_times,
             'lat': wt_lat,
             'lon': wt_lon,
-            'temperature': wattemp_table_temp
+            'temperature': np.array(wattemp_table_temp)
         },
         'wind' : {
             't': wind_times,
             'lat': wind_lat,
             'lon': wind_lon,
-            'direction': wind_table_dir,
-            'speed': wind_table_spd
+            'direction': np.array(wind_table_dir),
+            'speed': np.array(wind_table_spd)
         }
     }
