@@ -28,6 +28,31 @@
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
 import struct
+from abc import ABC, abstractmethod
+import io
+from enum import Enum
+from typing import SupportsAbs
+
+class SpecificationError(Exception):
+    pass
+
+class PacketTypes(Enum):
+    SerialiserVersion = 0
+    SystemTime = 1
+    Attitude = 2
+    Depth = 3
+    COG = 4
+    GNSS = 5
+    Environment = 6
+    Temperature = 7
+    Humidity = 8
+    Pressure = 9
+    SerialString = 10
+    Motion = 11
+    Metadata = 12
+    AlgorithmRequest = 13
+    JSONMetadata = 14
+
 
 ## Convert from Kelvin to degrees Celsius
 #
@@ -63,7 +88,7 @@ def angle_to_degs(rads):
 #
 # This provides a common base class for all of the data packets, and stores the information on the date and time at
 # which the packet was received.
-class DataPacket:
+class DataPacket(ABC):
     ## Initialise the base packet with date and timestamp for the packet reception time
     #
     # This simply stores the date and time for the packet reception
@@ -78,6 +103,34 @@ class DataPacket:
         self.timestamp = timestamp
         ## Time in milliseconds since boot (reference time)
         self.elapsed = elapsed
+
+    ## Abstract method for constructing the payload of the packet for serialisation
+    #
+    # This builds a buffer of the data required for the data packet so that the code can then serialise
+    # it in new files.
+    @abstractmethod
+    def payload(self) -> bytes:
+        pass
+
+    ## Abstact method for a class to report its ID number
+    #
+    # Each packet written into the file has to have an ID number; the sub-class should know what this is.
+    #
+    @abstractmethod
+    def id(self) -> int:
+        pass
+
+    ## Serialise the data in the current packet into the given file
+    #
+    # This wraps up the requirements to write a packet into a streamable binary output file.
+    #
+    # \param f  Binary output file
+    def serialise(self, f: io.BufferedWriter) -> None:
+        buffer = self.payload()
+        id = self.id()
+        f.write(id.to_bytes(4, 'little'))
+        f.write(len(buffer).to_bytes(4, 'little'))
+        f.write(buffer)
 
     ## Implement the printable interface for this class, allowing it to be streamed
     #
@@ -100,12 +153,32 @@ class SystemTime(DataPacket):
     # then the logger elapsed time and data source (u16, double, u32, u8), total 15B.
     #
     # \param self   Pointer to the object
-    # \param buffer Binary data from file to interpret
-    def __init__(self, buffer):
-        (date, timestamp, elapsed_time, data_source) = struct.unpack("<HdIB", buffer)
+    # \param kwargs Named keywords to initialise parameters, of "buffer" to unpack from binary data
+    def __init__(self, **kwargs):
+        if 'buffer' in kwargs:
+            self.buffer_constructor(kwargs['buffer'])
+        else:
+            self.data_constructor(**kwargs)
+
+    def buffer_constructor(self, buffer: bytes) -> None:
+        (date, timestamp, elapsed_time, data_source) = struct.unpack('<HdIB', buffer)
         ## Source of the timestamp (see documentation for decoding, but at least GNSS)
         self.data_source = data_source
         DataPacket.__init__(self, date, timestamp, elapsed_time)
+
+    def data_constructor(self, **kwargs) -> None:
+        try:
+            self.data_source = kwargs['data_source']
+            super().__init__(kwargs['date'], kwargs['timestamp'], kwargs['elapsed_time'])
+        except KeyError as e:
+            raise SpecificationError('Bad packet parameters') from e
+    
+    def payload(self) -> bytes:
+        buffer = struct.pack('<HdIB', self.date, self.timestamp, self.elapsed, self.data_source)
+        return buffer
+    
+    def id(self) -> int:
+        return PacketTypes.SystemTime.value
 
     ## Provide the fixed-text string name for this data packet
     #
@@ -114,7 +187,7 @@ class SystemTime(DataPacket):
     # \param self   Pointer to the object
     # \return String with the human-readable name of the packet
     def name(self):
-        return "SystemTime"
+        return 'SystemTime'
 
     ## Implement the printable interface for this class, allowing it to be streamed
     #
@@ -123,7 +196,7 @@ class SystemTime(DataPacket):
     # \param self   Pointer to the object
     # \return String representation of the object
     def __str__(self):
-        rtn = DataPacket.__str__(self) + " " + self.name() + ":  source = " + str(self.data_source)
+        rtn = super().__str__() + ' ' + self.name() + ':  source = ' + str(self.data_source)
         return rtn
 
 ## Implementation of the Attitude NMEA2000 packet
@@ -137,8 +210,14 @@ class Attitude(DataPacket):
     # raw attitude data (u16, double, double, double, double), total 34B.  Attitude values are in radians.
     #
     # \param self   Pointer to the object
-    # \param buffer Binary data from file to interpret.
-    def __init__(self, buffer):
+    # \param kwargs Named keywords to initialise parameters, of "buffer" to unpack from binary data
+    def __init__(self, **kwargs):
+        if 'buffer' in kwargs:
+            self.buffer_constructor(kwargs['buffer'])
+        else:
+            self.data_constructor(**kwargs)
+
+    def buffer_constructor(self, buffer: bytes) -> None:
         (date, timestamp, elapsed_time, yaw, pitch, roll) = struct.unpack("<HdIddd", buffer)
         ## Yaw angle of the ship, radians (+ve clockwise from north)
         self.yaw = yaw
@@ -147,6 +226,22 @@ class Attitude(DataPacket):
         ## Roll angle of the ship, radians (+ve port up)
         self.roll = roll
         DataPacket.__init__(self, date, timestamp, elapsed_time)
+
+    def payload(self) -> bytes:
+        buffer = struct.pack('HdIddd', self.date, self.timestamp, self.elapsed, self.yaw, self.pitch, self.roll)
+        return buffer
+    
+    def data_constructor(self, **kwargs) -> None:
+        try:
+            self.yaw = kwargs['yaw']
+            self.pitch = kwargs['pitch']
+            self.roll = kwargs['roll']
+            super().__init__(kwargs['date'], kwargs['timestamp'], kwargs['elapsed_time'])
+        except KeyError as e:
+            raise SpecificationError('Bad packet parameters') from e
+
+    def id(self) -> int:
+        return PacketTypes.Attitude.value
 
     ## Provide the fixed-text string name for this data packet
     #
@@ -164,7 +259,7 @@ class Attitude(DataPacket):
     # \param self   Pointer to the object
     # \return String representation of the object
     def __str__(self):
-        rtn = DataPacket.__str__(self) + " " + self.name() + ": yaw = " + str(angle_to_degs(self.yaw))\
+        rtn = super().__str__() + " " + self.name() + ": yaw = " + str(angle_to_degs(self.yaw))\
               + " deg, pitch = " + str(angle_to_degs(self.pitch))\
               + " deg, roll = " + str(angle_to_degs(self.roll)) + " deg"
         return rtn
@@ -180,9 +275,15 @@ class Depth(DataPacket):
     # raw depth, offset, and range data (u16, double, double, double, double) for 34B total.  Depths are in metres
     #
     # \param self   Pointer to the object
-    # \param buffer Binary data from file to interpret
-    def __init__(self, buffer):
-        (date, timestamp, elapsed_time, depth, offset, range) = struct.unpack("<HdIddd", buffer)
+    # \param kwargs Named keywords to initialise parameters, of "buffer" to unpack from binary data
+    def __init__(self, **kwargs):
+        if 'buffer' in kwargs:
+            self.buffer_constructor(kwargs['buffer'])
+        else:
+            self.data_constructor(**kwargs)
+
+    def buffer_constructor(self, buffer: bytes) -> None:
+        (date, timestamp, elapsed_time, depth, offset, range) = struct.unpack('<HdIddd', buffer)
         ## Observed depth below transducer, metres
         self.depth = depth
         ## Offset for depth, metres.
@@ -191,7 +292,23 @@ class Depth(DataPacket):
         self.offset = offset
         ## Maximum range of observation, metres
         self.range = range
-        DataPacket.__init__(self, date, timestamp, elapsed_time)
+        super().__init__(date, timestamp, elapsed_time)
+
+    def payload(self) -> bytes:
+        buffer = struct.pack('<HdIddd', self.date, self.timestamp, self.elapsed, self.depth, self.offset, self.range)
+        return buffer
+    
+    def id(self) -> int:
+        return PacketTypes.Depth.value
+    
+    def data_constructor(self, **kwargs) -> None:
+        try:
+            self.depth = kwargs['depth']
+            self.offset = kwargs['offset']
+            self.range = kwargs['range']
+            super().__init__(kwargs['date'], kwargs['timestamp'], kwargs['elapsed_time'])
+        except KeyError as e:
+            raise SpecificationError('Bad packet parameters') from e
 
     ## Provide the fixed-text string name for this data packet
     #
@@ -209,8 +326,8 @@ class Depth(DataPacket):
     # \param self   Pointer to the object
     # \return String representation of the object
     def __str__(self):
-        rtn = DataPacket.__str__(self) + " " + self.name() + ": depth = " + str(self.depth) + "m, offset = "\
-              + str(self.offset) + "m, range = " + str(self.range) + "m"
+        rtn = super().__str__() + ' ' + self.name() + ': depth = ' + str(self.depth) + 'm, offset = '\
+              + str(self.offset) + 'm, range = ' + str(self.range) + 'm'
         return rtn
 
 ## Implement the Course-over-Ground Rapid NMEA2000 message
@@ -224,14 +341,35 @@ class COG(DataPacket):
     # course/speed over ground (u16, double, double, double) for 26B total.  Course is in radians, speed in m/s.
     #
     # \param self   Pointer to the objet
-    # \param buffer Binary data from file to interpret
-    def __init__(self, buffer):
-        (date, timestamp, elapsed_time, courseOverGround, speedOverGround) = struct.unpack("<HdIdd", buffer)
+    # \param kwargs Named keywords to initialise parameters, of "buffer" to unpack from binary data
+    def __init__(self, **kwargs):
+        if 'buffer' in kwargs:
+            self.buffer_constructor(kwargs['buffer'])
+        else:
+            self.data_constructor(**kwargs)
+
+    def buffer_constructor(self, buffer: bytes) -> None:
+        (date, timestamp, elapsed_time, courseOverGround, speedOverGround) = struct.unpack('<HdIdd', buffer)
         ## Course over ground (radians)
         self.courseOverGround = courseOverGround
         ## Speed over ground (m/s)
         self.speedOverGround = speedOverGround
-        DataPacket.__init__(self, date, timestamp, elapsed_time)
+        super().__init__(date, timestamp, elapsed_time)
+    
+    def payload(self) -> bytes:
+        buffer = struct.pack('<HdIdd', self.date, self.timestamp, self.elapsed, self.courseOverGround, self.speedOverGround)
+        return buffer
+
+    def id(self) -> int:
+        return PacketTypes.COG.value
+    
+    def data_constructor(self, **kwargs) -> None:
+        try:
+            self.courseOverGround = kwargs['cog']
+            self.speedOverGround = kwargs['sog']
+            super().__init__(kwargs['date'], kwargs['timestamp'], kwargs['elapsed_time'])
+        except KeyError as e:
+            raise SpecificationError('Bad packet parameters') from e
 
     ## Provide the fixed-text string name for this data packet
     #
@@ -240,7 +378,7 @@ class COG(DataPacket):
     # \param self   Pointer to the object
     # \return String with the human-readable name of the packet
     def name(self):
-        return "Course Over Ground"
+        return 'Course Over Ground'
 
     ## Implement the printable interface for this class, allowing it to be streamed
     #
@@ -249,9 +387,9 @@ class COG(DataPacket):
     # \param self   Pointer to the object
     # \return String representation of the object
     def __str__(self):
-        rtn = DataPacket.__str__(self) + " " + self.name() + ": course over ground = "\
-              + str(angle_to_degs(self.courseOverGround)) + " deg, speed over ground = "\
-              + str(self.speedOverGround) + " m/s"
+        rtn = super().__str__() + ' ' + self.name() + ': course over ground = '\
+              + str(angle_to_degs(self.courseOverGround)) + ' deg, speed over ground = '\
+              + str(self.speedOverGround) + ' m/s'
         return rtn
 
 ## Implement the GNSS observation NMEA2000 message
@@ -270,15 +408,21 @@ class GNSS(DataPacket):
     # mapped enum values for the receiver type (GPS, GLONASS, Galileo, etc.) and so on.  See Wiki for definitions.
     #
     # \param self   Pointer to the object
-    # \param buffer Binary data from file to interpret
-    def __init__(self, buffer):
+    # \param kwargs Named keywords to initialise parameters, of "buffer" to unpack from binary data
+    def __init__(self, **kwargs):
+        if 'buffer' in kwargs:
+            self.buffer_constructor(kwargs['buffer'])
+        else:
+            self.data_constructor(**kwargs)
+        
+    def buffer_constructor(self, buffer: bytes) -> None:
         (sys_date, sys_timestamp, sys_elapsed, date, timestamp, latitude, longitude, altitude,
          receiverType, receiverMethod, numSVs, horizontalDOP, positionDOP, separation, numRefStations, refStationType,
-         refStationID, correctionAge) = struct.unpack("<HdIHddddBBBdddBBHd", buffer)
+         refStationID, correctionAge) = struct.unpack('<HdIHddddBBBdddBBHd', buffer)
         ## In-message date (days since epoch)
-        self.date = date
+        self.msg_date = date
         ## In-message timestamp (seconds since midnight)
-        self.timestamp = timestamp
+        self.msg_timestamp = timestamp
         ## Latitude of position, degrees
         self.latitude = latitude
         ## Longitude of position, degrees
@@ -305,7 +449,38 @@ class GNSS(DataPacket):
         self.refStationID = refStationID
         ## Age of corrections, seconds
         self.correctionAge = correctionAge
-        DataPacket.__init__(self, sys_date, sys_timestamp, sys_elapsed)
+        super().__init__(sys_date, sys_timestamp, sys_elapsed)
+    
+    def payload(self) -> bytes:
+        buffer = struct.pack('<HdIHddddBBBdddBBHd', self.date, self.timestamp, self.elapsed, self.msg_date, self.msg_timestamp,
+                                                    self.latitude, self.longitude, self.altitude, self.receiverType, self.receiverMethod,
+                                                    self.numSVs, self.horizontalDOP, self.positionDOP, self.separation,
+                                                    self.numRefStations, self.refStationType, self.refStationID, self.correctionAge)
+        return buffer
+    
+    def id(self) -> int:
+        return PacketTypes.GNSS.value
+
+    def data_constructor(self, **kwargs) -> None:
+        try:
+            self.msg_date = kwargs['msg_date']
+            self.msg_timestamp = kwargs['msg_timestamp']
+            self.latitude = kwargs['latitude']
+            self.longitude = kwargs['longitude']
+            self.altitude = kwargs['altitude']
+            self.receiverType = kwargs['rx_type']
+            self.receiverMethod = kwargs['rx_method']
+            self.numSVs = kwargs['num_svs']
+            self.horizontalDOP = kwargs['horizontal_dop']
+            self.positionDOP = kwargs['position_dop']
+            self.separation = kwargs['sep']
+            self.numRefStations = kwargs['n_refs']
+            self.refStationType = kwargs['refs_type']
+            self.refStationID = kwargs['refs_id']
+            self.correctionAge = kwargs['correction_age']
+            super().__init__(kwargs['date'], kwargs['timestamp'], kwargs['elapsed_time'])
+        except KeyError as e:
+            raise SpecificationError('Bad packet parameters') from e
 
     ## Provide the fixed-text string name for this data packet
     #
@@ -323,8 +498,8 @@ class GNSS(DataPacket):
     # \param self   Pointer to the object
     # \return String representation of the object
     def __str__(self):
-        rtn = DataPacket.__str__(self) + " " + self.name() + ": in-message date = " + str(self.date) + " days, "\
-              + "in-message time = " + str(self.timestamp) + " s.,  latitude = " + str(self.latitude)\
+        rtn = super().__str__() + " " + self.name() + ": in-message date = " + str(self.msg_date) + " days, "\
+              + "in-message time = " + str(self.msg_timestamp) + " s.,  latitude = " + str(self.latitude)\
               + " deg, longitude = " + str(self.longitude) + " deg, altitude = " + str(self.altitude)\
               + " m, GNSS type = " + str(self.receiverType) + ", GNSS method = " + str(self.receiverMethod)\
               + ", num. SVs = " + str(self.numSVs) + ", horizontal DOP = " + str(self.horizontalDOP)\
@@ -349,10 +524,16 @@ class Environment(DataPacket):
     # data might make it here from the NMEA2000 bus.
     #
     # \param self   Pointer to the object
-    # \param buffer Binary data from file to interpret
-    def __init__(self, buffer):
+    # \param kwargs Named keywords to initialise parameters, of "buffer" to unpack from binary data
+    def __init__(self, **kwargs):
+        if 'buffer' in kwargs:
+            self.buffer_constructor(kwargs['buffer'])
+        else:
+            self.data_constructor(**kwargs)
+        
+    def buffer_constructor(self, buffer: bytes) -> None:
         (date, timestamp, elapsed_time, tempSource, temperature, humiditySource, humidity, pressure) = \
-            struct.unpack("<HdIBdBdd", buffer)
+            struct.unpack('<HdIBdBdd', buffer)
         ## Source of temperature information (e.g., inside, outside)
         self.tempSource = tempSource
         ## Current temperature, Kelvin
@@ -365,7 +546,25 @@ class Environment(DataPacket):
         # The source information for pressure information is not provided, so presumably this is meant to be
         # atmospheric pressure, rather than something more general.
         self.pressure = pressure
-        DataPacket.__init__(self, date, timestamp, elapsed_time)
+        super().__init__(date, timestamp, elapsed_time)
+
+    def payload(self) -> bytes:
+        buffer = struct.pack('<HdIBdBdd', self.date, self.timestamp, self.elapsed, self.tempSource, self.temperature, self.humiditySource, self.humidity, self.pressure)
+        return buffer
+
+    def id(self) -> int:
+        return PacketTypes.Environment.value
+
+    def data_constructor(self, **kwargs) -> None:
+        try:
+            self.tempSource = kwargs['temp_source']
+            self.temperature = kwargs['temp']
+            self.humiditySource = kwargs['humid_source']
+            self.humidity = kwargs['humidity']
+            self.pressure = kwargs['pressure']
+            super().__init__(kwargs['date'], kwargs['timestamp'], kwargs['elapsed_time'])
+        except KeyError as e:
+            raise SpecificationError('Bad packet parameters') from e
 
     ## Provide the fixed-text string name for this data packet
     #
@@ -374,7 +573,7 @@ class Environment(DataPacket):
     # \param self   Pointer to the object
     # \return String with the human-readable name of the packet
     def name(self):
-        return "Environment"
+        return 'Environment'
 
     ## Implement the printable interface for this class, allowing it to be streamed
     #
@@ -383,9 +582,9 @@ class Environment(DataPacket):
     # \param self   Pointer to the object
     # \return String representation of the object
     def __str__(self):
-        rtn = DataPacket.__str__(self) + " " + self.name() + ": temperature = " + str(temp_to_celsius(self.temperature)) + " ºC (source "\
-              + str(self.tempSource) + "), humidity = " + str(self.humidity) + "% (source " + str(self.humiditySource) +\
-              "), pressure = " + str(pressure_to_mbar(self.pressure)) + " mBar"
+        rtn = super().__str__() + ' ' + self.name() + ': temperature = ' + str(temp_to_celsius(self.temperature)) + ' ºC (source '\
+              + str(self.tempSource) + '), humidity = ' + str(self.humidity) + '% (source ' + str(self.humiditySource) +\
+              '), pressure = ' + str(pressure_to_mbar(self.pressure)) + ' mBar'
         return rtn
 
 ## Implement the Temperature NMEA2000 message
@@ -402,14 +601,35 @@ class Temperature(DataPacket):
     # enum (see Wiki for details); temperature is Kelvin, so it's always positive.
     #
     # \param self   Pointer to the object
-    # \param buffer Binary data from file to interpret
-    def __init__(self, buffer):
-        (date, timestamp, elapsed_time, tempSource, temperature) = struct.unpack("<HdIBd", buffer)
+    # \param kwargs Named keywords to initialise parameters, of "buffer" to unpack from binary data
+    def __init__(self, **kwargs):
+        if 'buffer' in kwargs:
+            self.buffer_constructor(kwargs['buffer'])
+        else:
+            self.data_constructor(**kwargs)
+    
+    def buffer_constructor(self, buffer: bytes) -> None:
+        (date, timestamp, elapsed_time, tempSource, temperature) = struct.unpack('<HdIBd', buffer)
         ## Source of temperature information (e.g., water, air, cabin)
         self.tempSource = tempSource
         ## Temperature of source, Kelvin
         self.temperature = temperature
-        DataPacket.__init__(self, date, timestamp, elapsed_time)
+        super().__init__(date, timestamp, elapsed_time)
+
+    def payload(self) -> bytes:
+        buffer = struct.pack('<HdIBd', self.date, self.timestamp, self.elapsed, self.tempSource, self.tempSource)
+        return buffer
+
+    def id(self) -> int:
+        return PacketTypes.Temperature.value
+
+    def data_constructor(self, **kwargs) -> None:
+        try:
+            self.tempSource = kwargs['temp_source']
+            self.temperature = kwargs['temp']
+            super().__init__(kwargs['date'], kwargs['timestamp'], kwargs['elapsed_time'])
+        except KeyError as e:
+            raise SpecificationError('Bad packet parameters') from e
 
     ## Provide the fixed-text string name for this data packet
     #
@@ -418,7 +638,7 @@ class Temperature(DataPacket):
     # \param self   Pointer to the object
     # \return String with the human-readable name of the packet
     def name(self):
-        return "Temperature"
+        return 'Temperature'
 
     ## Implement the printable interface for this class, allowing it to be streamed
     #
@@ -427,8 +647,8 @@ class Temperature(DataPacket):
     # \param self   Pointer to the object
     # \return String representation of the object
     def __str__(self):
-        rtn = DataPacket.__str__(self) + " " + self.name() + ": temperature = " + str(temp_to_celsius(self.temperature))\
-              + " ºC (source " + str(self.tempSource) + ")"
+        rtn = super().__str__() + ' ' + self.name() + ': temperature = ' + str(temp_to_celsius(self.temperature))\
+              + ' ºC (source ' + str(self.tempSource) + ')'
         return rtn
 
 ## Implement the Humidity NMEA2000 message
@@ -445,14 +665,35 @@ class Humidity(DataPacket):
     # Wiki for details); humidity is a relative percentage.
     #
     # \param self   Pointer to the object
-    # \param buffer Binary data from file to interpret
-    def __init__(self, buffer):
-        (date, timestamp, elapsed_time, humiditySource, humidity) = struct.unpack("<HdIBd", buffer)
+    # \param kwargs Named keywords to initialise parameters, of "buffer" to unpack from binary data
+    def __init__(self, **kwargs):
+        if 'buffer' in kwargs:
+            self.buffer_constructor(kwargs['buffer'])
+        else:
+            self.data_constructor(**kwargs)
+    
+    def buffer_constructor(self, buffer: bytes) -> None:
+        (date, timestamp, elapsed_time, humiditySource, humidity) = struct.unpack('<HdIBd', buffer)
         ## Source of humidity (e.g., inside, outside)
         self.humiditySource = humiditySource
         ## Humidity observation, percent
         self.humidity = humidity
-        DataPacket.__init__(self, date, timestamp, elapsed_time)
+        super().__init__(date, timestamp, elapsed_time)
+    
+    def payload(self) -> bytes:
+        buffer = struct.pack('<HdIBd', self.date, self.timestamp, self.elapsed, self.humiditySource, self.humidity)
+        return buffer
+    
+    def id(self) -> int:
+        return PacketTypes.Humidity.value
+
+    def data_constructor(self, **kwargs):
+        try:
+            self.humiditySource = kwargs['humid_source']
+            self.humidity = kwargs['humidity']
+            super().__init__(kwargs['date'], kwargs['timestamp'], kwargs['elapsed_time'])
+        except KeyError as e:
+            raise SpecificationError('Bad packet parameters') from e
 
     ## Provide the fixed-text string name for this data packet
     #
@@ -461,7 +702,7 @@ class Humidity(DataPacket):
     # \param self   Pointer to the object
     # \return String with the human-readable name of the packet
     def name(self):
-        return "Humidity"
+        return 'Humidity'
 
     ## Implement the printable interface for this class, allowing it to be streamed
     #
@@ -470,8 +711,8 @@ class Humidity(DataPacket):
     # \param self   Pointer to the object
     # \return String representation of the object
     def __str__(self):
-        rtn = DataPacket.__str__(self) + " " + self.name() + ": humidity = " + str(self.humidity) + " % (source "\
-              + str(self.humiditySource) + ")"
+        rtn = super().__str__() + ' ' + self.name() + ': humidity = ' + str(self.humidity) + ' % (source '\
+              + str(self.humiditySource) + ')'
         return rtn
 
 ## Implement the Pressure NMEA2000 message
@@ -488,15 +729,36 @@ class Pressure(DataPacket):
     # Wiki for details); pressure is in Pascals.
     #
     # \param self   Pointer to the object
-    # \param buffer Binary data from file to interpret
-    def __init__(self, buffer):
-        (date, timestamp, elapsed_time, pressureSource, pressure) = struct.unpack("<HdIBd", buffer)
+    # \param kwargs Named keywords to initialise parameters, of "buffer" to unpack from binary data
+    def __init__(self, **kwargs):
+        if 'buffer' in kwargs:
+            self.buffer_constructor(kwargs['buffer'])
+        else:
+            self.data_constructor(**kwargs)
+
+    def buffer_constructor(self, buffer: bytes) -> None:
+        (date, timestamp, elapsed_time, pressureSource, pressure) = struct.unpack('<HdIBd', buffer)
         ## Source of pressure measurement (e.g., atmospheric, compressed air)
         self.pressureSource = pressureSource
         ## Pressure, Pascals
         self.pressure = pressure
-        DataPacket.__init__(self, date, timestamp, elapsed_time)
+        super().__init__(date, timestamp, elapsed_time)
+    
+    def payload(self) -> bytes:
+        buffer = struct.pack('<HdIBd', self.date, self.timestamp, self.elapsed, self.pressureSource, self.pressure)
+        return buffer
+    
+    def id(self) -> int:
+        return PacketTypes.Pressure.value
 
+    def data_constructor(self, **kwargs):
+        try:
+            self.pressureSource = kwargs['press_source']
+            self.pressure = kwargs['pressure']
+            super().__init__(kwargs['date'], kwargs['timestamp'], kwargs['elapsed_time'])
+        except KeyError as e:
+            raise SpecificationError('Bad packet parameters') from e
+    
     ## Provide the fixed-text string name for this data packet
     #
     # This simply reports the human-readable name for the class so that reporting is possible
@@ -513,7 +775,7 @@ class Pressure(DataPacket):
     # \param self   Pointer to the object
     # \return String representation of the object
     def __str__(self):
-        rtn = DataPacket.__str__(self) + " " + self.name() + ": pressure = " + str(pressure_to_mbar(self.pressure))\
+        rtn = super().__str__() + " " + self.name() + ": pressure = " + str(pressure_to_mbar(self.pressure))\
               + " mBar (source " + str(self.pressureSource) + ")"
         return rtn
 
@@ -529,14 +791,35 @@ class SerialString(DataPacket):
     # serial string.
     #
     # \param self   Pointer to the object
-    # \param buffer Binary data from file to interpret
-    def __init__(self, buffer):
+    # \param kwargs Named keywords to initialise parameters, of "buffer" to unpack from binary data
+    def __init__(self, **kwargs):
+        if 'buffer' in kwargs:
+            self.buffer_constructor(kwargs['buffer'])
+        else:
+            self.data_constructor(**kwargs)
+
+    def buffer_constructor(self, buffer: bytes) -> None:
         string_length = len(buffer) - 4
-        convert_string = "<I" + str(string_length) + "s"
+        convert_string = '<I' + str(string_length) + 's'
         (elapsed_time, payload) = struct.unpack(convert_string, buffer)
         ## Serial data encapsulated in the packet
-        self.payload = payload
-        DataPacket.__init__(self, 0, 0, elapsed_time)
+        self.data = payload
+        super().__init__(0, 0, elapsed_time)
+
+    def payload(self) -> bytes:
+        data_len = len(self.data)
+        buffer = struct.pack(f'<I{data_len}s', self.elapsed, self.data)
+        return buffer
+
+    def id(self) -> int:
+        return PacketTypes.SerialString.value
+
+    def data_constructor(self, **kwargs) -> None:
+        try:
+            self.data = kwargs['payload']
+            super().__init__(0, 0, kwargs['elapsed_time'])
+        except KeyError as e:
+            raise SpecificationError('Bad packet parameters') from e
 
     ## Provide the fixed-text string name for this data packet
     #
@@ -545,7 +828,7 @@ class SerialString(DataPacket):
     # \param self   Pointer to the object
     # \return String with the human-readable name of the packet
     def name(self):
-        return "SerialString"
+        return 'SerialString'
 
     ## Implement the printable interface for this class, allowing it to be streamed
     #
@@ -554,7 +837,7 @@ class SerialString(DataPacket):
     # \param self   Pointer to the object
     # \return String representation of the object
     def __str__(self):
-        rtn = DataPacket.__str__(self) + " " + self.name() + ": payload = " + str(self.payload)
+        rtn = super().__str__() + ' ' + self.name() + ': payload = ' + str(self.data)
         return rtn
 
 
@@ -569,19 +852,50 @@ class SerialiserVersion(DataPacket):
     # The buffer should contain eight bytes as two unsigned integers for major and minor software versions
     #
     # \param self   Pointer to the object
-    # \param buffer Binary data from file to interpret
-    def __init__(self, buffer):
+    # \param kwargs Named keywords to initialise parameters, of "buffer" to unpack from binary data
+    def __init__(self, **kwargs):
+        if 'buffer' in kwargs:
+            self.buffer_constructor(kwargs['buffer'])
+        else:
+            self.data_constructor(**kwargs)
+
+    def buffer_constructor(self, buffer: bytes) -> None:
         (major, minor, n2000_major, n2000_minor, n2000_patch, n0183_major, n0183_minor, n0183_patch) = \
-            struct.unpack("<HHHHHHHH", buffer)
+            struct.unpack('<HHHHHHHH', buffer)
         ## Major software version for the serialiser code
         self.major = major
         ## Minor software version for the serialiser code
         self.minor = minor
+        ## A tuple of the NMEA2000 software version
+        self.nmea2000 = (n2000_major, n2000_minor, n2000_patch)
+        ## A tuple of the NMEA0183 software version
+        self.nmea0183 = (n0183_major, n0183_minor, n0183_patch)
         ## NMEA2000 software version information
-        self.nmea2000_version = str(n2000_major) + "." + str(n2000_minor) + "." + str(n2000_patch)
+        self.nmea2000_version = str(n2000_major) + '.' + str(n2000_minor) + '.' + str(n2000_patch)
         ## NMEA0183 software version information
-        self.nmea0183_version = str(n0183_major) + "." + str(n0183_minor) + "." + str(n0183_patch)
-        DataPacket.__init__(self, 0, 0.0, 0)
+        self.nmea0183_version = str(n0183_major) + '.' + str(n0183_minor) + '.' + str(n0183_patch)
+
+        super().__init__(0, 0.0, 0)
+
+    def payload(self) -> bytes:
+        buffer = struct.pack('<HHHHHHHH', self.major, self.minor, self.nmea2000[0], self.nmea2000[1], self.nmea2000[2],
+                            self.nmea0183[0], self.nmea0183[1], self.nmea0183[2])
+        return buffer
+    
+    def id(self) -> int:
+        return PacketTypes.SerialiserVersion.value
+    
+    def data_constructor(self, **kwargs) -> None:
+        try:
+            self.major = kwargs['major']
+            self.minor = kwargs['minor']
+            self.nmea2000 = kwargs['n2000']
+            self.nmea0183 = kwargs['n0183']
+            self.nmea2000_version = str(self.n2000[0]) + '.' + str(self.n2000[1]) + '.' + str(self.n2000[2])
+            self.nmea0183_version = str(self.n0183[0]) + '.' + str(self.nmea0183[1]) + '.' + str(self.nmea0183[2])
+            super().__init__(0, 0.0, 0)
+        except KeyError as e:
+            raise SpecificationError('Bad packet parameters') from e
 
     ## Provide the fixed-text string name for this data packet
     #
@@ -590,7 +904,7 @@ class SerialiserVersion(DataPacket):
     # \param self   Pointer to the object
     # \return String with the human-readable name of the packet
     def name(self):
-        return "SerialiserVersion"
+        return 'SerialiserVersion'
 
     ## Implement the printable interface for this class, allowing it to be streamed
     #
@@ -599,8 +913,8 @@ class SerialiserVersion(DataPacket):
     # \param self   Pointer to the object
     # \return String representation of the object
     def __str__(self):
-        rtn = DataPacket.__str__(self) + " " + self.name() + ": version = " + str(self.major) + "." + str(self.minor) +\
-                " with NMEA2000 version " + self.nmea2000_version + " and NMEA0183 version " + self.nmea0183_version
+        rtn = super().__str__() + ' ' + self.name() + ': version = ' + str(self.major) + '.' + str(self.minor) +\
+                ' with NMEA2000 version ' + self.nmea2000_version + ' and NMEA0183 version ' + self.nmea0183_version
         return rtn
 
 ## Implement the motion sensor data packet
@@ -613,20 +927,37 @@ class Motion(DataPacket):
     # The buffer should contain 28 bytes for 3-axis acceleration, 3-axis gyro, and internal sensor temperature.
     #
     # \param self   Pointer to the object
-    # \param buffer Binary data from file to interpret
-    def __init__(self, buffer):
-        (elapsed, ax, ay, az, gx, gy, gz, temp) = struct.unpack("<Ifffffff", buffer)
-        # Accelerations, 3-axis
-        self.ax = ax
-        self.ay = ay
-        self.az = az
-        # Gyroscope rotation rates, 3-axis
-        self.gx = gx
-        self.gy = gy
-        self.gz = gz
+    # \param kwargs Named keywords to initialise parameters, of "buffer" to unpack from binary data
+    def __init__(self, **kwargs):
+        if 'buffer' in kwargs:
+            self.buffer_constructor(kwargs['buffer'])
+        else:
+            self.data_constructor(**kwargs)
+
+    def buffer_constructor(self, buffer: bytes) -> None:
+        (elapsed, ax, ay, az, gx, gy, gz, temp) = struct.unpack('<Ifffffff', buffer)
+        ## The acceleration vector, 3D
+        self.accel = (ax, ay, az)
+        ## The gyroscope rate vector, 3D
+        self.gyro = (gx, gy, gz)
         # Die temperature of the motion sensor
         self.temp = temp
-        DataPacket.__init__(self, 0, 0.0, elapsed)
+        super().__init__(0, 0.0, elapsed)
+
+    def payload(self) -> bytes:
+        buffer = struct.pack('<Ifffffff', self.elapsed, self.accel[0], self.accel[1], self.accel[2], self.gyro[0], self.gyro[1], self.gyro[2], self.temp)
+        return buffer
+    
+    def id(self) -> int:
+        return PacketTypes.Motion.value
+
+    def data_constructor(self, **kwargs) -> None:
+        try:
+            self.accel = kwargs['accel']
+            self.gyro = kwargs['gyro']
+            super().__init__(0, 0.0, kwargs['elapsed_time'])
+        except KeyError as e:
+            raise SpecificationError('Bad packet parameters') from e
 
     ## Provide the fixed-text string name for this data pakcet
     #
@@ -635,7 +966,7 @@ class Motion(DataPacket):
     # \param self   Pointer to the object
     # \return String with the human-readable name of the packet
     def name(self):
-        return "Motion"
+        return 'Motion'
     
     ## Implement the printable interface for this class, allowing it to be streamed
     #
@@ -644,8 +975,7 @@ class Motion(DataPacket):
     # \param self   Pointer to the object
     # \return String representation of the object
     def __str__(self):
-        rtn = DataPacket.__str__(self) + " " + self.name() + ": acc = (" + str(self.ax) + ", " + str(self.ay) + ", " + str(self.az) +\
-            "), gyro = (" + str(self.gx) + ", " + str(self.gy) + ", " + str(self.gz) + "), temp = " + str(self.temp)
+        rtn = super().__str__() + ' ' + self.name() + ': acc = ' + str(self.accel) + ', gyro = ' + str(self.gyro) + ', temp = ' + str(self.temp)
         return rtn
 
 ## Implement the metadata packet
@@ -658,21 +988,46 @@ class Metadata(DataPacket):
     # The buffer should contain two strings (of variable length)
     #
     # \param self   Pointer to the object
-    # \param buffer Binary data from file to interpret
-    def __init__(self, buffer):
+    # \param kwargs Named keywords to initialise parameters, of "buffer" to unpack from binary data
+    def __init__(self, **kwargs):
+        if 'buffer' in kwargs:
+            self.buffer_constructor(kwargs['buffer'])
+        else:
+            self.data_constructor(**kwargs)
+
+    def buffer_constructor(self, buffer: bytes) -> None:
         base = 0
-        name_len, = struct.unpack_from("<I", buffer, base);
+        name_len, = struct.unpack_from('<I', buffer, base)
         base += 4
-        convert_string = "<" + str(name_len) + "s"
+        convert_string = '<' + str(name_len) + 's'
         name, = struct.unpack_from(convert_string, buffer, base)
         base += name_len
-        id_len, = struct.unpack_from("<I", buffer, base);
+        id_len, = struct.unpack_from('<I', buffer, base)
         base += 4
-        convert_string = "<" + str(id_len) + "s"
-        unique_id, = struct.unpack_from(convert_string, buffer, base);
-        self.logger_name = name.decode("UTF-8")
-        self.ship_name = unique_id.decode("UTF-8")
-        DataPacket.__init__(self, 0, 0.0, 0)
+        convert_string = '<' + str(id_len) + 's'
+        unique_id, = struct.unpack_from(convert_string, buffer, base)
+        self.logger_name = name.decode('UTF-8')
+        self.ship_name = unique_id.decode('UTF-8')
+        super().__init__(0, 0.0, 0)
+
+    def payload(self) -> bytes:
+        logger_name_len = len(self.logger_name)
+        ship_name_len = len(self.ship_name)
+        buffer = struct.pack(f'<I{logger_name_len}sI{ship_name_len}s', logger_name_len, self.logger_name.encode('UTF-8'), ship_name_len, self.ship_name.encode('UTF-8'))
+        print('Metadata buffer length = ' + str(len(buffer)))
+        return buffer
+    
+    def id(self) -> int:
+        return PacketTypes.Metadata.value
+
+    def data_constructor(self, **kwargs) -> None:
+        try:
+            self.logger_name = kwargs['logger']
+            self.ship_name = kwargs['uniqid']
+            super().__init__(0, 0.0, 0)
+        except KeyError as e:
+            raise SpecificationError('Bad packet parameters') from e
+
     
     ## Provide the fixed-text string name for this data packet
     #
@@ -681,7 +1036,7 @@ class Metadata(DataPacket):
     # \param self   Pointer to the object
     # \return String with the human-readable name of the packet
     def name(self):
-        return "Metadata"
+        return 'Metadata'
     
     ## Implement the printable interface for this class, allowing it to be streamed
     #
@@ -690,7 +1045,7 @@ class Metadata(DataPacket):
     # \param self   Pointer to the object
     # \return String representation of the object
     def __str__(self):
-        rtn = DataPacket.__str__(self) + " " + self.name() + ": logger name = " + self.logger_name + ", identifier = " + self.ship_name
+        rtn = DataPacket.__str__(self) + ' ' + self.name() + ': logger name = ' + self.logger_name + ', identifier = ' + self.ship_name
         return rtn
 
 ## Implement the algorithm packet
@@ -704,21 +1059,44 @@ class AlgorithmRequest(DataPacket):
     # and the second the associated parameters (in whatever form the algorithm requires).
     #
     # \param self   Pointer to the object
-    # \param buffer Binary data from file to interpret
-    def __init__(self, buffer):
+    # \param kwargs Named keywords to initialise parameters, of "buffer" to unpack from binary data
+    def __init__(self, **kwargs):
+        if 'buffer' in kwargs:
+            self.buffer_constructor(kwargs['buffer'])
+        else:
+            self.data_constructor(**kwargs)
+
+    def buffer_constructor(self, buffer: bytes) -> None:
         base = 0
-        algname_len, = struct.unpack_from("<I", buffer, base);
+        algname_len, = struct.unpack_from('<I', buffer, base)
         base += 4
-        convert_string = "<" + str(algname_len) + "s"
+        convert_string = '<' + str(algname_len) + 's'
         algname, = struct.unpack_from(convert_string, buffer, base)
         base += algname_len
-        param_len, = struct.unpack_from("<I", buffer, base);
+        param_len, = struct.unpack_from('<I', buffer, base)
         base += 4
-        convert_string = "<" + str(param_len) + "s"
-        algparams, = struct.unpack_from(convert_string, buffer, base);
+        convert_string = '<' + str(param_len) + 's'
+        algparams, = struct.unpack_from(convert_string, buffer, base)
         self.algorithm = algname
         self.parameters = algparams
-        DataPacket.__init__(self, 0, 0.0, 0)
+        super().__init__(0, 0.0, 0)
+    
+    def payload(self) -> bytes:
+        name_len = len(self.algorithm)
+        param_len = len(self.parameters)
+        buffer = struct.pack(f'<I{name_len}sI{param_len}s', name_len, self.algorithm.encode('UTF-8'), param_len, self.parameters.encode('UTF-8'))
+        return buffer
+    
+    def id(self) -> int:
+        return PacketTypes.AlgorithmRequest.value
+
+    def data_constructor(self, **kwargs) -> None:
+        try:
+            self.algorithm = kwargs['name']
+            self.parameters = kwargs['params']
+            super().__init__(0, 0.0, 0)
+        except KeyError as e:
+            raise SerialiserVersion('Bad packet parameters') from e
     
     ## Provide the fixed-text string name for this data packet
     #
@@ -727,7 +1105,7 @@ class AlgorithmRequest(DataPacket):
     # \param self   Pointer to the object
     # \return String with the human-readable name of the packet
     def name(self):
-        return "AlgorithmRequest"
+        return 'AlgorithmRequest'
         
     ## Implement the printable interface for this class, allowing it to be streamed
     #
@@ -736,7 +1114,7 @@ class AlgorithmRequest(DataPacket):
     # \param self   Pointer to the object
     # \return String representation of the obect
     def __str__(self):
-        rtn = DataPacket.__str__(self) + " " + self.name() + ": algorithm = " + self.algorithm + ", parameters = " + self.parameters
+        rtn = DataPacket.__str__(self) + ' ' + self.name() + ': algorithm = ' + str(self.algorithm) + ', parameters = ' + str(self.parameters)
         return rtn
 
 ## Implement the JSON metadata packet
@@ -750,20 +1128,44 @@ class JSONMetadata(DataPacket):
     # The buffer should contain a single string, which may contain any printable content.  This is
     # intended, however, to the JSON for the "platform" component of the GeoJSON metadata to be
     # passed to the database.
-    def __init__(self, buffer):
+    #
+    # \param self   Pointer to the object
+    # \param kwargs Named keywords to initialise parameters, of "buffer" to unpack from binary data
+    def __init__(self, **kwargs):
+        if 'buffer' in kwargs:
+            self.buffer_constructor(kwargs['buffer'])
+        else:
+            self.data_constructor(**kwargs)
+
+    def buffer_constructor(self, buffer: bytes) -> None:
         base = 0
-        meta_len, = struct.unpack_from("<I", buffer, base)
+        meta_len, = struct.unpack_from('<I', buffer, base)
         base += 4
-        convert_string = "<" + str(meta_len) + "s"
+        convert_string = '<' + str(meta_len) + 's'
         meta, = struct.unpack_from(convert_string, buffer, base)
         self.metadata_element = meta
-        DataPacket.__init__(self, 0, 0.0, 0)
+        super().__init__(0, 0.0, 0)
+
+    def payload(self) -> bytes:
+        meta_len = len(self.metadata_element)
+        buffer = struct.pack('<I{meta_len}s', meta_len, self.metadata_element)
+        return buffer
+    
+    def id(self) -> int:
+        return PacketTypes.JSONMetadata.value
+
+    def data_constructor(self, **kwargs) -> None:
+        try:
+            self.metadata_element = kwargs['meta']
+            super().__init__(0, 0.0, 0)
+        except KeyError as e:
+            raise SpecificationError('Bad packet parameters') from e
         
     ## Provide the fixed-texzt string name for this data packet
     #
     # This simply reports the human-readable name for the class so that reporting is possible
     def name(self):
-        return "JSONMetadata"
+        return 'JSONMetadata'
     
     ## Implement the printable interface for this class, allowing it to be streamed
     #
@@ -772,7 +1174,7 @@ class JSONMetadata(DataPacket):
     # \param self
     # \return String representation of the object
     def __str__(self):
-        rtn = DataPacket.__str__(self) + " " + self.name() + ": metadata element = \"" + self.metadata_element + "\""
+        rtn = DataPacket.__str__(self) + ' ' + self.name() + ': metadata element = \"' + self.metadata_element + '\"'
         return rtn
     
 ## Translate packets out of the binary file, reconstituing as an appropriate class
@@ -813,36 +1215,36 @@ class PacketFactory:
 
         (pkt_id, pkt_len) = struct.unpack("<II", buffer)
         buffer = self.file.read(pkt_len)
-        if pkt_id == 0:
-            rtn = SerialiserVersion(buffer)
-        elif pkt_id == 1:
-            rtn = SystemTime(buffer)
-        elif pkt_id == 2:
-            rtn = Attitude(buffer)
-        elif pkt_id == 3:
-            rtn = Depth(buffer)
-        elif pkt_id == 4:
-            rtn = COG(buffer)
-        elif pkt_id == 5:
-            rtn = GNSS(buffer)
-        elif pkt_id == 6:
-            rtn = Environment(buffer)
-        elif pkt_id == 7:
-            rtn = Temperature(buffer)
-        elif pkt_id == 8:
-            rtn = Humidity(buffer)
-        elif pkt_id == 9:
-            rtn = Pressure(buffer)
-        elif pkt_id == 10:
-            rtn = SerialString(buffer)
-        elif pkt_id == 11:
-            rtn = Motion(buffer)
-        elif pkt_id == 12:
-            rtn = Metadata(buffer)
-        elif pkt_id == 13:
-            rtn = AlgorithmRequest(buffer)
-        elif pkt_id == 14:
-            rtn = JSONMetata(buffer)
+        if pkt_id == PacketTypes.SerialiserVersion.value:
+            rtn = SerialiserVersion(buffer=buffer)
+        elif pkt_id == PacketTypes.SystemTime.value:
+            rtn = SystemTime(buffer=buffer)
+        elif pkt_id == PacketTypes.Attitude.value:
+            rtn = Attitude(buffer=buffer)
+        elif pkt_id == PacketTypes.Depth.value:
+            rtn = Depth(buffer=buffer)
+        elif pkt_id == PacketTypes.COG.value:
+            rtn = COG(buffer=buffer)
+        elif pkt_id == PacketTypes.GNSS.value:
+            rtn = GNSS(buffer=buffer)
+        elif pkt_id == PacketTypes.Environment.value:
+            rtn = Environment(buffer=buffer)
+        elif pkt_id == PacketTypes.Temperature.value:
+            rtn = Temperature(buffer=buffer)
+        elif pkt_id == PacketTypes.Humidity.value:
+            rtn = Humidity(buffer=buffer)
+        elif pkt_id == PacketTypes.Pressure:
+            rtn = Pressure(buffer=buffer)
+        elif pkt_id == PacketTypes.SerialString.value:
+            rtn = SerialString(buffer=buffer)
+        elif pkt_id == PacketTypes.Motion.value:
+            rtn = Motion(buffer=buffer)
+        elif pkt_id == PacketTypes.Metadata.value:
+            rtn = Metadata(buffer=buffer)
+        elif pkt_id == PacketTypes.AlgorithmRequest.value:
+            rtn = AlgorithmRequest(buffer=buffer)
+        elif pkt_id == PacketTypes.JSONMetadata.value:
+            rtn = JSONMetadata(buffer=buffer)
         else:
             print("Unknown packet with ID " + str(pkt_id) + " in input stream; ignored.")
             rtn = None
