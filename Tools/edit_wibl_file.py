@@ -40,6 +40,7 @@ def main():
     parser.add_argument('-u', '--uniq', type=str, help = 'Set the unique ID for the logger (string)')
     parser.add_argument('-m', '--meta', type=str, help = 'Specify a JSON file for additional metadata elements (filename)')
     parser.add_argument('-a', '--algo', type=str, action='append', help = 'Add a processing algorithm request (name: str,params: str)')
+    parser.add_argument('-s', '--serversion', type=str, help = 'Specify the serialiser version for the output file (major: int, minor: int)')
     parser.add_argument('input', type=str, help = 'WIBL format input file')
     parser.add_argument('output', type=str, help = 'WIBL format output file')
 
@@ -53,22 +54,35 @@ def main():
         print('Error: must have an output file!')
         exit(1)
 
-    logger_name = None
-    unique_id = None
-    metadata = None
-    algorithms = []
     if optargs.name:
         logger_name = optargs.name
+    else:
+        logger_name = None
     if optargs.uniq:
         unique_id = optargs.uniq
+    else:
+        unique_id = None
     if optargs.meta:
         with open(optargs.meta) as f:
             json_meta = json.load(f)
-        metadata = json_meta.dumps()
+        metadata = json.dumps(json_meta)
+    else:
+        metadata = None
     if optargs.algo:
+        algorithms = []
         for alg in optargs.algo:
             name,params = alg.split(',')
             algorithms.append({ 'name': name, 'params': params})
+    else:
+        algorithms = []
+
+    if optargs.serversion:
+        file_major, file_minor = optargs.serversion.split(',')
+        file_major = int(file_major)
+        file_minor = int(file_minor)
+    else:
+        file_major = None
+        file_minor = None
 
     # Next step is to loop through the data file, copying packets by default
     # unless there's something that we have to add.  Note that we edit the
@@ -98,9 +112,14 @@ def main():
                     if metadata:
                         packet = lf.JSONMetadata(meta = metadata)
                         json_metadata_out = True
+                elif isinstance(packet, lf.SerialiserVersion):
+                    if file_major:
+                        packet = lf.SerialiserVersion(major=file_major, minor=file_minor, n2000 = packet.nmea2000, n0183 = packet.nmea0183)
                 packet.serialise(op)
         # At the end of the file, if we haven't yet sent out any of the edited packets,
-        # we just append
+        # we just append.  Note that we don't do this for the SerialiserVersion packet,
+        # since all versions of the file format have this, so we are certain that it
+        # must have occurred during the read-through.
         if not metadata_out:
             if logger_name or unique_id:
                 out_name = 'Unknown'

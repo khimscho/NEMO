@@ -113,7 +113,11 @@ class AWSController(CloudController):
     
     def transmit(self, meta: DataItem, data: str) -> None:
         if self.local_mode:
-            print(f'Transmitting to {meta.dest}, output object key {meta.destkey} with data {data}')
+            if len(data) > 1000:
+                prdata = str(data[0:1000]) + '...'
+            else:
+                prdata = str(data)
+            print(f'Transmitting to {meta.dest}, output object key {meta.destkey} with data {prdata}')
             with open(meta.destkey, 'w') as f:
                 json.dump(json.loads(data.decode('utf-8')), f, indent=4)
         else:

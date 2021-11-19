@@ -98,7 +98,7 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
                 # Note that parsing the NMEA string doesn't guarantee that it's actually valid,
                 # and you can end up with problems later on when getting at the data.
                 try:
-                    msg = nmea.parse(pkt.payload.decode('ASCII'))
+                    msg = nmea.parse(pkt.data.decode('UTF-8'))
                     if isinstance(msg, nmea.GGA):
                         gga_packets += 1
                     if isinstance(msg, nmea.RMC):
@@ -108,9 +108,9 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
                     if isinstance(msg, nmea.ZDA):
                         zda_packets += 1
                     ascii_packets += 1
-                except:
+                except nmea.nmea.ParseError as e:
                     if verbose:
-                        print("Error parsing NMEA0183 payload \"" + str(pkt.payload) + "\"\n")
+                        print(f"Error parsing NMEA0183 payload \"{pkt.data}\"; exception is {e}\n")
                     pass
             if isinstance(pkt, LoggerFile.Motion):
                 motion_packets += 1
@@ -208,11 +208,11 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
                 logger_name = pkt.logger_name
                 platform_name = pkt.ship_name
             if isinstance(pkt, LoggerFile.JSONMetadata):
-                metadata = pkt.metdata_element
+                metadata = pkt.metadata_element.decode('UTF-8')
             if isinstance(pkt, LoggerFile.AlgorithmRequest):
                 algo = {
-                    "name": pkt.algorithm,
-                    "params": pkt.parameters
+                    "name": pkt.algorithm.decode('UTF-8'),
+                    "params": pkt.parameters.decode('UTF-8')
                 }
                 algorithms.append(algo)
             if isinstance(pkt, LoggerFile.SystemTime):
@@ -239,7 +239,7 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
                 else:
                     no_elapsed_time = False
                 try:
-                    data = pkt.payload.decode('ASCII')
+                    data = pkt.data.decode('UTF-8')
                     if len(data) > 11:
                         try:
                             msg = nmea.parse(data)

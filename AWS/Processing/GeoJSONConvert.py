@@ -88,11 +88,14 @@ def translate(data):
             "depthUnits": "meters",
             "timeUnits": "ISO 8601"
         },
+        "lineage":  [],
         "features": feature_lst
     }
     if data['metadata'] is not None:
         final_json_dict['properties']['platform'] = json.loads(data['metadata'])
     if len(data['algorithms']) > 0:
-        final_json_dict['properties']['processing'] = data['algorithms']
+        final_json_dict['properties']['algorithms'] = data['algorithms']
+    if 'lineage' in data:
+        final_json_dict['lineage'] = data['lineage']
 
     return final_json_dict

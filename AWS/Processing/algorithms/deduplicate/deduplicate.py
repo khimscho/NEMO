@@ -31,6 +31,7 @@
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
 import numpy as np
+from algorithms.common import lineage
 from typing import Dict, Any
 
 def find_duplicates(source: Dict, config: Dict[str,Any]) -> np.ndarray:
@@ -47,12 +48,19 @@ def find_duplicates(source: Dict, config: Dict[str,Any]) -> np.ndarray:
         print(f'After deduplication, total {n_op_points} points selected from {n_ip_points}')
     return rtn
 
-def deduplicate_depth(source: Dict, params: str, config: Dict[str,Any]) -> Dict:
+def deduplicate_depth(source: Dict[str,Any], params: str, config: Dict[str,Any]) -> Dict[str,Any]:
+    actions = lineage.Lineage(source)
+    n_ip_points = len(source['depth']['z'])
     index = find_duplicates(source, config)
-    rtn = source
-    rtn['depth']['t'] = rtn['depth']['t'][index]
-    rtn['depth']['lat'] = rtn['depth']['lat'][index]
-    rtn['depth']['lon'] = rtn['depth']['lon'][index]
-    rtn['depth']['z'] = rtn['depth']['z'][index]
+    source['depth']['t'] = source['depth']['t'][index]
+    source['depth']['lat'] = source['depth']['lat'][index]
+    source['depth']['lon'] = source['depth']['lon'][index]
+    source['depth']['z'] = source['depth']['z'][index]
     
-    return rtn
+    # To memorialise that we did something, we add an entry to the lineage segment of
+    # the metadata headers in the data.
+    n_op_points = len(source['depth']['z'])
+    actions.add_algorithm(name='deduplicate', params='', comment=f'Selected {n_op_points} non-duplicate depths from {n_ip_points} in input.')
+    source['lineage'] = actions.export()
+    
+    return source

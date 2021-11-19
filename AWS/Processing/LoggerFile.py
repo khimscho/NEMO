@@ -801,9 +801,9 @@ class SerialString(DataPacket):
     def buffer_constructor(self, buffer: bytes) -> None:
         string_length = len(buffer) - 4
         convert_string = '<I' + str(string_length) + 's'
-        (elapsed_time, payload) = struct.unpack(convert_string, buffer)
+        (elapsed_time, data) = struct.unpack(convert_string, buffer)
         ## Serial data encapsulated in the packet
-        self.data = payload
+        self.data = data
         super().__init__(0, 0, elapsed_time)
 
     def payload(self) -> bytes:
@@ -891,8 +891,8 @@ class SerialiserVersion(DataPacket):
             self.minor = kwargs['minor']
             self.nmea2000 = kwargs['n2000']
             self.nmea0183 = kwargs['n0183']
-            self.nmea2000_version = str(self.n2000[0]) + '.' + str(self.n2000[1]) + '.' + str(self.n2000[2])
-            self.nmea0183_version = str(self.n0183[0]) + '.' + str(self.nmea0183[1]) + '.' + str(self.nmea0183[2])
+            self.nmea2000_version = str(self.nmea2000[0]) + '.' + str(self.nmea2000[1]) + '.' + str(self.nmea2000[2])
+            self.nmea0183_version = str(self.nmea0183[0]) + '.' + str(self.nmea0183[1]) + '.' + str(self.nmea0183[2])
             super().__init__(0, 0.0, 0)
         except KeyError as e:
             raise SpecificationError('Bad packet parameters') from e
@@ -913,8 +913,7 @@ class SerialiserVersion(DataPacket):
     # \param self   Pointer to the object
     # \return String representation of the object
     def __str__(self):
-        rtn = super().__str__() + ' ' + self.name() + ': version = ' + str(self.major) + '.' + str(self.minor) +\
-                ' with NMEA2000 version ' + self.nmea2000_version + ' and NMEA0183 version ' + self.nmea0183_version
+        rtn = super().__str__() + ' ' + self.name() + f': version = {self.major}.{self.minor}, with NMEA2000 version {self.nmea2000} and NMEA0183 version {self.nmea0183}'
         return rtn
 
 ## Implement the motion sensor data packet
@@ -1014,7 +1013,6 @@ class Metadata(DataPacket):
         logger_name_len = len(self.logger_name)
         ship_name_len = len(self.ship_name)
         buffer = struct.pack(f'<I{logger_name_len}sI{ship_name_len}s', logger_name_len, self.logger_name.encode('UTF-8'), ship_name_len, self.ship_name.encode('UTF-8'))
-        print('Metadata buffer length = ' + str(len(buffer)))
         return buffer
     
     def id(self) -> int:
@@ -1084,7 +1082,7 @@ class AlgorithmRequest(DataPacket):
     def payload(self) -> bytes:
         name_len = len(self.algorithm)
         param_len = len(self.parameters)
-        buffer = struct.pack(f'<I{name_len}sI{param_len}s', name_len, self.algorithm.encode('UTF-8'), param_len, self.parameters.encode('UTF-8'))
+        buffer = struct.pack(f'<I{name_len}sI{param_len}s', name_len, self.algorithm, param_len, self.parameters)
         return buffer
     
     def id(self) -> int:
@@ -1092,8 +1090,8 @@ class AlgorithmRequest(DataPacket):
 
     def data_constructor(self, **kwargs) -> None:
         try:
-            self.algorithm = kwargs['name']
-            self.parameters = kwargs['params']
+            self.algorithm = kwargs['name'].encode('UTF-8')
+            self.parameters = kwargs['params'].encode('UTF-8')
             super().__init__(0, 0.0, 0)
         except KeyError as e:
             raise SerialiserVersion('Bad packet parameters') from e
@@ -1148,7 +1146,7 @@ class JSONMetadata(DataPacket):
 
     def payload(self) -> bytes:
         meta_len = len(self.metadata_element)
-        buffer = struct.pack('<I{meta_len}s', meta_len, self.metadata_element)
+        buffer = struct.pack(f'<I{meta_len}s', meta_len, self.metadata_element.encode('UTF-8'))
         return buffer
     
     def id(self) -> int:
@@ -1174,7 +1172,7 @@ class JSONMetadata(DataPacket):
     # \param self
     # \return String representation of the object
     def __str__(self):
-        rtn = DataPacket.__str__(self) + ' ' + self.name() + ': metadata element = \"' + self.metadata_element + '\"'
+        rtn = DataPacket.__str__(self) + ' ' + self.name() + ': metadata element = \"' + self.metadata_element.decode('UTF-8') + '\"'
         return rtn
     
 ## Translate packets out of the binary file, reconstituing as an appropriate class
