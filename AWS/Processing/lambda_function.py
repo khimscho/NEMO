@@ -89,7 +89,7 @@ def process_item(item: ds.DataItem, controller: ds.CloudController, config: Dict
         else:
             print(f'Warning: unknown algorithm {algname}')
     
-    submit_data = gj.translate(source_data)
+    submit_data = gj.translate(source_data, config)
     encoded_data = json.dumps(submit_data).encode('utf-8')
     controller.transmit(item, encoded_data)
     return True

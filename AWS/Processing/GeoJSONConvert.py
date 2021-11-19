@@ -33,8 +33,9 @@
 
 import json
 from datetime import datetime
+from typing import Dict, Any
 
-def translate(data):
+def translate(data: Dict[str,Any], config: Dict[str,Any]) -> Dict[str,Any]:
     # Original comment was:
     # geojson formatting - Taylor Roy
     # based on https://ngdc.noaa.gov/ingest-external/#_testing_csb_data_submissions example geojson
@@ -60,7 +61,6 @@ def translate(data):
         }
 
         feature_lst.append(dict(feature_dict))
-
 
     final_json_dict = {
         "type": "FeatureCollection",
@@ -93,6 +93,13 @@ def translate(data):
     }
     if data['metadata'] is not None:
         final_json_dict['properties']['platform'] = json.loads(data['metadata'])
+    
+    # The database requires that the unique ID contains the provider's ID, presumably to avoid
+    # namespace clashes.  We therefore check now (after the platform metadata is finalised) to make
+    # sure that this is the case.
+    if config['provider_id'] not in final_json_dict['properties']['platform']['uniqueID']:
+        final_json_dict['properties']['platform']['uniqueID'] = config['provider_id'] + '-' + final_json_dict['properties']['platform']['uniqueID']
+
     if len(data['algorithms']) > 0:
         final_json_dict['properties']['algorithms'] = data['algorithms']
     if 'lineage' in data:
