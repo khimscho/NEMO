@@ -55,17 +55,7 @@ def read_config(config_file: str) -> Dict[str, Any]:
     # We need to tell the timestamping code what the roll-over size is for the elapsed times
     # stored in the WIBL file.  This allows it to determine when to add a day to the count
     # so that we don't wrap the interpolation.
-    config['elapsed_time_quantum'] = 1 << int(config['elapsed_time_width'])
-    
-    # Normally, the script attempts to be relatively quiet, but under some circumstances, it might
-    # be appropriate to provide a little more debugging.  The 'verbose' tag in the configuration
-    # allows for this.
-    if config['verbose'] == 'True':
-        config['verbose'] = True
-    elif config['verbose'] == 'False':
-        config['verbose'] = False
-    else:
-        raise BadConfiguration()
+    config['elapsed_time_quantum'] = 1 << config['elapsed_time_width']
     
     return config
 
