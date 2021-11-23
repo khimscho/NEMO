@@ -65,8 +65,13 @@ def process_item(item: ds.DataItem, controller: ds.CloudController, config: Dict
        Note that this code does not clean up the input object, so all files being uploaded to the cloud
        might potentially stay in the input object store unless otherwise deleted.
     """
+    if config['verbose']:
+        print(f'Attempting to obtain item {item} from S3 ...')
+
     local_file = controller.obtain(item)
     try:
+        if config['verbose']:
+            print(f'Attempting file read/time interpolation on {local_file} ...')
         source_data = ts.time_interpolation(local_file, config['elapsed_time_quantum'], config['verbose'])
     except ts.NoTimeSource:
         print('Failed to convert data: no time source known.')
@@ -80,6 +85,9 @@ def process_item(item: ds.DataItem, controller: ds.CloudController, config: Dict
     
     # We now have the option to run any sub-algorithms on the data before converting to GeoJSON
     # and encoding for output to the staging area for upload.
+    if config['verbose']:
+        print('Applying requested algorithms (if any) ...')
+    
     for alg in source_data['algorithms']:
         algname = alg['name']
         if algname == 'deduplicate':
@@ -89,8 +97,14 @@ def process_item(item: ds.DataItem, controller: ds.CloudController, config: Dict
         else:
             print(f'Warning: unknown algorithm {algname}')
     
+    if config['verbose']:
+        print('Converting remaining data to GeoJSON format ...')
     submit_data = gj.translate(source_data, config)
+    if config['verbose']:
+        print('Converting GeoJSON to byte stream for transmission ...')
     encoded_data = json.dumps(submit_data).encode('utf-8')
+    if config['verbose']:
+        print('Attempting to send encoded data to S3 staging bucket ...')
     controller.transmit(item, encoded_data)
     return True
     

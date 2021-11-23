@@ -112,9 +112,15 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
                     if verbose:
                         print(f"Error parsing NMEA0183 payload \"{pkt.data}\"; exception is {e}\n")
                     pass
+                except UnicodeDecodeError as e:
+                    if verbose:
+                        print(f'Error attempting NMEA decode (UTF-8) payload \"{pkt.data}\"; exception is {e}')
+                    pass
             if isinstance(pkt, LoggerFile.Motion):
                 motion_packets += 1
             packet_count += 1
+        if verbose and packet_count % 50000 == 0:
+            print(f'Reading file: passing {packet_count} packets ...')
 
     if verbose:
         print("Found " + str(packet_count) + " packet total")
@@ -350,24 +356,24 @@ def time_interpolation(filename, elapsed_time_quantum, verbose):
                                     wattemp_table_temp.append(temp)
                         except nmea.ParseError as e:
                             if verbose:
-                                print('Parse error: {}'.format(e))
+                                print(f'Parse error: {e}')
                             continue
                         except AttributeError as e:
-                            print('Attribute error: {}'.format(e))
+                            print(f'Attribute error: {e}')
                             continue
                         except TypeError as e:
-                            print('Type error: {}'.format(e))
+                            print(f'Type error: {e}')
                             continue
                         except nmea.ChecksumError as e:
-                            print('Checksum error: {}'.format(e))
+                            print(f'Checksum error: {e}')
                             continue
                     else:
                         # Packets have to be at least 11 characters to contain all of the mandatory elements.
                         # Usually a short packet is broken in some fashion, and should be ignored.
                         print('Ignoring short message: ' + str(data)) 
-                except UnicodeDecodeError:
+                except UnicodeDecodeError as e:
                     if verbose:
-                        print('Decode error: {}'.format(e))
+                        print(f'Decode error: {e}')
                     continue
     if verbose:
         print('Reference time table length = ', len(time_table_t))

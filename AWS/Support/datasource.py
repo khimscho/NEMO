@@ -75,8 +75,16 @@ class AWSSource(DataSource):
             source_object = unquote_plus(record['s3']['object']['key'])
             local_file = f'/tmp/{source_object}'
             dest_bucket = config['staging_bucket']
-            dest_object = source_object + '.json'
+            if '.json' not in source_object:
+                dest_object = source_object + '.json'
+            else:
+                dest_object = source_object
             self.items.append(DataItem(source_bucket, source_object, local_file, dest_bucket, dest_object))
+        if config['verbose']:
+            n_items = len(self.items)
+            print(f'Total {n_items} input items to process:')
+            for item in self.items:
+                print(f'Item: {item}')
     
     def nextSource(self) -> DataItem:
         if self.items:
@@ -97,17 +105,17 @@ class CloudController(ABC):
 
 class AWSController(CloudController):
     def __init__(self, config):
-        if config['local'] == 'True':
-            self.local_mode = True
-        else:
-            self.local_mode = False
+        self.local_mode = config['local']
         self.destination = config['staging_bucket']
+        self.verbose = config['verbose']
         
     def obtain(self, meta: DataItem) -> str:
         if self.local_mode:
-            print(f'Downloading from bucket {meta.source} object {meta.sourcekey} to local file {meta.localname}')
+            print(f'Local mode: from bucket {meta.source} object {meta.sourcekey} to local file {meta.localname}')
             copyfile(meta.sourcekey, meta.localname)
         else:
+            if self.verbose:
+                print(f'Downloading from bucket {meta.source} object {meta.sourcekey} to local file {meta.localname}')
             s3.Bucket(meta.source).download_file(meta.sourcekey, meta.localname)
         return meta.localname
     
@@ -117,8 +125,10 @@ class AWSController(CloudController):
                 prdata = str(data[0:1000]) + '...'
             else:
                 prdata = str(data)
-            print(f'Transmitting to {meta.dest}, output object key {meta.destkey} with data {prdata}')
+            print(f'Local mode: Transmitting to {meta.dest}, output object key {meta.destkey} with data {prdata}')
             with open(meta.destkey, 'w') as f:
                 json.dump(json.loads(data.decode('utf-8')), f, indent=4)
         else:
+            if self.verbose:
+                print(f'Transmitting {meta.localname} to bucket {self.destination}, key {meta.destkey}')
             s3.Bucket(self.destination).put_object(Key=meta.destkey, Body=data)

@@ -49,31 +49,36 @@ def read_local_event(event_file: str) -> Dict:
     return event
 
 def transmit_geojson(source_object: str, provider_id: str, provider_auth: str, local_file: str, config: Dict[str,Any]) -> bool:
-    if config['verbose']:
-        print('Source object is: ' + source_object)
-    
     headers = {
         'x-auth-token': provider_auth
     }
-    dest_object = provider_id + '-' + source_object.replace(".json", "")
+    dest_uniqueID = provider_id + '-' + source_object.replace('.json', '')
+
     if config['verbose']:
-        print('Destination object uniqueID is: ' + dest_object)
-        print('Authorisation token is: ' + provider_auth)
+        print(f'Source object is: {source_object}; ' + 
+              f'Destination object uniqueID is: {dest_uniqueID}; ' +
+              f'Authorisation token is: {provider_auth}')
 
     files = {
         'file': (local_file, open(local_file, 'rb')),
-        'metadataInput': (None, '{\n    "uniqueID": "' + dest_object + '"\n}')
+        'metadataInput': (None, '{\n    "uniqueID": "' + dest_uniqueID + '"\n}')
     }
     
     if config['local']:
         upload_point = config['upload_point']
-        print(f'Transmitting to {upload_point} for source object {source_object} to destination {dest_object}.')
+        print(f'Local mode: Transmitting to {upload_point} for source object {source_object} to destination {dest_uniqueID}.')
         rc = True
     else:
-        response = requests.post(config['upload_point'] + dest_object, headers=headers, files=files)
-        print(response)
+        upload_point = config['upload_point']
+        upload_url = upload_point + dest_uniqueID # Assume config file has a training '/'!
+        if config['verbose']:
+            print(f'Sending {source_object} to {upload_point} as destination object {dest_uniqueID}.  ' +
+                  f'Full upload URL is {upload_url}')
+        response = requests.post(upload_url, headers=headers, files=files)
+        json_response = response.json()
+        print(f'POST response is {json_response}')
         try:
-            rc = response.json()['success']
+            rc = json_response['success']
             if not rc:
                 rc = None
         except json.decoder.JSONDecodeError:
@@ -111,8 +116,12 @@ def lambda_handler(event, context):
         local_file = controller.obtain(item)
         rc = transmit_geojson(item.sourcekey, creds['provider_id'], creds['provider_auth'], local_file, config)
         if rc is None:
+            if config['verbose']:
+                print(f'Failed to transfer item {item}')
             failed.append(item)
         else:
+            if config['verbose']:
+                print(f'Succeeded in transferring item {item}')
             succeeded.append(item)
         item = source.nextSource()
     
