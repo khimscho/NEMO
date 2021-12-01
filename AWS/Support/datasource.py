@@ -45,6 +45,7 @@
 
 from dataclasses import dataclass
 from abc import ABC
+from typing import Dict, Any
 from urllib.parse import unquote_plus
 from shutil import copyfile
 import json
@@ -54,11 +55,11 @@ s3 = boto3.resource('s3')
 
 @dataclass
 class DataItem:
-    source:     str
-    sourcekey:  str
-    localname:  str
-    dest:       str
-    destkey:    str
+    source_store:   str
+    source_key:     str
+    localname:      str
+    dest_store:     str
+    dest_key:       str
 
 class DataSource(ABC):
     def __init__(self):
@@ -94,41 +95,48 @@ class AWSSource(DataSource):
         return rc
 
 class CloudController(ABC):
-    def __init__(self):
+    def __init__(self, config: Dict[str,Any]):
         pass
     
-    def obtain(self, meta: DataItem) -> str:
+    def obtain(self, meta: DataItem) -> (str, str):
         pass
         
-    def transmit(self, destination: str, meta: DataItem, data: str) -> None:
+    def transmit(self, meta: DataItem, SourceID: str, data: str) -> None:
         pass
 
 class AWSController(CloudController):
-    def __init__(self, config):
+    def __init__(self, config: Dict[str,Any]):
         self.local_mode = config['local']
         self.destination = config['staging_bucket']
         self.verbose = config['verbose']
         
-    def obtain(self, meta: DataItem) -> str:
+    def obtain(self, meta: DataItem) -> (str, str):
+        sourceID = None
         if self.local_mode:
-            print(f'Local mode: from bucket {meta.source} object {meta.sourcekey} to local file {meta.localname}')
-            copyfile(meta.sourcekey, meta.localname)
+            print(f'Local mode: from bucket {meta.source_store} object {meta.source_key} to local file {meta.localname}')
+            copyfile(meta.source_key, meta.localname)
+            sourceID = 'UNHJHC-local-test-logger'
         else:
             if self.verbose:
-                print(f'Downloading from bucket {meta.source} object {meta.sourcekey} to local file {meta.localname}')
-            s3.Bucket(meta.source).download_file(meta.sourcekey, meta.localname)
-        return meta.localname
+                print(f'Downloading from bucket {meta.source_store} object {meta.source_key} to local file {meta.localname}')
+            s3.Bucket(meta.source_store).download_file(meta.source_key, meta.localname)
+            tags = boto3.client('s3').get_object_tagging(Bucket=meta.source_store, Key=meta.source_key)
+            for tag in tags['TagSet']:
+                if tag['Key'] == 'SourceID':
+                    sourceID = tag['Value']
+
+        return (meta.localname, sourceID)
     
-    def transmit(self, meta: DataItem, data: str) -> None:
+    def transmit(self, meta: DataItem, sourceID: str, data: str) -> None:
         if self.local_mode:
             if len(data) > 1000:
                 prdata = str(data[0:1000]) + '...'
             else:
                 prdata = str(data)
-            print(f'Local mode: Transmitting to {meta.dest}, output object key {meta.destkey} with data {prdata}')
-            with open(meta.destkey, 'w') as f:
+            print(f'Local mode: Transmitting to {meta.dest_store} for sourceID {sourceID}, output object key {meta.dest_key} with data {prdata}')
+            with open(meta.dest_key, 'w') as f:
                 json.dump(json.loads(data.decode('utf-8')), f, indent=4)
         else:
             if self.verbose:
-                print(f'Transmitting {meta.localname} to bucket {self.destination}, key {meta.destkey}')
-            s3.Bucket(self.destination).put_object(Key=meta.destkey, Body=data)
+                print(f'Transmitting {meta.localname} to bucket {self.destination}, key {meta.dest_key}, source ID {sourceID}')
+            s3.Bucket(self.destination).put_object(Key=meta.dest_key, Body=data, Tagging=f'SourceID={sourceID}')

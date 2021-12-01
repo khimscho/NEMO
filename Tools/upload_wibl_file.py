@@ -37,6 +37,7 @@ def main():
     parser = arg.ArgumentParser(description = 'Upload WIBL logger files (in a limited capacity)')
     parser.add_argument('-b', '--bucket', type=str, help = 'Set the upload bucket name (string)')
     parser.add_argument('-j', '--json', action='store_true', help = 'Add .json extension to UUID for upload key')
+    parser.add_argument('-s', '--source', type=str, help='Set SourceID tag for the S3 object (string)')
     parser.add_argument('input', type=str, help = 'WIBL format input file')
 
     optargs = parser.parse_args()
@@ -56,12 +57,27 @@ def main():
         file_extension = '.json'
     else:
         file_extension = ''
+        
+    sourceID = None
+    if optargs.source:
+        sourceID = optargs.source
 
     s3 = boto3.resource('s3')
     dest_bucket = s3.Bucket(bucket)
     try:
         obj_key = str(uuid.uuid4()) + file_extension
         dest_bucket.upload_file(Filename=filename, Key=obj_key)
+        if sourceID is not None:
+            tagset = {
+                'TagSet': [
+                    {
+                        'Key':  'SourceID',
+                        'Value':    sourceID
+                    },
+                ]
+            }
+            boto3.client('s3').put_object_tagging(Bucket=bucket, Key=obj_key, Tagging=tagset)
+            
         print(f'Successfully uploaded {filename} to bucket {bucket} for object {obj_key}.')
     except:
         print(f"Failed to upload file to CSB ingest bucket")

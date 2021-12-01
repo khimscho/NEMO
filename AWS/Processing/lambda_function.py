@@ -68,7 +68,7 @@ def process_item(item: ds.DataItem, controller: ds.CloudController, config: Dict
     if config['verbose']:
         print(f'Attempting to obtain item {item} from S3 ...')
 
-    local_file = controller.obtain(item)
+    (local_file, source_id) = controller.obtain(item)
     try:
         if config['verbose']:
             print(f'Attempting file read/time interpolation on {local_file} ...')
@@ -100,12 +100,13 @@ def process_item(item: ds.DataItem, controller: ds.CloudController, config: Dict
     if config['verbose']:
         print('Converting remaining data to GeoJSON format ...')
     submit_data = gj.translate(source_data, config)
+    source_id = submit_data['properties']['platform']['uniqueID']
     if config['verbose']:
         print('Converting GeoJSON to byte stream for transmission ...')
     encoded_data = json.dumps(submit_data).encode('utf-8')
     if config['verbose']:
         print('Attempting to send encoded data to S3 staging bucket ...')
-    controller.transmit(item, encoded_data)
+    controller.transmit(item, source_id, encoded_data)
     return True
     
     

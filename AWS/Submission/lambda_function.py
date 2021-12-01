@@ -48,14 +48,19 @@ def read_local_event(event_file: str) -> Dict:
         event = json.load(f)
     return event
 
-def transmit_geojson(source_object: str, provider_id: str, provider_auth: str, local_file: str, config: Dict[str,Any]) -> bool:
+def transmit_geojson(source_uniqueID: str, provider_id: str, provider_auth: str, local_file: str, config: Dict[str,Any]) -> bool:
     headers = {
         'x-auth-token': provider_auth
     }
-    dest_uniqueID = provider_id + '-' + source_object.replace('.json', '')
+    # The unique ID that we provide to DCDB must be preceeded by our provider ID and a hyphen.
+    # This should happen before the code gets to here, but just in case, we enforce this requirement.
+    if provider_id not in source_uniqueID:
+        dest_uniqueID = provider_id + '-' + source_uniqueID
+    else:
+        dest_uniqueID = source_uniqueID
 
     if config['verbose']:
-        print(f'Source object is: {source_object}; ' + 
+        print(f'Source ID is: {source_uniqueID}; ' + 
               f'Destination object uniqueID is: {dest_uniqueID}; ' +
               f'Authorisation token is: {provider_auth}')
 
@@ -66,14 +71,12 @@ def transmit_geojson(source_object: str, provider_id: str, provider_auth: str, l
     
     if config['local']:
         upload_point = config['upload_point']
-        print(f'Local mode: Transmitting to {upload_point} for source object {source_object} to destination {dest_uniqueID}.')
+        print(f'Local mode: Transmitting to {upload_point} for source ID {source_uniqueID} with destination ID {dest_uniqueID}.')
         rc = True
     else:
-        upload_point = config['upload_point']
-        upload_url = upload_point + dest_uniqueID # Assume config file has a training '/'!
+        upload_url = config['upload_point']
         if config['verbose']:
-            print(f'Sending {source_object} to {upload_point} as destination object {dest_uniqueID}.  ' +
-                  f'Full upload URL is {upload_url}')
+            print(f'Transmitting for source ID {source_uniqueID} to {upload_url} as destination ID {dest_uniqueID}.')
         response = requests.post(upload_url, headers=headers, files=files)
         json_response = response.json()
         print(f'POST response is {json_response}')
@@ -113,16 +116,21 @@ def lambda_handler(event, context):
     succeeded = []
     failed = []
     while item is not None:
-        local_file = controller.obtain(item)
-        rc = transmit_geojson(item.sourcekey, creds['provider_id'], creds['provider_auth'], local_file, config)
-        if rc is None:
+        (local_file, source_id) = controller.obtain(item)
+        if source_id is None:
             if config['verbose']:
-                print(f'Failed to transfer item {item}')
+                print(f'Failed to transfer item {item} because it has no SourceID specified.')
             failed.append(item)
         else:
-            if config['verbose']:
-                print(f'Succeeded in transferring item {item}')
-            succeeded.append(item)
+            rc = transmit_geojson(source_id, creds['provider_id'], creds['provider_auth'], local_file, config)
+            if rc is None:
+                if config['verbose']:
+                    print(f'Failed to transfer item {item}')
+                failed.append(item)
+            else:
+                if config['verbose']:
+                    print(f'Succeeded in transferring item {item}')
+                succeeded.append(item)
         item = source.nextSource()
     
     # Status report for the user
