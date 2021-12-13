@@ -81,8 +81,8 @@ def main():
         sys.exit(1)
     
     print('Converting Data For:');
-    print('Platform:\t', tsdata['name'])
-    print('Platform ID:\t', tsdata['uniqid'])
+    print('Logger Name:\t', tsdata['loggername'])
+    print('Platform Name:\t', tsdata['platform'])
     
     with open(out_filename, 'w') as f:
         f.write('Time,Epoch,Longitude,Latitude,Depth\n')

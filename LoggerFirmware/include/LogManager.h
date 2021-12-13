@@ -36,6 +36,15 @@
 
 namespace logger {
 
+// The maximum number of log files here is relatively arbitrary, although depending on the file
+// system being used on the SD card, it might be problematic for the number to be above 1,000
+// (since the number is the file extension).  If this becomes a problem, it would be necessary to
+// change the way that the file names are constructed (in MakeLogName() in this case, but possibly
+// also elsewhere).  A likely scenario for this would be if there was a very large SD card being
+// used, where the total file space (MaxLogFiles * MAX_LOG_FILE_SIZE) was significantly smaller
+// than the size of the card.  With the default size of 10MB files and 1,000 files, this is about
+// 9.8GB.
+
 const int MaxLogFiles = 1000; ///< Maximum number of log files that we will create
 
 /// \class Manager
@@ -46,7 +55,9 @@ const int MaxLogFiles = 1000; ///< Maximum number of log files that we will crea
 
 class Manager {
 public:
+    /// \brief Default constructor
     Manager(StatusLED *led);
+    /// \brief Default destructor
     ~Manager(void);
     
     /// \brief Start a new log file, with the next available number
@@ -81,11 +92,16 @@ public:
         Pkt_Pressure = 9,       ///< Pressure and source
         Pkt_NMEAString = 10,    ///< A generic NMEA0183 string, in raw format
         Pkt_LocalIMU = 11,      ///< Logger's on-board IMU
-        Pkt_Metadata = 12       ///< Logger identification information
+        Pkt_Metadata = 12,      ///< Logger identification information
+        Pkt_Algorithms = 13,    ///< Algorithms and parameters to apply to the data, by preference
+        Pkt_JSON = 14,          ///< JSON metadata element to pass on to cloud processing
+        Pkt_NMEA0183ID = 15     ///< Acceptable NMEA0183 sentence ID for filtering
     };
     
     /// \brief Write a packet into the current log file
     void Record(PacketIDs pktID, Serialisable const& data);
+    /// \brief Provide a pointer to the current serialiser
+    Serialiser *OutputChannel(void) { return m_serialiser; }
     
     /// \brief Call-through for the console log file handle
     Stream& Console(void);

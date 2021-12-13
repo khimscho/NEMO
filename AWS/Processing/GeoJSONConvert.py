@@ -31,47 +31,78 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
+import json
+from datetime import datetime
+from typing import Dict, Any
 
-def translate(data):
+def translate(data: Dict[str,Any], config: Dict[str,Any]) -> Dict[str,Any]:
     # Original comment was:
     # geojson formatting - Taylor Roy
     # based on https://ngdc.noaa.gov/ingest-external/#_testing_csb_data_submissions example geojson
 
     feature_lst = []
     
-    for i in range(len(data['z'])):
+    for i in range(len(data['depth']['z'])):
+        timestamp = datetime.fromtimestamp(data['depth']['t'][i]).isoformat()
+        
         feature_dict = {
         "type": "Feature",
         "geometry": {
             "type": "Point",
             "coordinates": [
-            data['lon'][i],
-            data['lat'][i]
+            data['depth']['lon'][i],
+            data['depth']['lat'][i]
             ]
         },
         "properties": {
-            "depth": data['z'][i],
-            "time": data['t'][i]
+            "depth": data['depth']['z'][i],
+            "time": timestamp
         }
         }
 
         feature_lst.append(dict(feature_dict))
 
-
     final_json_dict = {
         "type": "FeatureCollection",
         "crs": {
-        "type": "name",
-        "properties": {
-            "name": "EPSG:4326"
-        }
+            "type": "name",
+            "properties": {
+                "name": "EPSG:4326"
+            }
         },
         "properties": {
-        "platform": {
-            "name": data['name'],
-            "uniqueID": data['uniqid']
-        }
+            "convention": "CSB 2.0",
+            "platform": {
+                "uniqueID": data['loggername'],
+                "type": "Ship",
+                "name": data['platform'],
+                "IDType": "LoggerName",
+                "IDNumber": data['loggername']
+            },
+            "providerContactPoint": {
+                "orgName": "CCOM/JHC, UNH",
+                "email": "wibl@ccom.unh.edu",
+                "logger": "WIBL",
+                "loggerVersion": data['loggerversion']
+            },
+            "depthUnits": "meters",
+            "timeUnits": "ISO 8601"
         },
+        "lineage":  [],
         "features": feature_lst
     }
+    if data['metadata'] is not None:
+        final_json_dict['properties']['platform'] = json.loads(data['metadata'])
+    
+    # The database requires that the unique ID contains the provider's ID, presumably to avoid
+    # namespace clashes.  We therefore check now (after the platform metadata is finalised) to make
+    # sure that this is the case.
+    if config['provider_id'] not in final_json_dict['properties']['platform']['uniqueID']:
+        final_json_dict['properties']['platform']['uniqueID'] = config['provider_id'] + '-' + final_json_dict['properties']['platform']['uniqueID']
+
+    if len(data['algorithms']) > 0:
+        final_json_dict['properties']['algorithms'] = data['algorithms']
+    if 'lineage' in data:
+        final_json_dict['lineage'] = data['lineage']
+
     return final_json_dict

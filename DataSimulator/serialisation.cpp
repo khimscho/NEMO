@@ -30,9 +30,10 @@
 
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
+#include <cstdio>
+#include <string>
 #include "serialisation.h"
+#include "Writer.h"
 
 /// Constructor for a serialisable buffer of data.  The buffer is allocated to the \a size_hint but
 /// can grow as new data is added if required.  Expanding a buffer is expensive, so it's wise to
@@ -196,6 +197,16 @@ Serialiser::Serialiser(FILE *file)
     version += patch;
     
     rawProcess(0, version);
+	
+	Serialisable meta(255);
+	std::string name("Gulf Surveyor");
+	std::string identifier("WIBL-Simulator");
+	meta += static_cast<uint32_t>(name.size());
+	meta += name.c_str();
+	meta += static_cast<uint32_t>(identifier.size());
+	meta += identifier.c_str();
+	
+	rawProcess(nmea::logger::Writer::PacketIDs::Pkt_Metadata, meta);
 }
 
 /// Private method to actually write the buffer to file.  This avoids cross-checks on the payload ID

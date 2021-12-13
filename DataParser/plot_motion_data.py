@@ -26,6 +26,7 @@
 import sys
 import LoggerFile
 import matplotlib.pyplot as plt
+import numpy as np
 
 file = open(sys.argv[1], 'rb')
 
@@ -46,7 +47,7 @@ while source.has_more():
         if isinstance(pkt, LoggerFile.Motion):
             motion_count += 1
             times.append(pkt.elapsed / 1000)
-            acc.append((pkt.ax, pkt.ay, pkt.az))
+            acc.append((pkt.ax, pkt.ay, pkt.az, np.sqrt(pkt.ax*pkt.ax + pkt.ay*pkt.ay + pkt.az*pkt.az)))
             gyro.append((pkt.gx, pkt.gy, pkt.gz))
             temp.append(pkt.temp)
 
@@ -66,7 +67,7 @@ plt.plot(times, acc)
 plt.grid()
 plt.xlabel('Elapsed Time (s)')
 plt.ylabel('Accelerations (m/s^2)')
-plt.legend(('X-Axis', 'Y-Axis', 'Z-Axis'))
+plt.legend(('X-Axis', 'Y-Axis', 'Z-Axis', 'Magnitude'))
 
 plt.subplot(3,1,3)
 plt.plot(times, gyro)

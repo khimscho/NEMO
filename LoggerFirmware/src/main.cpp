@@ -37,6 +37,7 @@
 #include "IMULogger.h"
 #include "SupplyMonitor.h"
 #include "Configuration.h"
+#include "HeapMonitor.h"
 
 /// Hardware version for the logger implementation (for NMEA2000 declaration)
 #define LOGGER_HARDWARE_VERSION "1.0.0"
@@ -74,13 +75,27 @@ logger::SupplyMonitor   *supplyMonitor = nullptr;   ///< Pointer for the supply 
 
 void setup()
 {
+    logger::HeapMonitor heap;
+    // We need to get these now, since starting the Serial interface might change things
+    uint32_t heap_size = heap.HeapSize();
+    uint32_t heap_free = heap.CurrentSize();
+
     Serial.begin(115200);
+
+    Serial.printf("DBG: At boot, heap is %d B (%d B free)\n", heap_size, heap_free);
+    Serial.printf("DBG: ");
+    heap.FlashMemoryReport(Serial);
+    Serial.printf("\n");
+
+    Serial.printf("DBG: After serial start, free heap = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
 
     Serial.println("Configuring LED indicators ...");
     LEDs = new StatusLED();
 
     Serial.println("Setting up LED indicator for initialising ...");
     LEDs->SetStatus(StatusLED::Status::sINITIALISING);
+
+    Serial.printf("DBG: After LED start and configuration, free heap = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
 
     Serial.println("Bringing up Storage Controller ...");
     memController = mem::MemControllerFactory::Create();
@@ -100,33 +115,47 @@ void setup()
     }
     #endif
 
+    Serial.printf("DBG: After memory interface start, free heap = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+
     Serial.println("Configuring logger manager ...");
     logManager = new logger::Manager(LEDs);
+
+    Serial.printf("DBG: After log manager start, free heap = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
 
     bool start_nmea_2000, start_nmea_0183, start_motion_sensor;
     if (logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_NMEA2000_B, start_nmea_2000)
             && start_nmea_2000) {
         Serial.println("Configuring NEMA2000 logger ...");
         N2000Logger = new nmea::N2000::Logger(&NMEA2000, logManager);
+
+        Serial.printf("DBG: After NMEA2000 logger start, free heap = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
     }
   
     if (logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_NMEA0183_B, start_nmea_0183)
             && start_nmea_0183) {
         Serial.println("Configuring NMEA0183 logger (and configuring serial ports)...");
         N0183Logger = new nmea::N0183::Logger(logManager);
+
+        Serial.printf("DBG: After NMEA0183 logger start, free heap = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
     }
 
     if (logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_MOTION_B, start_motion_sensor)
             && start_motion_sensor) {
         Serial.println("Configurating IMU logger ...");
         IMULogger = new imu::Logger(logManager);
+
+        Serial.printf("DBG: After IMU logger start, free heap = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
     }
 
     Serial.println("Configuring command processor ...");
     CommandProcessor = new SerialCommand(N2000Logger, N0183Logger, logManager, LEDs);
 
+    Serial.printf("DBG: After SerialCommand start, free heap = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+
     Serial.println("Starting log manager interface to SD card ...");
     logManager->StartNewLog();
+
+    Serial.printf("DBG: After new log file start, free heap = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
   
     if (start_nmea_2000) {
         Serial.println("Starting NMEA2000 bus interface ...");
@@ -148,13 +177,20 @@ void setup()
         NMEA2000.AttachMsgHandler(N2000Logger);
 
         NMEA2000.Open();
+
+        Serial.printf("DBG: After NMEA2000 interface start, free heap = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
     }
 
     Serial.println("Bringing up supply voltage monitoring ...");
     supplyMonitor = new logger::SupplyMonitor();
 
+    Serial.printf("DBG: After voltage monitoring start, free heap = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+
     Serial.println("Setup complete, setting status for normal operations.");
     LEDs->SetStatus(StatusLED::Status::sNORMAL);
+
+    heap_free = heap.CurrentSize();
+    Serial.printf("DBG: After boot and configuration, free heap = %d B.\n", heap_free);
 }
 
 /// \brief General processing loop code for the logger.

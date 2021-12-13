@@ -54,6 +54,11 @@ class BluetoothAdapter {
 public:
     /// \brief Default destructor so that sub-classes can make their own
     virtual ~BluetoothAdapter() {}
+
+    /// \brief Start the Bluetooth adapter and broadcast beacon
+    bool Startup(void);
+    /// \brief Shut down the Bluetooth adapter
+    void Shutdown(void);
     
     /// \brief Set the advertising name for the Bluetooth UART service.
     void AdvertiseAs(String const& name);
@@ -62,6 +67,8 @@ public:
     /// \brief Read the user-unique identification string from the module.
     String LoggerIdentifier(void);
     
+    /// \brief Verify whether the interface has been started.
+    bool IsStarted(void);
     /// \brief Verify whether a client is connected to the UART service
     bool IsConnected(void);
     /// \brief Determine whether data is available from the client.
@@ -74,6 +81,11 @@ public:
     void WriteByte(int b);
     
 private:
+    /// \brief Sub-class implementation of code to start the interface
+    virtual bool start(void) = 0;
+    /// \brief Sub-class implementation of the code to stop the interface
+    virtual void stop(void) = 0;
+
     /// \brief Set the non-volatile memory associated with the user-unique identification string
     virtual void setIdentificationString(String const& identifier) = 0;
     /// \brief Read the non-volatile memory associated with the user-unique identification string
@@ -82,6 +94,8 @@ private:
     virtual void setAdvertisingName(String const& name) = 0;
     /// \brief Get the Bluetooth UART service advertising name from non-volatile memory
     virtual String getAdvertisingName(void) const = 0;
+    /// \brief Check whether the interface has been started or not
+    virtual bool isStarted(void) = 0;
     /// \brief Check whether a client has connected to the UART service
     virtual bool isConnected(void) = 0;
     /// \brief Return a count of data packets available from the recieve buffers

@@ -38,21 +38,44 @@
 
 namespace mem {
 
-const uint8_t default_cs_pin = 5;
+const uint8_t default_cs_pin = 5;   ///< Pin used to control selection of the SD card when in SPI mode
+
+/// \class SPIController
+/// \brief Specialisation of the MemController interface for SPI bus
+///
+/// This assumes that the SPI bus used is the VSPI default, which is what's used on NEMO-30.  This means
+/// that no specialist configuration is required to bring up the system.
 
 class SPIController : public MemController {
 public:
+    /// \brief Default constructor
+    ///
+    /// This stores the pin to use for Chip Select (CS*) when accessing the SD card, but otherwise
+    /// does not access the card.
+    ///
+    /// \param cs_pin   GPIO pin number to use for chip select when accessing the SPI card
+
     SPIController(uint8_t cs_pin = default_cs_pin)
     : m_csPin(cs_pin)
     {
     }
+
+    /// \brief Default destructor
 
     ~SPIController(void)
     {
     }
 
 private:
-    uint8_t    m_csPin;
+    uint8_t    m_csPin; ///< GPIO pin number to use for chip select
+
+    /// \brief Start up the SPI interface to get to SD card online
+    ///
+    /// This initialises the SPI interface, using the CS pin specified at construction, allowing for
+    /// a few repetitions (which are sometimes required, according to Dr. Google) for the chip to
+    /// reset and restart.
+    ///
+    /// \return True if the interface started, otherwise False
 
     bool start_interface(void)
     {
@@ -69,19 +92,29 @@ private:
         return rc;
     }
 
+    /// \brief Shut down SPI interface.
     void stop_interface(void)
     {
         SD.end();
     }
 
+    /// \brief Return a reference to the SPI interface being used.
     fs::FS& get_interface(void)
     {
         return SD;
     }
 };
- 
+
+/// \class MMCController
+/// \brief Specialisation of the MemController interface for SD/MMC modules
+///
+/// This provides an interface to configure and start up an SD/MMC module, either an
+/// SD card configured on the SD/MMC interface (higher speed, 4-bit), or an eMMC module,
+/// if available (only supported on NEMO30).
+
 class MMCController : public MemController {
 public:
+    /// \brief Default constructor
     MMCController(void)
     {
 #ifdef BUILD_NEMO30
@@ -91,6 +124,7 @@ public:
 #endif
     }
 
+    /// \brief Default destructor
     ~MMCController(void)
     {
 #ifdef BUILD_NEMO30
@@ -100,24 +134,42 @@ public:
 
 private:
 #ifdef BUILD_NEMO30
-    nemo30::eMMCController  *m_eMMCController;
+    nemo30::eMMCController  *m_eMMCController;  ///< Pointer to the eMMC module's hardware interface
 #endif
+
+    /// \brief Start up the SD/MMC interface
+    ///
+    /// This starts the interface, bringing the storage online
+    ///
+    /// \return True if the module initialised, otherwise False
 
     bool start_interface(void)
     {
         return SD_MMC.begin();
     }
 
+    /// \brief Stop the SD/MMC interface
+    ///
+    /// This should stop the interface and idle the storage, but since the interface controller is
+    /// always allocated, this may not recover memory.
+
     void stop_interface(void)
     {
         SD_MMC.end();
     }
 
+    /// \brief Return a reference to the interface in use.
     fs::FS& get_interface(void)
     {
         return SD_MMC;
     }
 };
+
+/// All WIBL-based loggers have to provide some large-scale storage for the logged data, but the particular
+/// interface on which that storage is provided can change.  This provides a mechanism to abstact away the
+/// details of the interfacing by providing a uniform MemController pointer to use for control.
+///
+/// \return Pointer to the appropriate MemController sub-class to use for the current hardware.
 
 MemController *MemControllerFactory::Create(void)
 {

@@ -60,8 +60,8 @@ public:
     
 private:
     mem::MemController *m_storage;  ///< Pointer to the storage object to use
-    WiFiServer  *m_server;      ///< Pointer to the server object, if started.
-    WiFiClient  m_client;       ///< Pointer to the current client connection, if there is one.
+    WiFiServer  *m_server;          ///< Pointer to the server object, if started.
+    WiFiClient  m_client;           ///< Pointer to the current client connection, if there is one.
     
     /// Bring up the WiFi adapter, which in this case includes bring up the soft access point.  This
     /// uses the ParamStore to get the information required for the soft-AP, and then interrogates the
@@ -85,9 +85,15 @@ private:
             Serial.print(String("Connecting to ") + get_ssid() + ": ");
             wl_status_t status = WiFi.begin(get_ssid().c_str(), get_password().c_str());
             Serial.print(String("(status: ") + static_cast<int>(status) + ")");
+            uint32_t wait_loops = 0;
             while (WiFi.status() != WL_CONNECTED) {
                 delay(500);
                 Serial.print(".");
+                ++wait_loops;
+                if (wait_loops > 100) {
+                    Serial.printf("\nINFO: Failed to connect on WiFi.\n");
+                    return false;
+                }
             }
             Serial.println("");
             IPAddress server_address = WiFi.localIP();
@@ -181,7 +187,7 @@ private:
     /// \param filename Name of the file to transfer to the client
     /// \return True if the transfer worked, otherwise false.
     
-    bool sendLogFile(String const& filename)
+    bool sendLogFile(String const& filename, uint32_t filesize)
     {
         if (!isConnected()) return false;
         File f = m_storage->Controller().open(filename, FILE_READ);
@@ -189,8 +195,12 @@ private:
             Serial.println("ERR: failed to open file for transfer.");
             return false;
         } else {
+            m_client.write((uint8_t *)&filesize, sizeof(uint32_t));
+            uint8_t buffer[1435]; // The biggest buffer we can send in a single packet appears to be 1436 B.
+            size_t n_read;
             while (f.available()) {
-                m_client.write(f.read());
+                n_read = f.read(buffer, 1435);
+                m_client.write(buffer, n_read);
             }
             f.close();
         }
@@ -376,7 +386,8 @@ String WiFiAdapter::ReceivedString(void) { return readBuffer(); }
 ///
 /// \param filename Name of the log file to be transferred.
 /// \return True if the file was transferred, otherwise false.
-bool WiFiAdapter::TransferFile(String const& filename) { return sendLogFile(filename); }
+bool WiFiAdapter::TransferFile(String const& filename, uint32_t filesize)
+    { return sendLogFile(filename, filesize); }
 
 /// Pass-through implementation to the sub-class code to get the SSID in use for the WiFi adapter.
 ///

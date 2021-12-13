@@ -41,4 +41,4 @@ set(DECODER_HDR
 add_executable(logconvert ${DECODER_SRC} ${DECODER_HDR})
 target_link_libraries(logconvert ${LIBS})
 
-install(TARGETS logconvert RUNTIME DESTINATION bin)
+install(TARGETS logconvert RUNTIME DESTINATION ${CMAKE_BINARY_DIR}/bin)

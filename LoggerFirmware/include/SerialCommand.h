@@ -30,6 +30,7 @@
 #include <Arduino.h>
 #include "N2kLogger.h"
 #include "N0183Logger.h"
+#include "PointBridge.h"
 #include "LogManager.h"
 #include "StatusLED.h"
 #include "BluetoothAdapter.h"
@@ -73,18 +74,22 @@ public:
         WirelessPort    ///< WiFi socket from a client
     };
 
+    /// \brief Turn on character echo on the Serial interface so that the user can see what's being typed
     void EchoOn(void) { m_echoOn = true; }
+    /// \brief Turn off character echo on the Serial interface
     void EchoOff(void) { m_echoOn = false; }
     
 private:
     nmea::N2000::Logger *m_CANLogger;   ///< Pointer for the logger object to use
     nmea::N0183::Logger *m_serialLogger;///< Pointer for the NMEA0183 message handler
+    nmea::N0183::PointBridge *m_bridge; ///< Pointer for the WiFi/UDP -> NEMA0183 bridge
     logger::Manager     *m_logManager;  ///< Object to write to SD files and console log
     StatusLED           *m_led;         ///< Pointer for the status LED controller
     BluetoothAdapter    *m_ble;         ///< Pointer for the BLE interface
     WiFiAdapter         *m_wifi;        ///< Pointer for the WiFi interface, once it comes up
     logger::IncBuffer   m_serialBuffer; ///< Space to assemble serial commands that doesn't block runtime
     bool                m_echoOn;       ///< Flag: indicate that characters from serial should be echoed back
+    bool                m_passThrough;  ///< Flag: indicate that strings should be passed through to NMEA0183 transmit
     
     /// \brief Print the console log on the output stream(s)
     void ReportConsoleLog(CommandSource src);
@@ -102,6 +107,8 @@ private:
     void SetIdentificationString(String const& identifier);
     /// \brief Set the advertising name for the BLE service
     void SetBluetoothName(String const& name);
+    /// \brief Report the advertising name for the BLE service
+    void ReportBluetoothName(CommandSource src);
     /// \brief Turn on/off verbose information on messages received
     void SetVerboseMode(String const& mode);
     /// \brief Shut down logging for safe power removal
@@ -119,18 +126,37 @@ private:
     /// \brief Send a log file to the client
     void TransferLogFile(String const& command, CommandSource src);
     /// \brief Set up receiver on UARTs for inverting input (to deal with polarity problems)
-    void ConfigureSerialPort(String const& command, CommandSource src);
+    void ConfigureSerialPortInvert(String const& command, CommandSource src);
+    /// \brief Set up baud rate for the UARTs
+    void ConfigureSerialPortSpeed(String const& command, CommandSource src);
     /// \brief Configure whether to bring on individual loggers
     void ConfigureLoggers(String const& command, CommandSource src);
     /// \brief Configure whether to echo characters on Serial back to the host
     void ConfigureEcho(String const& command, CommandSource src);
+    /// \brief Configure whether to pass through characters on Serial to NMEA0183
+    void ConfigurePassthrough(String const& command, CommandSource src);
+    /// \brief Set which radio gets booted at power on
+    void ConfigureBootRadio(String const& command, CommandSource src);
+    /// \brief Set up algorithm requests for later post-processing
+    void ConfigureAlgRequest(String const& command, CommandSource src);
     /// \brief Report configuration parameters for the logger
     void ReportConfiguration(CommandSource src);
+    /// \brief Report algorithms that the logger requests be run on the data
+    void ReportAlgRequests(CommandSource src);
+    /// \brief Report heap size during run-time
+    void ReportHeapSize(CommandSource src);
     /// \brief Show a list of known commands
     void Syntax(CommandSource src);
-    
+    /// \brief Store a metdata element to be added to each data file
+    void StoreMetadataElement(String const& command, CommandSource src);
+    /// \brief Dump out the metadata element stored in the flash memory
+    void ReportMetadataElement(CommandSource src);
+    /// \brief Dump out the list of NMEA0183 messages that are accepted
+    void ReportNMEAFilter(CommandSource src);
+    /// \brief Add/reset the NMEA0183 messages accepted for logging
+    void AddNMEAFilter(String const& command, CommandSource src);
     /// \brief Check for commands, and execute them if found
-    void Execute(String const& cmd, CommandSource src);
+    void Execute(String const& command, CommandSource src);
     
     /// \brief Generate a string on the appropriate output stream
     void EmitMessage(String const& msg, CommandSource src);

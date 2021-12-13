@@ -34,24 +34,45 @@ namespace mem {
 
 /// \class MemController
 /// \brief Abstract interface to start an appropriate controller for the primary storage being used
+///
+/// Depending on the implemenation of the WIBL logger, it's possible that more than one type of
+/// memory might be used for large-scale storage.  This class provides an abstract interface to start
+/// and stop the memory system so that specialisations can be made without changing the rest of the
+/// code base.
 
 class MemController {
 public:
+    /// \brief Default (null) constructor
     MemController(void) {}
+    /// \brief Default (virtual) constructor
     virtual ~MemController(void) {}
 
+    /// \brief Start the memory interface
     bool Start(void) { return start_interface(); }
+    /// \brief Shut down the memory interface
     void Stop(void) { stop_interface(); }
+    /// \brief Call-through for the file system abstract used by the memory controller
     fs::FS& Controller(void) { return get_interface(); }
 
 private:
+    /// \brief Implement the code to start the memory interface
     virtual bool start_interface(void) = 0;
+    /// \brief Implement the code to stop the memory interface
     virtual void stop_interface(void) = 0;
+    /// \brief Return a reference for the file system abstraction implemented by the memory sub-system
     virtual fs::FS& get_interface(void) = 0;
 };
 
+/// \class MemControllerFactory
+/// \brief Factory class to construct the appropriate \a MemController interface for the hardware
+///
+/// This provides a static member that can be used to generate a new instance of the \a MemController
+/// interface that's appropriate for the memory sub-system in the current hardware implementation.
+/// The pointer passed back is owned by the caller.
+
 class MemControllerFactory {
 public:
+    /// \brief Construct a new instance of the memory controller object appropriate for the hardware
     static MemController *Create(void);
 };
 

@@ -213,11 +213,11 @@ public:
     /// the BLE server for Nordic Semi-style UART service.
     
     ESP32Adapter(void)
-    : m_started(false), m_server(NULL), m_service(NULL),
-      m_txCharacteristic(NULL), m_rxCallbacks(NULL)
+    : m_started(false), m_server(nullptr), m_service(nullptr),
+      m_txCharacteristic(nullptr), m_rxCallbacks(nullptr)
     {
-        // We now need to bring up the BLE server with notification on
-        // transmit and call-backs on receive.
+        // We generate the service and register call-backs, but don't start the service
+        // until we're sure that we need it.
         BLEDevice::init(getAdvertisingName().c_str());
         m_server = BLEDevice::createServer();
         m_serverCallbacks = new ServerCallbacks(m_server);
@@ -232,11 +232,6 @@ public:
                                           BLECharacteristic::PROPERTY_WRITE);
         m_rxCallbacks = new CharCallbacks();
         rxCharacteristic->setCallbacks(m_rxCallbacks);
-        m_service->start();
-        m_server->getAdvertising()->start();
-        Serial.println("INFO: BLE advertising started.");
-        
-        m_started = true;
     }
     
     /// \brief Default destructor
@@ -246,15 +241,16 @@ public:
     
     ~ESP32Adapter()
     {
-        if (m_started) {
-            m_server->getAdvertising()->stop();
-            m_service->stop();
-            delete m_rxCallbacks;
-            delete m_serverCallbacks;
-            delete m_txCharacteristic;
-            delete m_service;
-            delete m_server;
-        }
+        stop();
+
+        // We attempt to clean up, although it's not clear that this works well for
+        // the current implementation of the BLE driver, which appears to want to
+        // call call-backs after the service has been stopped ...
+        delete m_rxCallbacks;
+        delete m_serverCallbacks;
+        delete m_txCharacteristic;
+        delete m_service;
+        delete m_server;
     }
     
 private:
@@ -265,6 +261,36 @@ private:
     ServerCallbacks     *m_serverCallbacks; ///< Callbacks for connection/disconnection events
     CharCallbacks       *m_rxCallbacks; ///< Callbacks for received data from the client
     
+    /// This starts the BLE interface, and registers all of the required call-backs, etc.
+    ///
+    /// \return True if the interface came up successfully.
+
+    bool start(void)
+    {
+        // We now need to bring up the BLE server with notification on
+        // transmit and call-backs on receive.
+        m_service->start();
+        m_server->getAdvertising()->start();
+        Serial.println("INFO: BLE advertising started.");
+        
+        m_started = true;
+        return true;
+    }
+
+    /// Bring down the BLE interface so that we don't have to have it running while the WiFi
+    /// runs (there isn't really enough memory to run both and anything else at the same time).
+    ///
+    
+    void stop(void)
+    {
+        if (m_started) {
+            m_server->getAdvertising()->stop();
+            m_service->stop();
+            m_started = false;
+            Serial.println("INFO: BLE advertising stopped.");
+        }
+    }
+
     /// \brief Set the user-unique identification string for the module
     ///
     /// This opens a file in the SPIFFS non-volatile memory area on the ESP32 module, and
@@ -330,6 +356,17 @@ private:
         }
         return value;
     }
+
+    /// \brief Determine whether the interface has been started
+    ///
+    /// This checks whether the user has started the interface (after instantiating the class)
+    ///
+    /// \return True if the interface has been started, otherwise False
+
+    bool isStarted(void)
+    {
+        return m_started;
+    }
     
     /// \brief Determine whether the interface has a client connected
     ///
@@ -340,7 +377,7 @@ private:
     
     bool isConnected(void)
     {
-        return m_serverCallbacks->IsConnected();
+        return m_serverCallbacks != nullptr && m_serverCallbacks->IsConnected();
     }
     
     /// \brief Determine the number of strings in the reception FIFO
@@ -352,7 +389,12 @@ private:
     
     int dataCount(void)
     {
-        return m_rxCallbacks->buffered();
+        int count;
+        if (m_rxCallbacks == nullptr)
+            count = 0;
+        else
+            count = m_rxCallbacks->buffered();
+        return count;
     }
     
     /// \brief Read the first string out of the reception FIFO
@@ -364,7 +406,11 @@ private:
     
     String readBuffer(void)
     {
-        return String(m_rxCallbacks->popBuffer().c_str());
+        String rtn;
+        if (m_rxCallbacks != nullptr) {
+            rtn = String(m_rxCallbacks->popBuffer().c_str());
+        }
+        return rtn;
     }
 
     /// \brief Write a string into the transmission FIFO
@@ -377,8 +423,10 @@ private:
     
     void writeBuffer(String const& data)
     {
-        m_txCharacteristic->setValue((uint8_t*)(data.c_str()), data.length());
-        m_txCharacteristic->notify();
+        if (m_txCharacteristic != nullptr) {
+            m_txCharacteristic->setValue((uint8_t*)(data.c_str()), data.length());
+            m_txCharacteristic->notify();
+        }
     }
 
     /// \brief Write a single byte to the transmission FIFO
@@ -391,8 +439,10 @@ private:
     
     void writeByte(uint8_t b)
     {
-        m_txCharacteristic->setValue(&b, 1);
-        m_txCharacteristic->notify();
+        if (m_txCharacteristic != nullptr) {
+            m_txCharacteristic->setValue(&b, 1);
+            m_txCharacteristic->notify();
+        }
     }
 };
 
@@ -636,6 +686,22 @@ BluetoothAdapter *BluetoothFactory::Create(void)
 // adds a little to the costs, but it also allows us to instrument the calls
 // in a single location, if required.
 
+/// Start the Bluetooth LE module server
+///
+/// \return True if the module started, otherwise False
+
+bool BluetoothAdapter::Startup(void)
+{
+    return start();
+}
+
+/// Stop the Bluetooth LE module, cleaning up as required
+
+void BluetoothAdapter::Shutdown(void)
+{
+    stop();
+}
+
 /// Set the Bluetooth LE module server name
 ///
 /// \param name Name to set for Bluetooth server advertising
@@ -665,6 +731,15 @@ void BluetoothAdapter::IdentifyAs(String const& identifier)
 String BluetoothAdapter::LoggerIdentifier(void)
 {
     return getIdentificationString();
+}
+
+/// Determine whether the interface has been started.
+///
+/// \return True if the interface has been started.
+
+bool BluetoothAdapter::IsStarted(void)
+{
+    return isStarted();
 }
 
 /// Detemine whether there is a Bluetooth client connected to the adapter interface.

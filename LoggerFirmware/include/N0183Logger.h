@@ -28,8 +28,10 @@
 #ifndef __N0183_LOGGER_H__
 #define __N1083_LOGGER_H__
 
+#include <set>
 #include "LogManager.h"
 #include "IncrementalBuffer.h"
+#include "Configuration.h"
 
 namespace nmea {
 namespace N0183 {
@@ -72,6 +74,9 @@ public:
     
     /// \brief Provide the recognition token from the start of the sentence
     String Token(void) const;
+
+    /// \brief Provide the NMEA0183 message ID from the start of the sentence
+    String MessageID(void) const;
     
 private:
     unsigned long   m_timestamp;    ///< Timestamp associated with the "$" that started the sentence
@@ -102,9 +107,11 @@ public:
     Sentence const *NextSentence(void);
     
 private:
+    /// \enum State
+    /// \brief States in the FSM used to assemble sentences from raw characters
     enum State {
-        STATE_SEARCHING,
-        STATE_CAPTURING
+        STATE_SEARCHING,    ///< Looking for a new sentence start character
+        STATE_CAPTURING     ///< In the middle of a sentence, looking for the end character(s)
     };
 
     static const int RingBufferLength = 10; ///< Maximum number of sentences we'll attempt to buffer
@@ -154,6 +161,14 @@ private:
     bool                m_verbose;                ///< Verbose status for the logger
     logger::Manager    *m_logManager;             ///< Handler for log files on SD card
     MessageAssembler    m_channel[ChannelCount];  ///< Message handler for two channels
+    std::set<String>    m_filter;                 ///< Set of NMEA0183 IDs to accept
+
+    /// \brief Find the configured baud rate for the given channel
+    uint32_t retrieveBaudRate(logger::Config::ConfigParam channel);
+    /// \brief Pull the configured specification of which NMEA messages are allowed to be logged back into memory
+    void retrieveIDFilter(void);
+    /// \brief Determine whether the given sentence should be logged
+    bool filterMessage(Sentence const *s);
 };
 
 }
