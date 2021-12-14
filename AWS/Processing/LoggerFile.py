@@ -52,6 +52,7 @@ class PacketTypes(Enum):
     Metadata = 12
     AlgorithmRequest = 13
     JSONMetadata = 14
+    NMEA0183Filter = 15
 
 
 ## Convert from Kelvin to degrees Celsius
@@ -1146,7 +1147,7 @@ class JSONMetadata(DataPacket):
 
     def payload(self) -> bytes:
         meta_len = len(self.metadata_element)
-        buffer = struct.pack(f'<I{meta_len}s', meta_len, self.metadata_element.encode('UTF-8'))
+        buffer = struct.pack(f'<I{meta_len}s', meta_len, self.metadata_element)
         return buffer
     
     def id(self) -> int:
@@ -1159,7 +1160,7 @@ class JSONMetadata(DataPacket):
         except KeyError as e:
             raise SpecificationError('Bad packet parameters') from e
         
-    ## Provide the fixed-texzt string name for this data packet
+    ## Provide the fixed-text string name for this data packet
     #
     # This simply reports the human-readable name for the class so that reporting is possible
     def name(self):
@@ -1174,6 +1175,97 @@ class JSONMetadata(DataPacket):
     def __str__(self):
         rtn = DataPacket.__str__(self) + ' ' + self.name() + ': metadata element = \"' + self.metadata_element.decode('UTF-8') + '\"'
         return rtn
+
+## Implement a packet to hold information on NMEA0183 packets being recorded
+#
+# The logger has the ability to filter the NMEA0183 sentences that are received so that it only  records to
+# SD card those that are of interest.  Getting the filtering right can be important to let the capture run
+# for as long as possible. 
+class NMEA0183Filter(DataPacket):
+    ## Initialise the object using the supplied buffer of data, or keywords if appropriate
+    #
+    # If the keywords include "buffer", the code assumes that the contents of the buffer are a serialised
+    # version of the packet, and attempts to unpack it.  Otherwise, the code assumes that the keywords contain
+    # information required to initialise the packet, and attempts to pull them from the dictionary.
+    #
+    # \param self   Reference for the object
+    # \param kwargs Named arguments to initialise parameters, or "buffer" to unpack from binary data
+    def __init__(self, **kwargs):
+        if 'buffer' in kwargs:
+            self.buffer_constructor(kwargs['buffer'])
+        else:
+            self.data_constructor(**kwargs)
+    
+    ## Initialise the packet from a binary buffer
+    #
+    # This takes the binary buffer presented and unpacks into an instance of the packet.
+    #
+    # \param self   Reference for the object
+    # \param buffer Binary buffer with serialised information for the packet
+    def buffer_constructor(self, buffer: bytes) -> None:
+        base = 0
+        id_len, = struct.unpack_from('<I', buffer, base)
+        base += 4
+        recog_string, = struct.unpack_from(f'<{id_len}s', buffer, base)
+        self.recog_string = recog_string
+        super().__init__(0, 0.0, 0)
+    
+    ## Initialise the packet from keyword arguments
+    #
+    # This takes the keywords provided and attempts to initialise the packet.  For this packet, valid
+    # keywords are:
+    #   'sentence': String containing the three-letter sentence name to be accepted for recording
+    #
+    # \param self       Reference for the object
+    # \param **kwargs   Keyword dictionary with parameters for the packet
+    def data_constructor(self, **kwargs) -> None:
+        try:
+            self.recog_string = kwargs['sentence'].encode('UTF-8')
+            super().__init__(0, 0.0, 0)
+        except KeyError as e:
+            raise SpecificationError('Bad packet parameters') from e
+    
+    ## Encode the current packet for serialisation
+    #
+    # From the parameters set in the packet, convert to a stream of bytes that can be used to serialise
+    # the packet to an output stream.  Note that this returns only the contents of the packet; the
+    # packet length, recognition ID, etc., must be added separately.
+    #
+    # \param self   Reference for the object
+    # \return Bytes array with the binary representation of the packet-specific parameters
+    def payload(self) -> bytes:
+        recog_len = len(self.recog_string)
+        buffer = struct.pack(f'<I{recog_len}s', recog_len, self.recog_string)
+        return buffer
+    
+    ## Provide the recognition ID for the packet, as used in the binary file
+    #
+    # Each packet has a reference number that's used as an ID; this routine provides that number
+    #
+    # \param self   Reference for the object
+    # \returns Integer identification number for the packet
+    def id(self) ->int:
+        return PacketTypes.NMEA0183Filter.value
+
+    ## Provide the fixed-text string name for this data packet
+    #
+    # This simply reports the human-readable name for the class so that reporting is possible
+    #
+    # \param self   Reference for the object
+    # \return String with th ename of the object
+    def name(self) -> str:
+        return 'NMEA0183Filter'
+
+    ## Implement the printable interface for this class, allowing it to be streamed
+    #
+    # This converts to human-readable version of the data packet for standard streaming output interface
+    #
+    # \param self   Reference for the object
+    # \return String representation of the object
+    def __str__(self) -> str:
+        rtn = DataPacket.__str__(self) + ' ' + self.name() + ': sentence recognition string = \"' + self.recog_string.decode('UTF-8') + '\"'
+        return rtn
+
     
 ## Translate packets out of the binary file, reconstituing as an appropriate class
 #
@@ -1243,6 +1335,8 @@ class PacketFactory:
             rtn = AlgorithmRequest(buffer=buffer)
         elif pkt_id == PacketTypes.JSONMetadata.value:
             rtn = JSONMetadata(buffer=buffer)
+        elif pkt_id == PacketTypes.NMEA0183Filter.value:
+            rtn = NMEA0183Filter(buffer=buffer)
         else:
             print("Unknown packet with ID " + str(pkt_id) + " in input stream; ignored.")
             rtn = None

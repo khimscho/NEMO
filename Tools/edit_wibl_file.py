@@ -41,6 +41,7 @@ def main():
     parser.add_argument('-m', '--meta', type=str, help = 'Specify a JSON file for additional metadata elements (filename)')
     parser.add_argument('-a', '--algo', type=str, action='append', help = 'Add a processing algorithm request (name: str,params: str)')
     parser.add_argument('-s', '--serversion', type=str, help = 'Specify the serialiser version for the output file (major: int, minor: int)')
+    parser.add_argument('-f', '--filter', type=str, action='append', help='Specify a NMEA0183 sentence filter name')
     parser.add_argument('input', type=str, help = 'WIBL format input file')
     parser.add_argument('output', type=str, help = 'WIBL format output file')
 
@@ -68,13 +69,16 @@ def main():
         metadata = json.dumps(json_meta)
     else:
         metadata = None
+
+    algorithms = []
     if optargs.algo:
-        algorithms = []
         for alg in optargs.algo:
             name,params = alg.split(',')
             algorithms.append({ 'name': name, 'params': params})
-    else:
-        algorithms = []
+    
+    filters = []
+    if optargs.filter:
+        filters = optargs.filter
 
     if optargs.serversion:
         file_major, file_minor = optargs.serversion.split(',')
@@ -136,6 +140,10 @@ def main():
         if algorithms:
             for alg in algorithms:
                 packet = lf.AlgorithmRequest(name = alg['name'], params = alg['params'])
+                packet.serialise(op)
+        if filters:
+            for filt in filters:
+                packet = lf.NMEA0183Filter(sentence = filt)
                 packet.serialise(op)
     
     op.flush()
