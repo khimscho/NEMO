@@ -30,19 +30,35 @@
 #include <stdint.h>
 #include "N2kMsg.h"
 
+/// \class NotImplemented
+/// \brief Exception class to indicate that the virtual methods required have not been re-implemented
+///
+/// The NextPacket() method of \a PacketSource can be defined for NMEA packets from NMEA2000 or NMEA0183,
+/// and therefore is unlikely to be defined in both cases for any given source.  This exception is thrown
+/// if the wrong method is called, to provide development support.
 class NotImplemented {};
 
 /// \class PacketSource
-/// \brief Base class for any source of raw NMEA2000 packets to be decoded
+/// \brief Base class for any source of raw NMEA packets to be decoded
 
 class PacketSource {
 public:
     PacketSource(void) {}
     virtual ~PacketSource(void) {}
     
+    /// \brief Extract the next packet from the source (for NMEA2000 packets)
     virtual bool NextPacket(tN2kMsg& msg);
+
+    /// \brief Extract the next packet from the source (for NMEA0183 packets)
     virtual bool NextPacket(uint32_t& elapsed_time, std::string& sentence);
     
+    /// \brief Define whether the packet source is NMEA2000 or NMEA0183
+    ///
+    /// Since we can read packets from either type of NMEA source, but the signature
+    /// of the reader method is different, this provides a mechanism to determine which
+    /// method to use.
+    ///
+    /// \return True if the source is NMEA2000, otherwise false.
     virtual bool IsN2k(void) = 0;
 };
 

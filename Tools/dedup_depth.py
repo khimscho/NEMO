@@ -33,7 +33,7 @@ import numpy as np
 import argparse as arg
 
 def main():
-    parser = arg.ArgumentParser(description = 'Plot WIBL logger data in CSV format')
+    parser = arg.ArgumentParser(description = 'Removed duplicated depths in a WIBL file (in CSV format)')
     parser.add_argument('input', help = 'CSV format input file')
     parser.add_argument('output', help = 'CSV format output file')
     

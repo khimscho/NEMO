@@ -962,6 +962,8 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
     } else if (cmd.startsWith("radio")) {
         ConfigureBootRadio(cmd.substring(6), src);
     } else if (cmd == "passthrough") {
+        // Note that this is intentionally not defined in the syntax list, or elsewhere: it
+        // really is just for debugging.
         ConfigurePassthrough("on", src);
     } else if (cmd.startsWith("algorithm")) {
         if (cmd.length() == 9) {
@@ -1042,6 +1044,9 @@ void SerialCommand::ProcessCommand(void)
         Execute(cmd, CommandSource::WirelessPort);
     }
 }
+
+/// Provide an external interface to the shutdown HCF so that we log the fact that the emergency
+/// power has been activated, and therefore the system is going down.
 
 void SerialCommand::EmergencyStop(void)
 {

@@ -26,12 +26,33 @@
 #include "SerialisableFactory.h"
 #include "N2kMessages.h"
 
+/// \class DummyTimestamp
+/// \brief Helper class to provide serialisation services for timestamp information
+///
+/// When converting data without timestamps, we occasionally need to be able to hold an elapsed time
+/// when there isn't a date or real-world timestamp.  This class provides serialisation services for
+/// this type of timestamp.
+
 class DummyTimestamp
 {
 public:
+    /// \brief Set timestamp to a given elapsed time
+    ///
+    /// Default constructor for a give elapsed time.  Typically this is the time since the logger
+    /// booted in milliseconds, but the code doesn't really care what the units are.
+    ///
+    /// \param elapsed  Time since start of recording for the data (typically milliseconds)
+
     DummyTimestamp(uint32_t elapsed)
     : m_elapsed(elapsed) {}
     
+    /// \brief Generate a binary representation of the timestamp
+    ///
+    /// Convert the elapsed time (and a default date and timestamp) into binary format in a \a Serialisable
+    /// so that it can be added to an output WIBL file.
+    ///
+    /// \param target   Shared pointer for the output \a Serialisable object
+
     void Serialise(std::shared_ptr<Serialisable> target)
     {
         uint16_t date = 0;
@@ -41,14 +62,28 @@ public:
         *target += m_elapsed;
     }
     
+    /// \brief Compute the size of the output packet of binary data
+    ///
+    /// This computes the size in bytes of the data that is going to be written to the binary
+    /// packet, allowing for buffers to be allocated.
+    ///
+    /// \return Size of the output packet in bytes
+
     uint32_t SerialisationSize(void)
     {
         return sizeof(uint16_t) + sizeof(double) + sizeof(uint32_t);
     }
     
 private:
-    uint32_t    m_elapsed;
+    uint32_t    m_elapsed;  ///< Elapsed time for the packet since the logger booted
 };
+
+/// \brief Translate a NMEA2000 SystemTime packet
+///
+/// Convert from a standard NMEA2000 SystemTime packet into a \a Serialisable.
+///
+/// \param msg  Reference for the SystemTime packet to convert for serialisation
+/// \return Shared pointer to the \a Serialisable packet
 
 std::shared_ptr<Serialisable> HandleSystemTime(tN2kMsg& msg)
 {
@@ -70,6 +105,13 @@ std::shared_ptr<Serialisable> HandleSystemTime(tN2kMsg& msg)
     return rtn;
 }
 
+/// \brief Translate a NMEA2000 Attitude packet
+///
+/// Convert from a standard NMEA2000 Attitude packet into a \a Serialisable
+///
+/// \param msg  Reference for the SystemTime packet to convert for serialisation
+/// \return Shared pointer to the \a Serialisable packet
+
 std::shared_ptr<Serialisable> HandleAttitude(tN2kMsg& msg)
 {
     unsigned char   SID;
@@ -88,6 +130,13 @@ std::shared_ptr<Serialisable> HandleAttitude(tN2kMsg& msg)
     return rtn;
 }
 
+/// \brief Translate a NMEA2000 Depth packet
+///
+/// Convert from a standard NMEA2000 Depth packet into a \a Serialisable
+///
+/// \param msg  Reference for the SystemTime packet to convert for serialisation
+/// \return Shared pointer to the \a Serialisable packet
+
 std::shared_ptr<Serialisable> HandleDepth(tN2kMsg& msg)
 {
     unsigned char SID;
@@ -104,6 +153,13 @@ std::shared_ptr<Serialisable> HandleDepth(tN2kMsg& msg)
     }
     return rtn;
 }
+
+/// \brief Translate a NMEA2000 Course Over Ground packet
+///
+/// Convert from a standard NMEA2000 Course Over Ground packet into a \a Serialisable
+///
+/// \param msg  Reference for the SystemTime packet to convert for serialisation
+/// \return Shared pointer to the \a Serialisable packet
 
 std::shared_ptr<Serialisable> HandleCOG(tN2kMsg& msg)
 {
@@ -123,6 +179,13 @@ std::shared_ptr<Serialisable> HandleCOG(tN2kMsg& msg)
     }
     return rtn;
 }
+
+/// \brief Translate a NMEA2000 GNSS positioning packet
+///
+/// Convert from a standard NMEA2000 GNSS positioning packet into a \a Serialisable
+///
+/// \param msg  Reference for the SystemTime packet to convert for serialisation
+/// \return Shared pointer to the \a Serialisable packet
 
 std::shared_ptr<Serialisable> HandleGNSS(tN2kMsg& msg)
 {
@@ -160,6 +223,13 @@ std::shared_ptr<Serialisable> HandleGNSS(tN2kMsg& msg)
     return rtn;
 }
 
+/// \brief Translate a NMEA2000 Environment (temperature, humidity, and pressure) packet
+///
+/// Convert from a standard NMEA2000 Environment (temperature, humidity, and pressure) packet into a \a Serialisable
+///
+/// \param msg  Reference for the SystemTime packet to convert for serialisation
+/// \return Shared pointer to the \a Serialisable packet
+
 std::shared_ptr<Serialisable> HandleEnvironment(tN2kMsg& msg)
 {
     unsigned char SID;
@@ -181,6 +251,13 @@ std::shared_ptr<Serialisable> HandleEnvironment(tN2kMsg& msg)
     return rtn;
 }
 
+/// \brief Translate a NMEA2000 Temperature packet
+///
+/// Convert from a standard NMEA2000 Temperature packet into a \a Serialisable
+///
+/// \param msg  Reference for the SystemTime packet to convert for serialisation
+/// \return Shared pointer to the \a Serialisable packet
+
 std::shared_ptr<Serialisable> HandleTemperature(tN2kMsg& msg)
 {
     unsigned char   SID;
@@ -200,6 +277,13 @@ std::shared_ptr<Serialisable> HandleTemperature(tN2kMsg& msg)
     }
     return rtn;
 }
+
+/// \brief Translate a NMEA2000 Humidity packet
+///
+/// Convert from a standard NMEA2000 Humidity packet into a \a Serialisable
+///
+/// \param msg  Reference for the SystemTime packet to convert for serialisation
+/// \return Shared pointer to the \a Serialisable packet
 
 std::shared_ptr<Serialisable> HandleHumidity(tN2kMsg& msg)
 {
@@ -221,6 +305,13 @@ std::shared_ptr<Serialisable> HandleHumidity(tN2kMsg& msg)
     return rtn;
 }
 
+/// \brief Translate a NMEA2000 Pressure packet
+///
+/// Convert from a standard NMEA2000 Pressure packet into a \a Serialisable
+///
+/// \param msg  Reference for the SystemTime packet to convert for serialisation
+/// \return Shared pointer to the \a Serialisable packet
+
 std::shared_ptr<Serialisable> HandlePressure(tN2kMsg& msg)
 {
     unsigned char       SID;
@@ -241,6 +332,13 @@ std::shared_ptr<Serialisable> HandlePressure(tN2kMsg& msg)
     return rtn;
 }
 
+/// \brief Translate a NMEA2000 Extended Temperature packet
+///
+/// Convert from a standard NMEA2000 Extended Temperature packet into a \a Serialisable
+///
+/// \param msg  Reference for the SystemTime packet to convert for serialisation
+/// \return Shared pointer to the \a Serialisable packet
+
 std::shared_ptr<Serialisable> HandleExtTemperature(tN2kMsg& msg)
 {
     unsigned char   SID;
@@ -260,6 +358,15 @@ std::shared_ptr<Serialisable> HandleExtTemperature(tN2kMsg& msg)
     }
     return rtn;
 }
+
+/// \brief Handle conversion of a NMEA2000 packet into a \a Serialisable
+///
+/// This dispatches the packet provided into a specific format converter that translates into a
+/// \a Serialisable packet, and adds the payload-id tag required to serialise it.
+///
+/// \param msg          NMEA2000 packet to convert to \a Serialisable
+/// \param payload_id   Reference (output) for the payload-id number for the packet
+/// \return Shared pointer for the \a Serialisable object containing the binary data
 
 std::shared_ptr<Serialisable> SerialisableFactory::Convert(tN2kMsg& msg, PayloadID& payload_id)
 {
@@ -282,6 +389,15 @@ std::shared_ptr<Serialisable> SerialisableFactory::Convert(tN2kMsg& msg, Payload
     }
     return rtn;
 }
+
+/// \brief Handle conversion of a NMEA0183 sentence into a \a Serialisable
+///
+/// This does a simple conversion of the NMEA0183 sentence string into a \a Serialisable packet (of the NMEAString type).
+///
+/// \param elapsed_time Time since logger boot at which the NMEA sentence was received
+/// \param nmea_string  NMEA10183 string received
+/// \param payload_id   Reference (output) for the payload-id number for the packet
+/// \return Shared pointer for the \a Serialisable object containing the binary data
 
 std::shared_ptr<Serialisable> SerialisableFactory::Convert(uint32_t elapsed_time, std::string& nmea_string, PayloadID& payload_id)
 {
