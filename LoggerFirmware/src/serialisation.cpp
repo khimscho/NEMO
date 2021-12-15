@@ -60,11 +60,12 @@ Serialisable::~Serialisable(void)
 void Serialisable::EnsureSpace(size_t s)
 {
     if ((m_bufferLength - m_nData) < s) {
-        uint8_t *new_buffer = (uint8_t *)malloc(sizeof(uint8_t)*(2*m_bufferLength));
+        uint32_t target_buffer_size = std::max(2*m_bufferLength, m_nData + s);
+        uint8_t *new_buffer = (uint8_t *)malloc(sizeof(uint8_t)*target_buffer_size);
         memcpy(new_buffer, m_buffer, sizeof(uint8_t)*m_nData);
         free(m_buffer);
         m_buffer = new_buffer;
-        m_bufferLength = 2*m_bufferLength;
+        m_bufferLength = target_buffer_size;
     }
 }
 

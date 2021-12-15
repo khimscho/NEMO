@@ -230,7 +230,7 @@ String MetadataStore::GetMetadata(void)
 void MetadataStore::SerialiseMetadata(Serialiser *s)
 {
     String meta = GetMetadata();
-    Serialisable packet;
+    Serialisable packet(meta.length() + 4);
 
     packet += meta.length();
     packet += meta.c_str();

@@ -278,6 +278,8 @@ void Manager::StartNewLog(void)
         algstore.SerialiseAlgorithms(m_serialiser);
         logger::MetadataStore metastore;
         metastore.SerialiseMetadata(m_serialiser);
+        logger::N0183IDStore filterstore;
+        filterstore.SerialiseIDs(m_serialiser);
         m_consoleLog.println(String("INFO: started logging to ") + filename);
     } else {
         m_serialiser = nullptr;
