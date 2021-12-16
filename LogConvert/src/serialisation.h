@@ -63,7 +63,9 @@ public:
     /// \brief Add an array of characters (C-style string) to the output buffer
     void operator+=(const char *p);
     
+    /// \brief Inspector for the number of bytes of data in the buffer (not the total buffer length)
     uint32_t BufferLength(void) const { return m_nData; }
+    /// \brief Inspector for the buffer contents
     uint8_t const *Buffer(void) const { return m_buffer; }
     
 private:
@@ -76,29 +78,50 @@ private:
     void EnsureSpace(size_t s);
 };
 
+/// \class Version
+/// \brief POD to hold information on a major.minor.patch version number
+
 class Version {
 public:
-    uint16_t major;
-    uint16_t minor;
-    uint16_t patch;
+    uint16_t major; ///< Major version of the entity
+    uint16_t minor; ///< Minor version of the entity
+    uint16_t patch; ///< Patch level of the entity
+
+    /// \brief Simple constructor for the POD to allow for uniform construction
+    ///
+    /// This simply sets up the data points from the user's input
+    ///
+    /// \param maj  Major version of the entity
+    /// \param min  Minor version of the entity
+    /// \param pat  Patch level of the entity
+
     Version(uint16_t maj, uint16_t min, uint16_t pat)
     : major(maj), minor(min), patch(pat) {}
 };
 
+/// \enum PayloadID
+/// \brief Identification numbers for the packets known to the serialiser
+///
+/// Each packet written into the output file must have an identification number written
+/// into the data stream (and the packet size) in order to be interpretable without looking
+/// backwards into the file.  This enum provides those identification numbers.  Note that
+/// these must match those in the Wiki documentation in the repository, and there is no
+/// mechanism to enforce this.  Very Bad Things (TM) will happen if this is not the case.
+
 enum PayloadID {
-    Pkt_Version = 0,
-    Pkt_SystemTime = 1,
-    Pkt_Attitude = 2,
-    Pkt_Depth = 3,
-    Pkt_COG = 4,
-    Pkt_GNSS = 5,
-    Pkt_Environment = 6,
-    Pkt_Temperature = 7,
-    Pkt_Humidity = 8,
-    Pkt_Pressure = 9,
-    Pkt_NMEAString = 10,
-    Pkt_LocalIMU = 11,
-    Pkt_Metadata = 12
+    Pkt_Version = 0,        ///< Versioning information for the serialiser and NMEA handlers
+    Pkt_SystemTime = 1,     ///< NMEA2000 SystemTime packets
+    Pkt_Attitude = 2,       ///< NMEA2000 Attitude (roll, pitch, yaw) packets
+    Pkt_Depth = 3,          ///< NMEA2000 Depth packets
+    Pkt_COG = 4,            ///< NMEA2000 Course over Ground packets
+    Pkt_GNSS = 5,           ///< NMEA2000 Primary navigation (GNSS) packets
+    Pkt_Environment = 6,    ///< NMEA2000 Environmental (temperature, humidity, pressure) packets
+    Pkt_Temperature = 7,    ///< NMEA2000 Temperature packets
+    Pkt_Humidity = 8,       ///< NMEA2000 Humidity packets
+    Pkt_Pressure = 9,       ///< NMEA2000 Pressure packets
+    Pkt_NMEAString = 10,    ///< NMEA1083 sentences (of any kind)
+    Pkt_LocalIMU = 11,      ///< Motion data from the local IMU on the logger
+    Pkt_Metadata = 12       ///< Identification (name, ID) metadata for the logger
 };
 
 /// \class Serialiser
@@ -134,11 +157,14 @@ private:
 
 class StdSerialiser : public Serialiser {
 public:
+    /// \brief Default contructor, simply holding the information for the future
     StdSerialiser(FILE *f, Version& n2k, Version& n1k, std::string const& logger_name, std::string const& logger_id)
     : Serialiser(n2k, n1k, logger_name, logger_id), m_file(f) {}
     
 private:
-    FILE *m_file;
+    FILE *m_file;   ///< File pointer through which to serialise
+
+    /// \brief Concrete implementation of the code to write packets to the file.
     bool rawProcess(PayloadID payload_id, std::shared_ptr<Serialisable> payload);
 };
 

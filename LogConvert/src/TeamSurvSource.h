@@ -31,21 +31,31 @@
 #include "PacketSource.h"
 
 /// \class TeamSurvSource
-/// \brief Simple implementation of PacketSource for raw NMEA0183 strings
+/// \brief Simple implementation of PacketSource for raw NMEA0183 strings without elapsed times
+///
+/// The TeamSurv NMEA0183 data logger records NMEA0183 strings from two input channels (although
+/// field reports indicate that trying to record on both simultaneously can be problematic), and
+/// writes them to a USB stick as a "TSV" file (although there are, in reality, no tabs).  This
+/// data source translates from this format into packets that can be converted for WIBL binary
+/// data files.
 
 class TeamSurvSource : public PacketSource {
 public:
+    /// \brief Default constructor, reading from a simple file
     TeamSurvSource(FILE *in);
+    /// \brief Default destructor
     ~TeamSurvSource(void);
     
+    /// \brief Concerete implementation of code to read the next NNEA0183 sentence from file
     bool NextPacket(uint32_t& elapsed_time, std::string& sentence);
     
+    /// \brief Concrete implementation of NMEA2000 indicator (always false in this case)
     bool IsN2k(void) { return false; }
     
 private:
-    FILE        *m_file;
-    char        *m_buffer;
-    uint32_t    m_bufferLen;
+    FILE        *m_file;        ///< Pointer to the C-style file to read from.
+    char        *m_buffer;      ///< Pointer to buffer to hold NMEA sentences temporarily
+    uint32_t    m_bufferLen;    ///< Length of the buffer for NMEA sentences
 };
 
 #endif

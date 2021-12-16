@@ -37,16 +37,21 @@ class DataPacketTooLarge {};
 
 class YDVRSource : public PacketSource {
 public:
+    /// \brief Default constructor, reading from a binary C-style file pointer
     YDVRSource(FILE *f);
+    /// \brief Default destructor
     ~YDVRSource(void);
     
+    /// \brief Concrete implementation for reading the next NMEA2000 packet from the file
     bool NextPacket(tN2kMsg& msg);
     
+    /// \brief Concrete implementation for NMEA2000 indicator flag (always true in this case)
     bool IsN2k(void) { return true; }
     
 private:
-    FILE    *m_source;
+    FILE    *m_source;  ///< File pointer from which to read
     
+    /// \brief Determine whether the current PGN being read is, in fact, present in multiple packets
     bool IsMultiPacket(uint32_t pgn);
 };
 

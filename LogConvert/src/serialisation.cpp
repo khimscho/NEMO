@@ -51,7 +51,8 @@ Serialisable::~Serialisable(void)
 
 /// Make sure that there is sufficient space in the buffer to include the data that's about to
 /// be added to the buffer, and re-allocate if not.  Re-allocation is expensive, so you want to
-/// avoid this if possible by setting the size hint on the constructor.
+/// avoid this if possible by setting the size hint on the constructor, but it does at least double
+/// the size of the buffer on each try, so you may be able to amortise the costs a little.
 ///
 /// \param s    Size in bytes of the data that's about to be added.
 
@@ -167,7 +168,12 @@ void Serialisable::operator+=(const char *p)
 }
 
 /// Constructor for the serialiser, which writes \a Serialisable objects to file.  The file has
-/// to be opened in binary mode in order for this to work effectively.
+/// to be opened in binary mode in order for this to work effectively, but the base class does
+/// not mandate a particular end-point, so nothing is written through this interface.  Note that
+/// we establish the information for the file metadata (name and id) and version (serialiser,
+/// and NMEA drivers) at this stage, but don't write until the first packet is sent out -- the
+/// base class doesn't have the pointer for output, and can't guarantee that it's initialised when
+/// the constructor is called.
 ///
 /// \param file Reference for the file on which the data should be serialised.
 
@@ -194,6 +200,8 @@ Serialiser::Serialiser(Version& n2k, Version& n1k, std::string const& logger_nam
     *m_metadata += logger_id.c_str();
 }
 
+/// Default destructor for the serialiser (empty)
+
 Serialiser::~Serialiser(void)
 {
 }
@@ -202,7 +210,7 @@ Serialiser::~Serialiser(void)
 /// greater than zero (which is reserved for internal use).
 ///
 /// \param payload_id   ID number to write to file in order to identify what's coming next
-/// \param payload          Buffer hanlder to be written to file
+/// \param payload      Buffer handler to be written to file
 ///
 /// \return True if the packet was written to to file, otherwise False
 
@@ -224,6 +232,14 @@ bool Serialiser::Process(PayloadID payload_id, std::shared_ptr<Serialisable> pay
     
     return rawProcess(payload_id, payload);
 }
+
+/// Sent the data from a \a Serialisable to the target output file.  This simply writes the
+/// packet with the payload size prior to the packet, and therefore assumes that whatever the
+/// caller provides for the \a payload_id is correct.
+///
+/// \param payload_id   Identification number for the pakcet being serialised
+/// \param payload      Shared pointer to the packet being serialised
+/// \return True on success, otherwise false
 
 bool StdSerialiser::rawProcess(PayloadID payload_id, std::shared_ptr<Serialisable> payload)
 {

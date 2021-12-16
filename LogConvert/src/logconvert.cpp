@@ -42,6 +42,9 @@ namespace po = boost::program_options;
 #include "serialisation.h"
 #include "SerialisableFactory.h"
 
+/// Dummy code to allow the system to pretend that there's a millisecond counter
+///
+/// \return Nominally the millisecond counter since boot; there, uniformly zero
 uint32_t millis(void)
 {
     return 0;
@@ -106,6 +109,14 @@ const std::map<uint32_t, std::string> pgn_lut(
     {130576, "TrimTabPosition" },
     {130577, "DirectionData" }
 });
+
+/// Construct a text string name for a given packet PGN.  This attempts to translate
+/// into a human-comprehendable packet name if the packet is a known NMEA2000 type,
+/// but will fabricate a name from the PGN otherwise.
+///
+/// \param pgn          Packet PGN to translate
+/// \param is_nmea2000  Flag: true if the packet is known to be NMEA2000
+/// \return String with a reportable name for the packet
 
 std::string NamePacket(uint32_t pgn, bool is_nmea2000)
 {

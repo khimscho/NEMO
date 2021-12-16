@@ -26,6 +26,11 @@
 
 #include "TeamSurvSource.h"
 
+/// Default constructor for a TeamSurv-style data file, consisting of NMEA0183 sentences, one per
+/// line in an ASCII text file.
+///
+/// \param in   File pointer to read from
+
 TeamSurvSource::TeamSurvSource(FILE *in)
 : PacketSource(), m_file(in)
 {
@@ -33,10 +38,23 @@ TeamSurvSource::TeamSurvSource(FILE *in)
     m_bufferLen = 1024;
 }
 
+/// Default destructor for a TeamSurv-style data file.
+
 TeamSurvSource::~TeamSurvSource(void)
 {
     delete m_buffer;
 }
+
+/// Read NMEA0183 sentences from the input file, and carry out some cross-checks to make sure that
+/// the data is valid before passing it on to the next layer up in the code.  In this case, this
+/// means checking that the sentence starts with a '$', has a '*' before the checksum, and has a
+/// valid NMEA0183 checksum for the protected data.  Note that this style of file does not contain
+/// a timestamp for the elapsed time when the sentence was received, and therefore the code here
+/// sets it uniformly to zero.
+///
+/// \param elapsed_time Nominally the elapsed time of reception (but in this case always zero)
+/// \param sentence     NMEA0183 string retrieved from the file
+/// \return True if a sentence was read, otherwise false
 
 bool TeamSurvSource::NextPacket(uint32_t& elapsed_time, std::string& sentence)
 {

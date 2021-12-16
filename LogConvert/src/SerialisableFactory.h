@@ -36,7 +36,9 @@
 
 class SerialisableFactory {
 public:
+    /// \brief Convert from a NMEA2000 packet into a \a Serialisable packet
     static std::shared_ptr<Serialisable> Convert(tN2kMsg& msg, PayloadID& payload_id);
+    /// \brief Convert from a NMEA0183 sentence string into a \a Serialisable packet
     static std::shared_ptr<Serialisable> Convert(uint32_t elapsed_time, std::string& nmea_string, PayloadID& payload_id);
 };
 

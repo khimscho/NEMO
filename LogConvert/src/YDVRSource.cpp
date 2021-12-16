@@ -49,10 +49,22 @@ YDVRSource::~YDVRSource(void)
 {
 }
 
-void CanIdToN2k(unsigned long id, unsigned char &prio, unsigned long &pgn, unsigned char &src, unsigned char &dst) {
-  unsigned char CanIdPF = (unsigned char) (id >> 16);
-  unsigned char CanIdPS = (unsigned char) (id >> 8);
-  unsigned char CanIdDP = (unsigned char) (id >> 24) & 1;
+/// \brief Convert from a base CAN id into specifics for NMEA2000
+///
+/// The CANbus protocol has identifiers for the packets, but these are generic, and we need to translate
+/// them into the ones specific to NMEA2000.  This involves a fair bit of bit-manipulation ...
+///
+/// \param id       Input CAN identifier
+/// \param prio     NMEA2000 priority level
+/// \param pgn      NMEA2000 message identifier (PGN)
+/// \param src      NMEA2000 source talker
+/// \param dst      NMEA2000 expected destination receiver
+
+void CanIdToN2k(unsigned long id, unsigned char &prio, unsigned long &pgn, unsigned char &src, unsigned char &dst)
+{
+    unsigned char CanIdPF = (unsigned char) (id >> 16);
+    unsigned char CanIdPS = (unsigned char) (id >> 8);
+    unsigned char CanIdDP = (unsigned char) (id >> 24) & 1;
 
     src = (unsigned char) id >> 0;
     prio = (unsigned char) ((id >> 26) & 0x7);
@@ -67,6 +79,15 @@ void CanIdToN2k(unsigned long id, unsigned char &prio, unsigned long &pgn, unsig
         pgn = (((unsigned long)CanIdDP) << 16) | (((unsigned long)CanIdPF) << 8) | (unsigned long)CanIdPS;
     }
 }
+
+/// Read the next packet of data from the YDVR file, and convert into the internal structure
+/// used by the NMEA2000 library.  The data in the files is documented in the information that
+/// comes with the logger, but is essentially some book-keeping information and then the raw NMEA2000
+/// bytes that come off the network link.  This code therefore unpacks the metadata, and then
+/// uses the NMEA2000 library to convert the binary into internal structures.
+///
+/// \param msg  The NMEA2000 packet retrieved from the file
+/// \return True if the packet was successfully retrieved, or false for EOF
 
 bool YDVRSource::NextPacket(tN2kMsg& msg)
 {
@@ -116,6 +137,13 @@ bool YDVRSource::NextPacket(tN2kMsg& msg)
     
     return true;
 }
+
+/// Some packets in the file were assembled from multiple CANbus packets (of limited size) and
+/// therefore have a length word in them that we need to read before getting at the actual data.
+/// This code determines, from the PGN, whether the packet is going to need this special treatment.
+///
+/// \param pgn  PGN value for the current packet
+/// \return True if the packet is going to need special treatment, otherwise false
 
 bool YDVRSource::IsMultiPacket(uint32_t pgn)
 {
