@@ -115,6 +115,10 @@ Timestamp::TimeDatum Timestamp::Now(void)
     return rtn;
 }
 
+/// Generate a timestamp for the current time of the simulation
+///
+/// \return Timestamp::TimeDatum for the current time of the siulator
+
 Timestamp::TimeDatum Timestamp::Datum(void)
 {
     TimeDatum rtn;
@@ -162,11 +166,20 @@ std::string Timestamp::TimeDatum::printable(void) const
     return std::string(os.str());
 }
 
+/// Convert from the internal clock-tick count to milliseconds.  The simululator can run the
+/// code at faster than millisecond rates; this converts by CLOCKS_PER_SEC to make something
+/// that's human readable.
+///
+/// \param count    Internal count to convert
+/// \return Number of milliseconds reflected in the input count
+
 double Timestamp::CountToMilliseconds(unsigned long count)
 {
     const double conversion_factor = 1000.0 / CLOCKS_PER_SEC;
     return count * conversion_factor;
 }
+
+/// Default constructor for a ComponentDateTime (for the start of 2020-01-01/00:00:00)
 
 ComponentDateTime::ComponentDateTime(void)
 {
@@ -177,6 +190,12 @@ ComponentDateTime::ComponentDateTime(void)
     minute = 0;
     second = 0.0;
 }
+
+/// Increment the data/time by a simulation count.  This rolls over the difference between
+/// the new count given and the current tick count to update the stored date/time.  This
+/// means that there may be problems if the simulated time goes backwards for any reason.
+///
+/// \param new_count    Simulation count at which the stored time should be updated.
 
 void ComponentDateTime::Update(unsigned long new_count)
 {
@@ -202,15 +221,28 @@ void ComponentDateTime::Update(unsigned long new_count)
     tick_count = new_count;
 }
 
+/// Compute the number of days that have elapsed since the timestamp epoch (same as
+/// Unix epoch).  This is approximate, since it assumes 365.25 days/year, but should work
+/// for short simulation times.
+///
+/// \return Days since epoch for the stored time
 uint16_t ComponentDateTime::DaysSinceEpoch(void) const
 {
     return day_of_year + static_cast<uint16_t>((year - 1970)*365.25);
 }
 
+/// Compute the number of seconds into the current day for the stored time.
+///
+/// \return Seconds since midmight in the current day for the stored time
+
 double ComponentDateTime::SecondsInDay(void) const
 {
     return second + minute * 60.0 + hour * 3600.0;
 }
+
+/// Convert the stored time to a Timestamp::TimeDatum for output.
+///
+/// \return Current time converted to a Timestamp::TimeDatum
 
 Timestamp::TimeDatum ComponentDateTime::Time(void) const
 {
@@ -219,8 +251,16 @@ Timestamp::TimeDatum ComponentDateTime::Time(void) const
     return t.Datum();
 }
 
-bool iset = false;
-float gset;
+bool iset = false;  ///< Global for Gaussian variate generator (from Numerical Recipies)
+float gset;         ///< Global state for Gaussian variate generator (from Numerical Recipies)
+
+/// Helper function to generate a unit uniform RV from the underlying library's
+/// default random() function.  The statistical qualities of these RVs therefore rely
+/// on the quality of the underlying support library, which can vary widely.  Since this is
+/// really just to generate some data that's useful for testing processing, the statistical
+/// quality probably isn't that important.
+///
+/// \return Uniform RV in the range [0,1)
 
 double unit_uniform(void)
 {
@@ -228,6 +268,15 @@ double unit_uniform(void)
     double n = random()/maximum_random;
     return n;
 }
+
+/// Simulate a unit Gaussian variate, using the method of Numerical Recipes.  Note
+/// that this preserves state in global variables, so it isn't great, but it does do
+/// the job, and gets most benefit from the random simulation calls.  The code does,
+/// however, rely on the quality of the standard random() call in the supporting
+/// environment, and therefore the statistical quality of the variates is only as good
+/// as the underlying linear PRNG.
+///
+/// \return A sample from a zero mean, unit standard deviation, Gaussian distribution.
 
 double unit_normal(void)
 {
@@ -253,6 +302,9 @@ double unit_normal(void)
     return r;
 }
 
+/// Default constructor for simulator state, setting up the initial conditions for the simulator
+/// (43N, 75W, depth 10m) and the parameters for the depth random walk and position updates.
+
 State::State(void)
 {
     current_depth = 10.0;
@@ -269,6 +321,13 @@ State::State(void)
     last_latitude_reversal = 0.0;
 }
 
+/// Default constructor for the simulation data generator.  The generator can be used to generate
+/// NMEA0183 or NMEA2000 data packets based on the current state, or both.  It does, however, have to
+/// generate at least one of the two, and will default to NMEA2000 if neither is requested on instantiation.
+///
+/// \param emit_nmea0183    Flag: true => emit NMEA0183 ASCII sentences for the simulator state
+/// \param emit_nmea2000    Flag: true => emit NMEA2000 binary sentences for the simulator state
+
 Generator::Generator(bool emit_nmea0183, bool emit_nmea2000)
 : m_verbose(false), m_serial(emit_nmea0183), m_binary(emit_nmea2000)
 {
@@ -280,6 +339,15 @@ Generator::Generator(bool emit_nmea0183, bool emit_nmea2000)
     }
 }
 
+/// Generate checksums for NMEA0183 messages.  The checksum is a simple XOR of all of the
+/// contents of the message between (and including) the leading "$" and trailing "*", and
+/// is returned as an 8-bit integer.  This needs to be converted to two hex digits before
+/// appending to the end of the message to complete it.  The code here does not modify the
+/// message, however.
+///
+/// \param msg  NMEA0183-formatted message for which to compute the byte-wise XOR checksum
+/// \return XOR of the contents of \a msg, taken an 8-bit byte at a time
+
 int Generator::compute_checksum(const char *msg)
 {
     int chk = 0;
@@ -289,6 +357,17 @@ int Generator::compute_checksum(const char *msg)
     }
     return chk;
 }
+
+/// Break an angle in degrees into the components required to format for ouptut
+/// in a NMEA0183 GGA message (i.e., integer degrees and decimal minutes, with an
+/// indicator for which hemisphere to use).  To allow this to be uniform, the code
+/// assumes a positive angle is hemisphere 1, and negative angle hemisphere 0.  It's
+/// up to the caller to decide what decorations are used for those in the display.
+///
+/// \param angle    Angle (degrees) to break apart
+/// \param d        (Out) Reference to space for the integer part of the angle (degrees)
+/// \param m        (Out) Reference to space for the decimal minutes part of the angle
+/// \param hemi     (Out) Reference to space for a hemisphere indicator
 
 void Generator::format_angle(double angle, int& d, double& m, int& hemi)
 {
@@ -302,6 +381,15 @@ void Generator::format_angle(double angle, int& d, double& m, int& hemi)
     d = (int)angle;
     m = angle - d;
 }
+
+/// Generate a simulated position (GGA) message.  This formats the current state for position as
+/// required for GGA messages, and then appends a standard trailer to meet the NMEA0183 requirements.
+/// Since this trailer is always fixed, it won't exercise potential modifications based on changes
+/// to the ellipsoid separation or antenna height, etc., although those are expected to be very low
+/// priority for the expected use of the data being generated.
+///
+/// \param state    Simulator state to use for generation
+/// \param output   Output writer to use for serialisation of the simulated position report
 
 void Generator::GenerateGGA(std::shared_ptr<State> state, std::shared_ptr<nmea::logger::Writer> output)
 {
@@ -325,6 +413,12 @@ void Generator::GenerateGGA(std::shared_ptr<State> state, std::shared_ptr<nmea::
     output->Record(nmea::logger::Writer::PacketIDs::Pkt_NMEAString, data);
 }
 
+/// Generate a simulated depth (DBT) NMEA0183 message.  The depth simulation is conducted in metres, and then
+/// converted to feet and fathoms to fill out the overall message.
+///
+/// \param state    Simulator state to use for generation
+/// \param output   Output writer to use for serialisation of the simulated position report
+
 void Generator::GenerateDBT(std::shared_ptr<State> state, std::shared_ptr<nmea::logger::Writer> output)
 {
     double depth_metres = state->current_depth + state->measurement_uncertainty*unit_normal();
@@ -341,6 +435,15 @@ void Generator::GenerateDBT(std::shared_ptr<State> state, std::shared_ptr<nmea::
     data += msg;
     output->Record(nmea::logger::Writer::PacketIDs::Pkt_NMEAString, data);
 }
+
+/// Convert from a year, and day-of-year (a.k.a., albeit inaccurately, Julian Day) to
+/// a month/day pair, as required for ouptut of ZDA information.  Keeping the time
+/// as a day of the year makes the simulation simpler ...
+///
+/// \param year         Current year of the simulation
+/// \param year_day     Current day-of-year of the simulation
+/// \param month        (Out) Reference for store of the month of the year
+/// \param day          (Out) Reference for store of the day of the month
 
 void Generator::ToDayMonth(int year, int year_day, int& month, int& day)
 {
@@ -381,6 +484,11 @@ void Generator::ToDayMonth(int year, int year_day, int& month, int& day)
     
     months[1] -= leap;      /* Uncorrect February */
 }
+
+/// Generate a simulated timestamp (ZDA) message using the current state information.
+///
+/// \param state    Simulator state to use for generation
+/// \param output   Output writer to use for serialisation of the simulated position report
 
 void Generator::GenerateZDA(std::shared_ptr<State> state, std::shared_ptr<nmea::logger::Writer> output)
 {

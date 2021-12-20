@@ -66,7 +66,12 @@ const int tx2_pin = 16; ///< UART port 2 transmit pin
 #error "No configuration recognised for serial inputs"
 #endif
 
-StatusLED *LEDs = nullptr;
+StatusLED *LEDs = nullptr;  ///< Pointer to the controller for status LEDs on the hardware
+
+/// Set up the environment for the simulator.  This configures the debug serial
+/// stream for high-speed mode (115.2kbaud), and the other two serial outputs for
+/// 4800 baud to reflect what we should expect from a standard NMEA0183 bus.  The system
+/// then configures the NMEA2000 bus, and starts the status LEDs in "normal" mode.
 
 void setup()
 {
@@ -87,6 +92,15 @@ void setup()
     LEDs = new StatusLED();
     LEDs->SetStatus(StatusLED::Status::sNORMAL);
 }
+
+/// REPL loop for the simulator.  This simply calls the simulator components in order,
+/// since each module remembers when the last message was sent and therefore knows when
+/// to send the next, so long as the current time is provided.  The only other requirement
+/// is to give some time to the LED flash code.
+///     Note that this REPL mode makes the code very inefficient --- the delays between sending
+/// messages can be extensive, so it would maybe be better to think about delaying until the
+/// next message each time and saving some cycles.  But it's test hardware, not production, and
+/// the ESP32 isn't doing anything else, and this is much simpler, so ...
 
 void loop()
 {

@@ -139,12 +139,27 @@ std::string NamePacket(uint32_t pgn, bool is_nmea2000)
     return rtn;
 }
 
+/// Report to the user the syntax for the conversion tool
+///
+/// \param cmdopt   Boost command-line options structure with parameter settings
+
 void Syntax(po::options_description const& cmdopt)
 {
     std::cout << "logconvert [" << __DATE__ << ", " << __TIME__ << "] - Convert VGI log output to WIBL for upload." << std::endl;
     std::cout << "Syntax: logconvert [opt] <input><output>" << std::endl;
     std::cout << cmdopt << std::endl;
 }
+
+/// Constructor for the PacketSource derivative to use, given the user's description string.  This
+/// simply checks for exact matches against the list of known formats:
+///     ydvr|YDVR           Yacht Devices YDVR-4 files in proprietary (but documents) DAT format
+///     teamsurv|TeamSurv   TeamSurv "tab separated" (but actually plain ASCII) NMEA0183 strings
+/// and makes the appropriate sub-class, casting back to base for uniform handling in the rest of
+/// the code.
+///
+/// \param format   Format recognition string, typically from the end-user's command line
+/// \param in       Pointer to the file to read from (must be opened in binary mode if NMEA2000 data)
+/// \return PacketSource pointer to use for the specified input file and format
 
 PacketSource *GeneratePacketSource(std::string const& format, FILE *in)
 {
@@ -154,10 +169,18 @@ PacketSource *GeneratePacketSource(std::string const& format, FILE *in)
         rtn = new YDVRSource(in);
     } else if (format == "teamsurv" || format == "TeamSurv") {
         rtn = new TeamSurvSource(in);
-    }
+    } // No additional else clause --- returns nullptr if the source is not recognised.
     
     return rtn;
 }
+
+/// Each NMEA2000 talker contains a lot of information on the type of device, model version, software code,
+/// etc.  This routine breaks out that information, and reports on a standard FILE output stream.  This can
+/// be very useful in identifying talkers that should not be generating data (which can then be ignored if
+/// required).
+///
+/// \param msg  NMEA2000 message (PGN 126996) with product information
+/// \param out  File on which to write broken-out data
 
 void ReportProductInformation(tN2kMsg const& msg, FILE *out)
 {

@@ -31,31 +31,43 @@
 #include <Arduino.h>
 #include "NMEA0183Simulator.h"
 
-bool iset = false;
-float gset;
- 
-unsigned long target_depth_time = 0;
-unsigned long target_position_time = 0;
-unsigned long target_zda_time = 0;
+bool iset = false;  ///< Global for Gaussian variate generator (from Numerical Recipies)
+float gset;         ///< Global state for Gaussian variate generator (from Numerical Recipies)
+
+// Parameters to determine when to issue the NMEA0183 simulator packets
+unsigned long target_depth_time = 0;        ///< Time in milliseconds for the next DBT (depth) packet to be sent
+unsigned long target_position_time = 0;     ///< Time in milliseconds for the next GGA (position) packet to be sent
+unsigned long target_zda_time = 0;          ///< Time in milliseconds for the next ZDA (time tick) packet to be sent
 //unsigned long last_position_time = 0;
-unsigned long last_zda_time = 0;
+unsigned long last_zda_time = 0;            ///< Time in milliseconds of the last ZDA (time tick) packet to be sent
 
-double current_depth = 10.0;            /* Depth in metres */
-double measurement_uncertainty = 0.06;  /* Depth sounder measurement uncertainty, std. dev. */
-double depth_random_walk = 0.02;        /* Standard deviation, metres change in one second */
+// State parameters for the depth (DBT) message
+double current_depth = 10.0;            ///< Simulator state: depth in metres
+double measurement_uncertainty = 0.06;  ///< Simulator state: depth sounder measurement uncertainty, std. dev., metres
+double depth_random_walk = 0.02;        ///< Simuator state: standard deviation, metres change in one second for depth changes
 
-int current_year = 2020;        /* Current year for the simulation */
-int current_day_of_year = 0;    /* Current day of the year (a.k.a. Julian Day) for the simulation */
-int current_hours = 0;        /* Current time of day, hours past midnight */
-int current_minutes = 0;      /* Current time of day, minutes past the hour */
-double current_seconds = 0.0; /* Current time of day, seconds past the minute */
+// State parameters for the time (ZDA) message
+int current_year = 2020;        ///< Simulator state: current year for the simulation
+int current_day_of_year = 0;    ///< Simulator state: current day of the year (a.k.a. Julian Day) for the simulation
+int current_hours = 0;          ///< Simulator state: current time of day, hours past midnight
+int current_minutes = 0;        ///< Simulator state: current time of day, minutes past the hour
+double current_seconds = 0.0;   ///< Simulator state: vurrent time of day, seconds past the minute
 
-double current_longitude = -75.0;       /* Longitude in degrees */
-double current_latitude = 43.0;         /* Latitude in degress */
+// State parameters for the position (GGA) message
+double current_longitude = -75.0;       ///< Simulator state: longitude in degrees
+double current_latitude = 43.0;         ///< Simulator state: latitude in degress
+double position_step = 3.2708e-06;      ///< Simulator state: change in latitude/longitude per second
+double latitude_scale = +1.0;           ///< Simulator state: current direction of latitude change
+double last_latitude_reversal = 0.0;    ///< Simulator state: last time the latitude changed direction
 
-double position_step = 3.2708e-06;      /* Change in latitude/longitude per second */
-double latitude_scale = +1.0;           /* Current direction of latitude change */
-double last_latitude_reversal = 0.0;    /* Last time the latitude changed direction */
+/// Simulate a unit Gaussian variate, using the method of Numerical Recipes.  Note
+/// that this preserves state in global variables, so it isn't great, but it does do
+/// the job, and gets most benefit from the random simulation calls.  The code does,
+/// however, rely on the quality of the standard random() call in the supporting
+/// environment, and therefore the statistical quality of the variates is only as good
+/// as the underlying linear PRNG.
+///
+/// \return A sample from a zero mean, unit standard deviation, Gaussian distribution.
 
 double unit_normal(void)
 {
@@ -81,6 +93,15 @@ double unit_normal(void)
     return r;
 }
 
+/// Generate checksums for NMEA0183 messages.  The checksum is a simple XOR of all of the
+/// contents of the message between (and including) the leading "$" and trailing "*", and
+/// is returned as an 8-bit integer.  This needs to be converted to two hex digits before
+/// appending to the end of the message to complete it.  The code here does not modify the
+/// message, however.
+///
+/// \param msg  NMEA0183-formatted message for which to compute the byte-wise XOR checksum
+/// \return XOR of the contents of \a msg, taken an 8-bit byte at a time
+
 int compute_checksum(const char *msg)
 {
     int chk = 0;
@@ -90,6 +111,24 @@ int compute_checksum(const char *msg)
     }
     return chk;
 }
+
+/// Simulate the depth being seen by the echosounder, expressed as a SDDBT NMEA0183 message.  The
+/// simulation runs in metres, but then converts to feet and fathoms as required by the message
+/// format.  The simulation is a random walk with Gaussian variate simulation steps, with variance
+/// controlled by compile-time constants.  The code here will only generate a point if the code
+/// has reached or exceeded the target time for the next packet, and updates this target time with
+/// a random component for the next go-around.  Logging is also done so that the user can see
+/// that the simulation is proceeding, if they're monitoring the serial output line.
+///     The ESP32-based hardware has two serial output lines that could be used to transmit the
+/// simulated messages.  In order to allow testing of simultaneous reception of messages on both
+/// reception channels, the code here generates the SDDBT messages on channel 1.
+///     Note that the simulation step could, arguably, be something that should increase in variance
+/// with the time between the last output and this (i.e., the seafloor has a higher probability of
+/// changing more the longer you go between observing it), but that seems to be a little more
+/// hassle than it's worth for the current purposes.
+///
+/// \param now  Current simulator time (in milliseconds since boot)
+/// \param led  Pointer to the status LED controller so that we can flash them if data is transmitted
 
 void GenerateDepth(unsigned long now, StatusLED *led)
 {
@@ -114,6 +153,17 @@ void GenerateDepth(unsigned long now, StatusLED *led)
     target_depth_time = now + 1000 + (int)(1000*(random(1000)/1000.0));
 }
 
+/// Break an angle in degrees into the components required to format for ouptut
+/// in a NMEA0183 GGA message (i.e., integer degrees and decimal minutes, with an
+/// indicator for which hemisphere to use).  To allow this to be uniform, the code
+/// assumes a positive angle is hemisphere 1, and negative angle hemisphere 0.  It's
+/// up to the caller to decide what decorations are used for those in the display.
+///
+/// \param angle    Angle (degrees) to break apart
+/// \param d        (Out) pointer to space for the integer part of the angle (degrees)
+/// \param m        (Out) pointer to space for the decimal minutes part of the angle
+/// \param hemi     (Out) Pointer to space for a hemisphere indicator
+
 void format_angle(double angle, int *d, double *m, int *hemi)
 {
     if (angle > 0.0) {
@@ -126,6 +176,19 @@ void format_angle(double angle, int *d, double *m, int *hemi)
     *d = (int)angle;
     *m = angle - *d;
 }
+
+/// Generate a simulated position (GGA) message.  The simulator only generates a new message once
+/// the time advances to the previously specified target time (which is then updated for the next
+/// step, specified to be exactly 1.0s).  Each simulated step moves ahead by a fixed amount in
+/// latitude and longitude (specified at compile time), with the latitude changing direction every
+/// hour so that it stays in bounds.  The remainder of the text of the GGA is constant, and therefore
+/// probably not a great simulation (e.g., of the separation), but good enough for testing the hardware.
+///     The ESP32-based hardware has two serial output lines that could be used to transmit the
+/// simulated messages.  In order to allow testing of simultaneous reception of messages on both
+/// reception channels, the code here generates the SDDBT messages on channel 2.
+///
+/// \param now  Current simulator time (in milliseconds since boot)
+/// \param led  Pointer to the status LED controller so that we can flash them if data is transmitted
 
 void GeneratePosition(unsigned long now, StatusLED *led)
 {
@@ -159,6 +222,15 @@ void GeneratePosition(unsigned long now, StatusLED *led)
     
     target_position_time = now + 1000;
 }
+
+/// Convert from a year, and day-of-year (a.k.a., albeit inaccurately, Julian Day) to
+/// a month/day pair, as required for ouptut of ZDA information.  Keeping the time
+/// as a day of the year makes the simulation simpler ...
+///
+/// \param year         Current year of the simulation
+/// \param year_day     Current day-of-year of the simulation
+/// \param month        (Out) Reference for store of the month of the year
+/// \param day          (Out) Reference for store of the day of the month
 
 void ToDayMonth(int year, int year_day, int& month, int& day)
 {
@@ -199,6 +271,19 @@ void ToDayMonth(int year, int year_day, int& month, int& day)
     
     months[1] -= leap;      /* Uncorrect February */
 }
+
+/// Simulate a ZDA time stamp message, at 1Hz.  This just reports the real-time of the
+/// simulation, based on the delta from the last time the ZDA was generated (in milliseconds)
+/// as the advance of time.  Since this is a finite computation, it's possible that we
+/// might slip a little each time, making the output not quite 1Hz, but it's unlikely to
+/// be a major problem for the simulator, which is designed to test simultaneous reception
+/// of the messages on the test hardware.
+///     The ESP32-based hardware has two serial output lines that could be used to transmit the
+/// simulated messages.  In order to allow testing of simultaneous reception of messages on both
+/// reception channels, the code here generates the SDDBT messages on channel 2.
+///
+/// \param now  Current simulator time (in milliseconds since boot)
+/// \param led  Pointer to the status LED controller so that we can flash them if data is transmitted
 
 void GenerateZDA(unsigned long now, StatusLED *led)
 {

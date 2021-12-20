@@ -35,10 +35,24 @@
 #include <ctime>
 #include "Simulator.h"
 
+/// Report the syntax of the programme for the user.  Since the code is designed to be very
+/// simple, there is only basic processing (rather than something like Boost.program_options).
+
 void syntax(void)
 {
     std::cout << "syntax: simulate_data -f <filename> -d <duration> [-s][-b]\n";
 }
+
+/// Check the command line options are appropriate, and pick out the configuration options
+/// as required.
+///
+/// \param argc         Count of the number of arguments on the command line
+/// \param argv         Vector of the arguments making up the command line
+/// \param filename     (Out) Reference for the space to store the simulated data output filename
+/// \param duration     (Out) Reference for the space to store the duration (seconds) of the simulated data
+/// \param emit_serial  (Out) Reference for the flag: true => write NMEA0183 simulated strings
+/// \param emit_binary  (Out) Reference for the flag: true => write NMEA2000 simulated data packets
+/// \return True if the parse worked, otherwise false.
 
 bool check_options(int argc, char **argv, std::string& filename, unsigned long& duration, bool& emit_serial, bool& emit_binary)
 {
