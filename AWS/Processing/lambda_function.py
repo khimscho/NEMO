@@ -130,7 +130,7 @@ def lambda_handler(event, context):
     p = source.nextSource()
     while p is not None:
         if not process_item(p, controller, config):
-            print(f'Abandoning processing of {p.sourcekey} due to errors.')
+            print(f'Abandoning processing of {p.source_key} due to errors.')
         p = source.nextSource()
 
     return {
