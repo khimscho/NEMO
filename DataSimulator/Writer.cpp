@@ -37,6 +37,10 @@
 
 namespace nmea { namespace logger {
 
+/// Constructor for a simple WIBL format output serialiser
+///
+/// \param filename Local file on which to write the output packets
+
 Writer::Writer(std::string const& filename)
 {
     m_outputLog = fopen(filename.c_str(), "wb");
@@ -45,6 +49,8 @@ Writer::Writer(std::string const& filename)
         std::cout << "error: failed to open output file.\n";
     }
 }
+
+/// Destructor for the WIBL-format output serialiser (mostly to manage file resources)
 
 Writer::~Writer(void)
 {

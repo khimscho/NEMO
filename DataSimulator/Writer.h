@@ -46,7 +46,9 @@ namespace logger {
 
 class Writer {
 public:
+    /// \brief Default constructor for output to a local file
     Writer(std::string const& filename);
+    /// \brief Default destructor (to manage file resources)
     ~Writer(void);
         
     /// \enum PacketIDs

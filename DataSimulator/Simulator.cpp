@@ -509,6 +509,11 @@ void Generator::GenerateZDA(std::shared_ptr<State> state, std::shared_ptr<nmea::
     output->Record(nmea::logger::Writer::PacketIDs::Pkt_NMEAString, data);
 }
 
+/// Generate a SystemTime packet using the current state information
+///
+/// \param state    Simulator state to use for generation
+/// \param output   Output writer to use for serialisation of the simulated position report
+
 void Generator::GenerateSystemTime(std::shared_ptr<State> state, std::shared_ptr<nmea::logger::Writer> output)
 {
     Serialisable s(sizeof(uint16_t) + sizeof(double) + sizeof(unsigned long) + 1);
@@ -518,6 +523,11 @@ void Generator::GenerateSystemTime(std::shared_ptr<State> state, std::shared_ptr
     s += static_cast<uint8_t>(0);
     output->Record(nmea::logger::Writer::PacketIDs::Pkt_SystemTime, s);
 }
+
+/// Generate a GNSS packet using the current state information
+///
+/// \param state    Simulator state to use for generation
+/// \param output   Output writer to use for serialisation of the simulated position report
 
 void Generator::GenerateGNSS(std::shared_ptr<State> state, std::shared_ptr<nmea::logger::Writer> output)
 {
@@ -556,6 +566,11 @@ void Generator::GenerateGNSS(std::shared_ptr<State> state, std::shared_ptr<nmea:
     output->Record(nmea::logger::Writer::PacketIDs::Pkt_GNSS, data);
 }
 
+/// Construct a NMEA2000 depth packet using the current state information
+///
+/// \param state    Simulator state to use for generation
+/// \param output   Output writer to use for serialisation of the simulated position report
+
 void Generator::GenerateDepth(std::shared_ptr<State> state, std::shared_ptr<nmea::logger::Writer> output)
 {
     Timestamp tm;
@@ -571,11 +586,23 @@ void Generator::GenerateDepth(std::shared_ptr<State> state, std::shared_ptr<nmea
     output->Record(nmea::logger::Writer::PacketIDs::Pkt_Depth, data);
 }
 
+/// Output a representation of the current time in NMEA2000 and/or NMEA0183 format, according to the
+/// configuration at the command line.
+///
+/// \param state    Simulator state to use for generation
+/// \param output   Output writer to use for serialisation of the simulated position report
+
 void Generator::EmitTime(std::shared_ptr<State> state, std::shared_ptr<nmea::logger::Writer> output)
 {
     if (m_binary) GenerateSystemTime(state, output);
     if (m_serial) GenerateZDA(state, output);
 }
+
+/// Output a representation of the current location in NMEA2000 and/or NMEA0183 format, according to the
+/// configuration at the command line.
+///
+/// \param state    Simulator state to use for generation
+/// \param output   Output writer to use for serialisation of the simulated position report
 
 void Generator::EmitPosition(std::shared_ptr<State> state, std::shared_ptr<nmea::logger::Writer> output)
 {
@@ -583,17 +610,34 @@ void Generator::EmitPosition(std::shared_ptr<State> state, std::shared_ptr<nmea:
     if (m_serial) GenerateGGA(state, output);
 }
 
+/// Output a representation of the current depth in NMEA2000 and/or NMEA0183 format, according to the
+/// configuration at the command line.
+///
+/// \param state    Simulator state to use for generation
+/// \param output   Output writer to use for serialisation of the simulated position report
+
 void Generator::EmitDepth(std::shared_ptr<State> state, std::shared_ptr<nmea::logger::Writer> output)
 {
     if (m_binary) GenerateDepth(state, output);
     if (m_serial) GenerateDBT(state, output);
 }
 
+/// Constructor for the simulation engine, using a particular data generator.  This is used to convert the
+/// system state into a useable output (e.g., either NMEA2000 packets, or NMEA0183 sentences, as appropriate).
+///
+/// \param generator    Shared pointer to the data generator to use for state steps
+
 Engine::Engine(std::shared_ptr<Generator> generator)
 : m_generator(generator)
 {
     m_state = std::shared_ptr<State>(new State());
 }
+
+/// Move the depth component of the system state to the elapsed time count provided.  Note that this code can
+/// be called at any time, but may not step the state until a given target time is reached.
+///
+/// \param now  Elapsed time count for the current state instant
+/// \return True if the state was updated, otherwise false
 
 bool Engine::StepDepth(unsigned long now)
 {
@@ -605,6 +649,12 @@ bool Engine::StepDepth(unsigned long now)
                                  static_cast<int>(CLOCKS_PER_SEC*unit_uniform());
     return true;
 }
+
+/// Move the position component of the system state to the elapsed time count provided.  Note that this code can
+/// be called at any time, but may not step the state until a given target time is reached.
+///
+/// \param now  Elapsed time count for the current state instant
+/// \return True if the state was updated, otherwise false
 
 bool Engine::StepPosition(unsigned long now)
 {
@@ -622,6 +672,12 @@ bool Engine::StepPosition(unsigned long now)
     return true;
 }
 
+/// Move the real-world time component of the system state to the elapsed time count provided.  Note that this code can
+/// be called at any time, but may not step the state until a given target time is reached.
+///
+/// \param now  Elapsed time count for the current state instant
+/// \return True if the state was updated, otherwise false
+
 bool Engine::StepTime(unsigned long now)
 {
     if (now < m_state->target_reference_time) return false;
@@ -632,6 +688,14 @@ bool Engine::StepTime(unsigned long now)
     
     return true;
 }
+
+/// Move the state of the system forward to the next target time (depending on when the next depth or
+/// position packet is simulated to occur).  This steps the real-world time, depth, and position
+/// components of the state as requried, and then generates output packets according to the embedded
+/// data generator, and writes them to the specified output location.
+///
+/// \param output   Shared pointer for the object that converts data packets to a particular format for output
+/// \return Elapsed time at which the next state transition will occur
 
 unsigned long Engine::StepEngine(std::shared_ptr<nmea::logger::Writer> output)
 {

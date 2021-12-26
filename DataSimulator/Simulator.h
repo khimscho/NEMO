@@ -116,22 +116,35 @@ private:
     unsigned long m_elapsedTimeAtDatum; ///< Internal clock elapsed time at last known datum
 };
 
+/// \class ComponentDateTime
+/// \brief POD structure to maintain the broken-out components associated with a date-time
+///
+/// The simulator has to be able to record a current time of the system state, which is modelled
+/// as a number of ticks of the system clock since the Unix epoch.  The class also allows for this
+/// information to be converted into a number of different formats as required by the NMEA0183 and
+/// NMEA2000 packets.
+
 class ComponentDateTime {
 public:
-    unsigned long tick_count;
-    int year;
-    int day_of_year;
-    int hour;
-    int minute;
-    double second;
+    unsigned long tick_count;   ///< System clock ticks for the current time
+    int year;                   ///< Converted Gregorian year
+    int day_of_year;            ///< Day of the current time within the year
+    int hour;                   ///< Hour of the current time with the day-of-year
+    int minute;                 ///< Minute of the current time within the hour
+    double second;              ///< Second (with fractions) of the current time within the minute
     
+    /// \brief Empty constructor for an initialised (but invalid) object
     ComponentDateTime(void);
     
+    /// \brief Set the current time (in clock ticks)
     void Update(unsigned long tick_count);
     
+    /// \brief Compute and return the number of days since Unix epoch for the current time 
     uint16_t DaysSinceEpoch(void) const;
+    /// \brief Compute and return the total number of seconds for the current time since midnight
     double SecondsInDay(void) const;
     
+    /// \brief Convert the current time into a TimeDatum for use in data construction
     Timestamp::TimeDatum Time(void) const;
 };
 
@@ -151,11 +164,12 @@ public:
 
 private:
     friend class Engine;
+    /// \brief Private constructor to that \a State objects can only be constructed by the \a Engine friend class
     State(void);
 
-    unsigned long target_reference_time;
-    unsigned long target_depth_time;
-    unsigned long target_position_time;
+    unsigned long target_reference_time;    ///< Next clock tick count at which to update reference time state
+    unsigned long target_depth_time;        ///< Next clock tick count at which to update depth state
+    unsigned long target_position_time;     ///< Next clock tick count at which to update position state
 
     double depth_random_walk;       ///< Standard deviation, metres change in one second
 
@@ -211,8 +225,11 @@ private:
     /// \brief Generate NMEA0183 depth (SDDBT) information
     void GenerateDBT(std::shared_ptr<State> state, std::shared_ptr<nmea::logger::Writer> output);
     
+    /// \brief Compute a NMEA0183 sentence checksum
     int compute_checksum(const char *msg);
+    /// \brief Convert an angle in decimal degrees into integer degrees and decimal minutes, with hemispehere indicator
     void format_angle(double angle, int& d, double& m, int& hemi);
+    /// \brief Convert the current time into broken out form
     void ToDayMonth(int year, int year_day, int& month, int& day);
 };
 
@@ -220,17 +237,22 @@ private:
 /// \brief Run the core simulator for NMEA data output
 class Engine {
 public:
+    /// \brief Default constructor for a simulation engine
     Engine(std::shared_ptr<Generator> generator);
     ~Engine(void) {}
     
+    /// \brief Move the state of the engine on to the next simulation time
     unsigned long StepEngine(std::shared_ptr<nmea::logger::Writer> output);
     
 private:
-    std::shared_ptr<State>      m_state;
-    std::shared_ptr<Generator>  m_generator;
+    std::shared_ptr<State>      m_state;        ///< Shared pointer for the current state information
+    std::shared_ptr<Generator>  m_generator;    ///< Shared pointer for the converter for state to output representation
     
+    /// \brief Step the position state to a given simulation time (if required)
     bool StepPosition(unsigned long now);
+    /// \brief Step the depth state to a given simulation time (if required)
     bool StepDepth(unsigned long now);
+    /// \brief Step the real-world time state to a given simulation time (if required)
     bool StepTime(unsigned long now);
 };
 
