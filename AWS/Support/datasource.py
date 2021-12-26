@@ -44,8 +44,8 @@
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
 from dataclasses import dataclass
-from abc import ABC
-from typing import Dict, Any
+from abc import ABC, abstractmethod
+from typing import Dict, Any, Tuple
 from urllib.parse import unquote_plus
 from shutil import copyfile
 import json
@@ -53,22 +53,54 @@ import boto3
 
 s3 = boto3.resource('s3')
 
+## Dataclass to hold the specification for a single item of data being processed
+#
+# Encapsulate the specification for where to get the input file (bucket and key), what name to
+# use for the local copy to work on, and where to put the output file (bucket and key).
+
 @dataclass
 class DataItem:
+    ## Source file's cloud store, typically the name of an S3 bucket
     source_store:   str
+    ## Source file's key in the cloud store, typically the key in the S3 bucket
     source_key:     str
+    ## Name of the file to use in the local file system for downloading the cloud file for processing
     localname:      str
+    ## Destination file's cloud store, typically the name of an S3 bucket
     dest_store:     str
+    ## Destination file's key in the cloud store, typically the key in the S3 bucket
     dest_key:       str
 
+## Abstract base class for a collection of data items to be processed
+#
+# Different cloud providers specify where to find the data to be processed in different ways.  This class
+# provides an interface to how to translate this information into \a DataItem objects in sequence.
+
 class DataSource(ABC):
+    ## Default constructor, adapted to the cloud provider's data information
+    @abstractmethod
     def __init__(self):
         pass
 
+    ## Abstract method to extract the next \a DataItem object from the source information
+    @abstractmethod
     def nextSource(self) -> DataItem:
         pass
 
+## Concrete implementation of the \a DataSource model for AWS Lambdas
+#
+# Provide translation services from AWS Lambda event dictionaries to \a DataItems for S3 bucket
+# objects.
+
 class AWSSource(DataSource):
+    ## Default constructor for AWS Lambda event sources
+    #
+    # This parses out all of the S3 objects specified in the AWS Lambda trigger event, and prepares
+    # them as \a DataItems to be returned to the user in sequence.
+    #
+    # \param event      AWS Lambda event to parse
+    # \param config     Configuration dictionary for the algorithm
+
     def __init__(self, event, config):
         self.items = []
         for record in event['Records']:
@@ -87,6 +119,13 @@ class AWSSource(DataSource):
             for item in self.items:
                 print(f'Item: {item}')
     
+    ## Concrete implementation of S3 object specification return from AWS Lambda events
+    #
+    # Since the code converts all of the information about the S3 objects to be processed in the Lambda call
+    # into a list in the initialiser, this code simply pops the next item off the list and returns to the
+    # caller, or None if there are none left.
+    #
+    # \return Specification for the next S3 object to process
     def nextSource(self) -> DataItem:
         if self.items:
             rc = self.items.pop()
@@ -94,23 +133,74 @@ class AWSSource(DataSource):
             rc = None
         return rc
 
+## Abstract base class for an encapsulation of how to interact with a specific cloud provider
+#
+# Each cloud provider acts a little differently with respect to how you extract objects from their
+# store, and add them back in.  This provides an interface for the core operations required by the
+# processing algorithm so that you can swap out providers more easily.
+
 class CloudController(ABC):
+    ## Default constructor, configuring the algorithm
+    #
+    # Construct a controller configuration for the cloud provider.
+    #
+    # \param config Dictionary (typically from JSON file) with parameters
+    @abstractmethod
     def __init__(self, config: Dict[str,Any]):
         pass
     
-    def obtain(self, meta: DataItem) -> (str, str):
+    ## Extract a specified object from the provider's cloud store
+    #
+    # Get a local copy of the specified cloud object so that it can be processed.
+    #
+    # \param meta   Specification for the object to pull from the cloud object store
+    # \return Tuple of two strings specifying the local filename at which the object was stored, and the uniqueID used for the object
+    @abstractmethod
+    def obtain(self, meta: DataItem) -> Tuple[str, str]:
         pass
         
+    ## Send a local object to the cloud provider's object store
+    #
+    # Send a local data object (str) to the cloud provider's object store, setting an object metadata key-value
+    # pair for the uniqueID associated with the object.
+    #
+    # \param meta       Specification for the object destination
+    # \param SourceID   UniqueID for the source data, to set on the object store
+    # \param data       Data string to transmit to the cloud object store
+    @abstractmethod
     def transmit(self, meta: DataItem, SourceID: str, data: str) -> None:
         pass
 
+## Concrete implementation of the CloudController model for AWS S3 buckets
+#
+# Implement methods to transfer data files between a local environment and an AWS S3 bucket store.
+
 class AWSController(CloudController):
+    ## Construct and configure the AWS S3 bucket interface
+    #
+    # This sets up for transfer of objects to an AWS S3 bucket, as specified in the configuration dictionary.
+    # Parameters are:
+    #   "local"             Flag: True => do operations (approximately) locally, rather than in the cloud (debugging)
+    #   "staging_bucket"    S3 bucket name where output files are transmitted
+    #   "verbose"           Flag: True => provide more information on what's going on
+    #
+    # \param config Configuration dictionary for the algorithm
     def __init__(self, config: Dict[str,Any]):
         self.local_mode = config['local']
         self.destination = config['staging_bucket']
         self.verbose = config['verbose']
-        
-    def obtain(self, meta: DataItem) -> (str, str):
+    
+    ## Get an S3 object from a specified bucket
+    #
+    # This reads the specified S3 object from the given bucket, and then reads the associated tags to see whether there
+    # is a "SourceID" key-value pair specified (which contains the UniqueID for the file).  Using the object key-value
+    # tags allows us to pass on the UniqueID without having to re-read the GeoJSON on transmission to DCDB.  In local
+    # mode, the code attempts to read the specified data in the current directory, and copies it into the working
+    # temporary store (typically in /tmp).
+    #
+    # \param meta   Specification for the object being transferred into the local environment
+    # \return Tuple[str,str]: local filename, uniqueID
+    def obtain(self, meta: DataItem) -> Tuple[str, str]:
         sourceID = None
         if self.local_mode:
             print(f'Local mode: from bucket {meta.source_store} object {meta.source_key} to local file {meta.localname}')
@@ -125,8 +215,19 @@ class AWSController(CloudController):
                 if tag['Key'] == 'SourceID':
                     sourceID = tag['Value']
 
-        return (meta.localname, sourceID)
+        return meta.localname, sourceID
     
+    ## Transmit a local data object to an AWS S3 bucket/key with key-value metadata tags
+    #
+    # Upload a local data string to the specified AWS S2 bucket/key, and set the "SourceID" key-value metadata tag
+    # on the resulting object to store the uniqueID used for the data.  This allows us to re-read it later without
+    # having to read in and parse the whole GeoJSON file.  In local mode, the code generates a formatted JSON object
+    # to the output file specified, stored in the current working directory, and reports the first 1000 characters of
+    # the object (or the whole object if smaller).
+    #
+    # \param meta       Specification for the object being transferred into the cloud environment
+    # \param sourceID   UniqueID associated with the data (for key-value metadata tag)
+    # \param data       Data to transfer into the cloud store
     def transmit(self, meta: DataItem, sourceID: str, data: str) -> None:
         if self.local_mode:
             if len(data) > 1000:

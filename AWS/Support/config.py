@@ -33,8 +33,18 @@
 import json
 from typing import Dict, Any
 
-class BadConfiguration(Exception):
-    pass
+## Read a JSON-format configuration file for the algorithm
+#
+# In order to allow the user to specify arbitrary configuration parameters, the configuration file
+# is a simple JSON structure that can contain any key-value pairs.  Although most of these are
+# specific to the algorithm being run, there are a few that control the algorithm:
+#   elapsed_time_width  Width (bits) of the elapsed time data in the WIBL file (usu. 32)
+#   verbose             Boolean for verbose reporting of processing (usu. False)
+#   local               Boolean for local testing (usu. False for cloud deployment)
+#   fault_limit         Limit on number of fault messages that are reported before starting to summarise
+#
+# \param config_file
+# \return JSON-file converted into a dictionary (per JSON library)
 
 def read_config(config_file: str) -> Dict[str, Any]:
     """There are a number of configuration parameters for the algorithm, such as the provider ID name
@@ -43,8 +53,9 @@ def read_config(config_file: str) -> Dict[str, Any]:
        to control the local algorithm, including:
     
             elapsed_time_width:     Width (bits) of the elapsed time data in the WIBL file (usu. 32)
-            verbose:                Boolean (text) for verbose reporting of processing (usu. False)
-            local:                  Boolean (text) for local testing (usu. False for cloud deployment)
+            verbose:                Boolean for verbose reporting of processing (usu. False)
+            local:                  Boolean for local testing (usu. False for cloud deployment)
+            fault_limit             Limit on number of fault messages that are reported before starting to summarise
        
        This code reads the JSON file with these parameters, and does appropriate translations to them so
        that the rest of the code can just read from the resulting dictionary.

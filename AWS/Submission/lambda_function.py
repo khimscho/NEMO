@@ -39,6 +39,14 @@ import datasource as ds
 
 s3 = boto3.resource('s3')
 
+## Helper function to read a local file with an AWS Lambda event in JSON format
+#
+# For local testing of the code, you need to provide a simulated Lambda event.  This helper
+# function can be used to parse a JSON file (format as for the Lambda, best downloaded from
+# AWS directly) and ready it for use in the handler.
+#
+# \param event_file Filename for the local file to read and parse
+# \return JSON dictionary from the specified file
 def read_local_event(event_file: str) -> Dict:
     """For local testing, you need to simulate an AWS Lambda event stucture to give the code something
        to do.  You can download the JSON for a typical event from the AWS Lambda console and store it
@@ -47,6 +55,20 @@ def read_local_event(event_file: str) -> Dict:
     with open(event_file) as f:
         event = json.load(f)
     return event
+
+## Send a specified GeoJSON dictionary to the user's specified end-point
+#
+# Manage the process for formatting the POST request to DCDB's submission API, transmitting the file into
+# the DCDB incoming buffers.  Among other things, this makes sure that the provider identification is
+# embedded in the unique identifier (since DCDB uses this to work out where to route the data).  A local
+# mode is also provided so you can test the upload without having to be connected, or annoy DCDB.
+#
+# \param source_uniqueID    Unique ID encoded into the GeoJSON metadata
+# \param provider_id        DCDB recognition code for the person authorising the upload
+# \param provider_auth      DCDB authorisation key for upload
+# \param local_file         Filename for the local GeoJSON file to transmit
+# \param config             Configuration dictionary
+# \return True if the upload succeeded, otherwise False
 
 def transmit_geojson(source_uniqueID: str, provider_id: str, provider_auth: str, local_file: str, config: Dict[str,Any]) -> bool:
     headers = {
