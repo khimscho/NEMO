@@ -33,9 +33,6 @@
 
 import json
 import boto3
-import datetime as dt
-from urllib.parse import unquote_plus
-import uuid
 from typing import Dict, Any
 
 # Local modules
@@ -72,7 +69,7 @@ def process_item(item: ds.DataItem, controller: ds.CloudController, config: Dict
     try:
         if config['verbose']:
             print(f'Attempting file read/time interpolation on {local_file} ...')
-        source_data = ts.time_interpolation(local_file, config['elapsed_time_quantum'], config['verbose'])
+        source_data = ts.time_interpolation(local_file, config['elapsed_time_quantum'], verbose = config['verbose'], fault_limit = config['fault_limit'])
     except ts.NoTimeSource:
         print('Failed to convert data: no time source known.')
         return False

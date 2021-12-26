@@ -31,27 +31,44 @@ import struct
 from abc import ABC, abstractmethod
 import io
 from enum import Enum
-from typing import SupportsAbs
 
+## Exception used to report bad keyword parameters when setting up a packet from scratch in code
 class SpecificationError(Exception):
     pass
 
+## Enumeration of the identification numbers associated with the various packets in a WIBL file
 class PacketTypes(Enum):
+    ## Version information for the logger's file construction code, and the NMEA2000 and NMEA0183 loggers
     SerialiserVersion = 0
+    ## NMEA2000 SystemTime information
     SystemTime = 1
+    ## NMEA2000 Attitude (roll, pitch, yaw) information
     Attitude = 2
+    ## NMEA2000 Depth information
     Depth = 3
+    ## NMEA2000 Course-over-ground information
     COG = 4
+    ## NMEA2000 GNSS report information
     GNSS = 5
+    ## NMEA2000 Environmental (temperature, pressure, and humidity) information
     Environment = 6
+    ## NMEA2000 Temperature information
     Temperature = 7
+    ## NMEA2000 Humidity information
     Humidity = 8
+    ## NMEA2000 Pressure information
     Pressure = 9
+    ## Encapsulated NMEA0183 serial sentence
     SerialString = 10
+    ## Local motion sensor (three-axis acceleration, three-axis gyro) information
     Motion = 11
+    ## Logger and ship identification information used for construction GeoJSON metadata on output
     Metadata = 12
+    ## Requests for algorithms to be run on the data in post-processing
     AlgorithmRequest = 13
+    ## Arbitrary JSON metadata string used to fill in platform-specific items in the GeoJSON metadata on output
     JSONMetadata = 14
+    ## Specification for a NMEA0183 packet to be recorded at the logger
     NMEA0183Filter = 15
 
 
