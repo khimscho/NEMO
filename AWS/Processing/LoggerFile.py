@@ -1172,7 +1172,10 @@ class JSONMetadata(DataPacket):
 
     def data_constructor(self, **kwargs) -> None:
         try:
-            self.metadata_element = kwargs['meta']
+            if type(kwargs['meta']) != 'bytes':
+                self.metadata_element = kwargs['meta'].encode('UTF-8')
+            else:
+                self.metadata_element = kwargs['meta']
             super().__init__(0, 0.0, 0)
         except KeyError as e:
             raise SpecificationError('Bad packet parameters') from e
