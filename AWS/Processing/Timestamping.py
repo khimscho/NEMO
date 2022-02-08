@@ -203,6 +203,10 @@ def time_interpolation(filename: str, elapsed_time_quantum: int, **kwargs) -> Di
                             if msg.depth_meters is not None:
                                 depth = float(msg.depth_meters)
                                 depth_table.add_point(pkt.elapsed + elapsed_offset, 'z', depth)
+                        if isinstance(msg, nmea.DPT):
+                            if msg.depth is not None:
+                                depth = float(msg.depth)
+                                depth_table.add_point(pkt.elapsed + elapsed_offset, 'z', depth)
                         if isinstance(msg, nmea.HDT):
                             if msg.heading is not None:
                                 heading = float(msg.heading)
