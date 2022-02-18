@@ -92,7 +92,15 @@ def translate(data: Dict[str,Any], config: Dict[str,Any]) -> Dict[str,Any]:
         "features": feature_lst
     }
     if data['metadata'] is not None:
-        final_json_dict['properties']['platform'] = json.loads(data['metadata'])
+        meta = json.loads(data['metadata'])
+        if 'platform' in meta:
+            final_json_dict['properties']['platform'] = meta['platform']
+        if 'providerContactPoint' in meta:
+            final_json_dict['properties']['providerContactPoint'] = meta['providerContactPoint']
+        if 'depthUnits' in meta:
+            final_json_dict['properties']['depthUnits'] = meta['depthUnits']
+        if 'timeUnits' in meta:
+            final_json_dict['properties']['timeUnits'] = meta['timeUnits']
     
     # The database requires that the unique ID contains the provider's ID, presumably to avoid
     # namespace clashes.  We therefore check now (after the platform metadata is finalised) to make
