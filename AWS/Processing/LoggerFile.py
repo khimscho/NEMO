@@ -1343,7 +1343,7 @@ class PacketFactory:
             rtn = Temperature(buffer=buffer)
         elif pkt_id == PacketTypes.Humidity.value:
             rtn = Humidity(buffer=buffer)
-        elif pkt_id == PacketTypes.Pressure:
+        elif pkt_id == PacketTypes.Pressure.value:
             rtn = Pressure(buffer=buffer)
         elif pkt_id == PacketTypes.SerialString.value:
             rtn = SerialString(buffer=buffer)
