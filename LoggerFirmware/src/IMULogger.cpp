@@ -26,7 +26,7 @@
 
 #include "serialisation.h"
 #include "LogManager.h"
-#include "Adafruit_MPU6050.h"
+#include "Arduino_LSM6DS3.h"
 #include "IMULogger.h"
 
 namespace imu {
@@ -41,19 +41,14 @@ const int SoftwareVersionPatch = 0; ///< Software patch version for the logger
 /// \return N/A
 
 Logger::Logger(logger::Manager *output)
-: m_output(output), m_verbose(false), m_lastAccX(0.0f), m_lastAccY(0.0f), m_lastAccZ(0.0f)
+: m_output(output), m_verbose(false)
 {
-    m_sensor = new Adafruit_MPU6050();
+    m_sensor = new LSM6DS3Class(Wire, 0x6B);
     if (!m_sensor->begin()) {
         Serial.println("Failed to initialise MPU-6050; logging disabled.");
         delete m_sensor;
         m_sensor = nullptr;
         m_output = nullptr;
-    } else {
-        m_sensor->setAccelerometerRange(MPU6050_RANGE_8_G);
-        m_sensor->setGyroRange(MPU6050_RANGE_500_DEG);
-        m_sensor->setFilterBandwidth(MPU6050_BAND_5_HZ);
-        m_sensor->setSampleRateDivisor(49); // Should set about 20Hz output rate to match filter bandwidth
     }
 }
 
@@ -74,28 +69,18 @@ Logger::~Logger(void)
 void Logger::TransferData(void)
 {
     if (m_sensor == nullptr) return;
-    sensors_event_t acc, gyro, temp;
+    float ax, ay, az, gx, gy, gz, t = 0;
     unsigned long now = millis();
-    if (m_sensor->getEvent(&acc, &gyro, &temp)) {
-        // Since we don't (currently) have an interrupt for "new data", we can get
-        // repeat measurements from the sensor, and we need to check for this before
-        // writing the results to the log file
-        if (acc.acceleration.x != m_lastAccX || acc.acceleration.y != m_lastAccY || acc.acceleration.z != m_lastAccZ) {
-            Serialisable buffer(28 + sizeof(unsigned long));
-            buffer += static_cast<uint32_t>(now);
-            buffer += acc.acceleration.x;
-            buffer += acc.acceleration.y;
-            buffer += acc.acceleration.z;
-            buffer += gyro.gyro.x;
-            buffer += gyro.gyro.y;
-            buffer += gyro.gyro.z;
-            buffer += temp.temperature;
-            m_output->Record(logger::Manager::PacketIDs::Pkt_LocalIMU, buffer);
-            m_lastAccX = acc.acceleration.x;
-            m_lastAccY = acc.acceleration.y;
-            m_lastAccZ = acc.acceleration.z;
-        }
+    if (m_sensor->gyroscopeAvailable()) {
+        m_sensor->readAcceleration(ax, ay, az);
+        m_sensor->readGyroscope(gx, gy, gz); // Assume that we get paired readings
     }
+    Serialisable buffer(7*sizeof(float) + sizeof(unsigned long));
+    buffer += static_cast<uint32_t>(now);
+    buffer += ax; buffer += ay; buffer += az;
+    buffer += gx; buffer += gy; buffer += gz;
+    buffer += t; // LSM6DS3 temperature information is not exposed in this interface.
+    m_output->Record(logger::Manager::PacketIDs::Pkt_LocalIMU, buffer);
 }
 
 /// Assemble a logger version string

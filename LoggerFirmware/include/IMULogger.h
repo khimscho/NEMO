@@ -1,8 +1,8 @@
 /*! \file IMULogger.h
- *  \brief Provide interface to log data from an MPU-6050 6-dof IMU.
+ *  \brief Provide interface to log data from an LSM6DS3 6-dof IMU.
  *
- * On the NEMO-30 module, there is an embedded MPU-6050 6-dof IMU.  This class uses
- * the Adafruit MPU-6050 interface to talk to the sensor, and to transfer data to the
+ * On the NEMO-30 module, there is an embedded LSM6DS3 6-dof IMU.  This class uses
+ * the Adafruit LSM6DS3 interface to talk to the sensor, and to transfer data to the
  * logManager application so that it gets written into the output data files.
  *
  * Copyright (c) 2021, University of New Hampshire, Center for Coastal and Ocean Mapping.
@@ -28,7 +28,7 @@
 #define __IMU_LOGGER_H__
 
 #include "LogManager.h"
-#include "Adafruit_MPU6050.h"
+#include "Arduino_LSM6DS3.h"
 
 namespace imu {
 
@@ -64,10 +64,7 @@ public:
 private:
     logger::Manager     *m_output;      ///< Pointer to the log manager to use for reporting data
     bool                m_verbose;      ///< Flag: True => write more data about operations, False => quiet mode
-    Adafruit_MPU6050    *m_sensor;      ///< Pointer to the motion sensor interface library
-    float               m_lastAccX,     ///< Last acceleration value, x-axis (m/s^2)
-                        m_lastAccY,     ///< Last acceleration value, y-axis (m/s^2)
-                        m_lastAccZ;     ///< Last acceleration value, z-axis (m/s^2)
+    LSM6DS3Class        *m_sensor;      ///< Pointer to the motion sensor interface library
 };
 
 }
