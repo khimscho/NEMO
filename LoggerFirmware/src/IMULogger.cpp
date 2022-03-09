@@ -43,9 +43,9 @@ const int SoftwareVersionPatch = 0; ///< Software patch version for the logger
 Logger::Logger(logger::Manager *output)
 : m_output(output), m_verbose(false)
 {
-    m_sensor = new LSM6DS3Class(Wire, 0x6B);
-    if (!m_sensor->begin()) {
-        Serial.println("Failed to initialise MPU-6050; logging disabled.");
+    m_sensor = new LSM6DS3Class(Wire, 0x6A);
+    if (m_sensor->begin() == 0) {
+        Serial.println("Failed to initialise LSM6DS3; logging disabled.");
         delete m_sensor;
         m_sensor = nullptr;
         m_output = nullptr;
