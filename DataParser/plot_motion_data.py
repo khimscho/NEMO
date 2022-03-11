@@ -47,8 +47,8 @@ while source.has_more():
         if isinstance(pkt, LoggerFile.Motion):
             motion_count += 1
             times.append(pkt.elapsed / 1000)
-            acc.append((pkt.ax, pkt.ay, pkt.az, np.sqrt(pkt.ax*pkt.ax + pkt.ay*pkt.ay + pkt.az*pkt.az)))
-            gyro.append((pkt.gx, pkt.gy, pkt.gz))
+            acc.append((pkt.accel[0], pkt.accel[1], pkt.accel[2], np.sqrt(pkt.accel[0]**2 + pkt.accel[1]**2 + pkt.accel[2]**2)))
+            gyro.append(pkt.gyro)
             temp.append(pkt.temp)
 
 print("Found " + str(packet_count) + " packets total")
@@ -66,7 +66,7 @@ plt.subplot(3,1,2)
 plt.plot(times, acc)
 plt.grid()
 plt.xlabel('Elapsed Time (s)')
-plt.ylabel('Accelerations (m/s^2)')
+plt.ylabel('Accelerations (G)')
 plt.legend(('X-Axis', 'Y-Axis', 'Z-Axis', 'Magnitude'))
 
 plt.subplot(3,1,3)
