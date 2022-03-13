@@ -28,7 +28,7 @@
 #define __IMU_LOGGER_H__
 
 #include "LogManager.h"
-#include "Arduino_LSM6DS3.h"
+#include "LSM6DSL.h"
 
 namespace imu {
 
@@ -64,7 +64,9 @@ public:
 private:
     logger::Manager     *m_output;      ///< Pointer to the log manager to use for reporting data
     bool                m_verbose;      ///< Flag: True => write more data about operations, False => quiet mode
-    LSM6DS3Class        *m_sensor;      ///< Pointer to the motion sensor interface library
+    LSM6DSL             *m_sensor;      ///< Pointer to the motion sensor interface library
+
+    bool data_available(void);
 };
 
 }

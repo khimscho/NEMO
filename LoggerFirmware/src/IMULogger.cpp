@@ -26,7 +26,7 @@
 
 #include "serialisation.h"
 #include "LogManager.h"
-#include "Arduino_LSM6DS3.h"
+#include "LSM6DSL.h"
 #include "IMULogger.h"
 
 namespace imu {
@@ -34,6 +34,40 @@ namespace imu {
 const int SoftwareVersionMajor = 1; ///< Software major version for the logger
 const int SoftwareVersionMinor = 0; ///< Software minor version for the logger
 const int SoftwareVersionPatch = 0; ///< Software patch version for the logger
+
+const int IMUInterruptPin = 39; // Interrupt from LSM6DSL for data ready
+const int IMUAddressI2C = 0x6A; // Address on I2C with address pin grounded
+
+// LSM6DSL Registers not defined in the support library
+const uint8_t LSM6DSL_DRDY_PULSE_CFG = 0x0B;    // Control for latched/pulsed interrupt
+const uint8_t LSM6DSL_CTRL3_C = 0x12;           // Control register 3
+const uint8_t LSM6DSL_MASTER_CONFIG = 0x1A;     // Master configuration register
+const uint8_t LSM6DSL_STATUS_REGISTER = 0x1E;   // Status register for data ready
+
+// INT1 enabling bits for INT1_CTRL
+const uint8_t LSM6DSL_INT1_DRDY_G = 0x01;
+const uint8_t LSM6DSL_INT2_DRDY_XL = 0x02;
+
+// DRDY_PULSE_CFG register (latch/pulse)
+const uint8_t LSM6DSL_DRDY_PULSED = 0x80; // 0 = latched mode (until read), 1 = 75us pulses
+
+// CTRL3 register bits
+const uint8_t LSM6DSL_CTRL3_HLACTIVE = 0x20; // 0 = active high, 1 = active low
+const uint8_t LSM6DSL_CTRL3_PP_OD = 0x10; // 0 = push-pull, 1 = open drain
+
+// Master configuration register controls
+const uint8_t LSM6DSL_INT1_DRDY_EN = 0x80; // 0 = disable, 1 = enable
+
+volatile bool imu_data_ready = false;
+
+/// Interrupt service routine for the IMU interrupt, indicating that data is ready at the IMU
+/// for reading.  This indicates that the data is ready by setting a global variable that the
+/// logger can read.
+
+void IRAM_ATTR IMUDataReady()
+{
+    imu_data_ready = true;
+}
 
 /// Standard constructor for the IMU logger, with output to the specified log manager.
 ///
@@ -43,12 +77,33 @@ const int SoftwareVersionPatch = 0; ///< Software patch version for the logger
 Logger::Logger(logger::Manager *output)
 : m_output(output), m_verbose(false)
 {
-    m_sensor = new LSM6DS3Class(Wire, 0x6A);
-    if (m_sensor->begin() == 0) {
-        Serial.println("Failed to initialise LSM6DS3; logging disabled.");
+    m_sensor = new LSM6DSL(LSM6DSL_MODE_I2C, IMUAddressI2C);
+    // After construction of the instance, we can change configuration before the begin()
+    m_sensor->settings.gyroRange = LSM6DSL_ACC_GYRO_FS_G_245dps;        // Full scale degrees per second (must be from known list)
+    m_sensor->settings.gyroSampleRate = LSM6DSL_ACC_GYRO_ODR_G_52Hz;    // Sampling rate, Hz (must be from known list)
+    m_sensor->settings.gyroFifoEnabled = 0;                             // For now, do direct reads, rather than FIFO buffering
+    m_sensor->settings.accelRange = LSM6DSL_ACC_GYRO_FS_XL_4g;          // Full scale in Gs (must be from known list)
+    m_sensor->settings.accelSampleRate = LSM6DSL_ACC_GYRO_ODR_XL_52Hz;  // Sampling rate, Hz (must be from known list)
+    m_sensor->settings.accelFifoEnabled = 0;                            // For now, do direct reads, rather than FIFO buffering
+
+    if (m_sensor->begin() != IMU_SUCCESS) {
+        Serial.println("Failed to initialise LSM6DSL; logging disabled.");
         delete m_sensor;
         m_sensor = nullptr;
         m_output = nullptr;
+    } else {
+        // Set up for interrupts so that we don't have to poll for data availability
+        uint8_t data;
+        
+        data = LSM6DSL_INT1_DRDY_G | LSM6DSL_INT2_DRDY_XL;
+        m_sensor->writeRegister(LSM6DSL_ACC_GYRO_INT1_CTRL, data);
+        m_sensor->writeRegister(LSM6DSL_MASTER_CONFIG, LSM6DSL_INT1_DRDY_EN);
+        data = LSM6DSL_CTRL3_HLACTIVE | LSM6DSL_CTRL3_PP_OD;
+        m_sensor->writeRegister(LSM6DSL_CTRL3_C, data);
+        m_sensor->writeRegister(LSM6DSL_DRDY_PULSE_CFG, LSM6DSL_DRDY_PULSED);
+
+        pinMode(IMUInterruptPin, INPUT);
+        attachInterrupt(digitalPinToInterrupt(IMUInterruptPin), IMUDataReady, FALLING);
     }
 }
 
@@ -62,6 +117,17 @@ Logger::~Logger(void)
     delete m_sensor;
 }
 
+/// Test the data availability register in the IMU for new data.
+///
+/// \return True if new data is available, otherwise false
+
+bool Logger::data_available(void)
+{
+    uint8_t status;
+    if (m_sensor->readRegister(&status, LSM6DSL_STATUS_REGISTER) != IMU_SUCCESS) return false;
+    return (status & 0x7) > 0;
+}
+
 /// Get the next sensor reading from the IMU, and write into the output stream.
 ///
 /// \return N/A
@@ -69,18 +135,27 @@ Logger::~Logger(void)
 void Logger::TransferData(void)
 {
     if (m_sensor == nullptr) return;
-    float ax, ay, az, gx, gy, gz, t = 0;
+
+    float ax, ay, az, gx, gy, gz, t;
     unsigned long now = millis();
-    if (m_sensor->gyroscopeAvailable()) {
-        m_sensor->readAcceleration(ax, ay, az);
-        m_sensor->readGyroscope(gx, gy, gz); // Assume that we get paired readings
+
+    if (imu_data_ready) {
+        ax = m_sensor->readFloatAccelX();
+        ay = m_sensor->readFloatAccelY();
+        az = m_sensor->readFloatAccelZ();
+        gx = m_sensor->readFloatGyroX();
+        gy = m_sensor->readFloatGyroY();
+        gz = m_sensor->readFloatGyroZ();
+        t = m_sensor->readTemperatureC();
+        Serialisable buffer(7*sizeof(float) + sizeof(unsigned long));
+        buffer += static_cast<uint32_t>(now);
+        buffer += ax; buffer += ay; buffer += az;
+        buffer += gx; buffer += gy; buffer += gz;
+        buffer += t;
+        m_output->Record(logger::Manager::PacketIDs::Pkt_LocalIMU, buffer);
+
+        imu_data_ready = false;
     }
-    Serialisable buffer(7*sizeof(float) + sizeof(unsigned long));
-    buffer += static_cast<uint32_t>(now);
-    buffer += ax; buffer += ay; buffer += az;
-    buffer += gx; buffer += gy; buffer += gz;
-    buffer += t; // LSM6DS3 temperature information is not exposed in this interface.
-    m_output->Record(logger::Manager::PacketIDs::Pkt_LocalIMU, buffer);
 }
 
 /// Assemble a logger version string
