@@ -78,13 +78,12 @@ Logger::Logger(logger::Manager *output)
 : m_output(output), m_verbose(false)
 {
     m_sensor = new LSM6DSL(LSM6DSL_MODE_I2C, IMUAddressI2C);
+    
     // After construction of the instance, we can change configuration before the begin()
-    m_sensor->settings.gyroRange = LSM6DSL_ACC_GYRO_FS_G_245dps;        // Full scale degrees per second (must be from known list)
-    m_sensor->settings.gyroSampleRate = LSM6DSL_ACC_GYRO_ODR_G_52Hz;    // Sampling rate, Hz (must be from known list)
-    m_sensor->settings.gyroFifoEnabled = 0;                             // For now, do direct reads, rather than FIFO buffering
+    m_sensor->settings.gyroRange = LSM6DSL_ACC_GYRO_FS_G_2000dps;       // Full scale degrees per second (must be from known list)
+    m_sensor->settings.gyroSampleRate = LSM6DSL_ACC_GYRO_ODR_G_104Hz;   // Sampling rate, Hz (must be from known list)
     m_sensor->settings.accelRange = LSM6DSL_ACC_GYRO_FS_XL_4g;          // Full scale in Gs (must be from known list)
-    m_sensor->settings.accelSampleRate = LSM6DSL_ACC_GYRO_ODR_XL_52Hz;  // Sampling rate, Hz (must be from known list)
-    m_sensor->settings.accelFifoEnabled = 0;                            // For now, do direct reads, rather than FIFO buffering
+    m_sensor->settings.accelSampleRate = LSM6DSL_ACC_GYRO_ODR_XL_104Hz; // Sampling rate, Hz (must be from known list)
 
     if (m_sensor->begin() != IMU_SUCCESS) {
         Serial.println("Failed to initialise LSM6DSL; logging disabled.");
@@ -92,18 +91,15 @@ Logger::Logger(logger::Manager *output)
         m_sensor = nullptr;
         m_output = nullptr;
     } else {
-        // Set up for interrupts so that we don't have to poll for data availability
-        uint8_t data;
-        
-        data = LSM6DSL_INT1_DRDY_G | LSM6DSL_INT2_DRDY_XL;
-        m_sensor->writeRegister(LSM6DSL_ACC_GYRO_INT1_CTRL, data);
-        m_sensor->writeRegister(LSM6DSL_MASTER_CONFIG, LSM6DSL_INT1_DRDY_EN);
-        data = LSM6DSL_CTRL3_HLACTIVE | LSM6DSL_CTRL3_PP_OD;
-        m_sensor->writeRegister(LSM6DSL_CTRL3_C, data);
-        m_sensor->writeRegister(LSM6DSL_DRDY_PULSE_CFG, LSM6DSL_DRDY_PULSED);
+        // Attach an interrupt handler before setting up the external system to cause them
+        /*pinMode(IMUInterruptPin, INPUT);
+        attachInterrupt(digitalPinToInterrupt(IMUInterruptPin), IMUDataReady, FALLING);*/
 
-        pinMode(IMUInterruptPin, INPUT);
-        attachInterrupt(digitalPinToInterrupt(IMUInterruptPin), IMUDataReady, FALLING);
+        // Set up for interrupts so that we don't have to poll for data availability
+        /*m_sensor->writeRegister(LSM6DSL_ACC_GYRO_INT1_CTRL, LSM6DSL_INT1_DRDY_G);
+        m_sensor->writeRegister(LSM6DSL_CTRL3_C, LSM6DSL_CTRL3_HLACTIVE | LSM6DSL_CTRL3_PP_OD);
+        m_sensor->writeRegister(LSM6DSL_DRDY_PULSE_CFG, LSM6DSL_DRDY_PULSED);
+        m_sensor->writeRegister(LSM6DSL_MASTER_CONFIG, LSM6DSL_INT1_DRDY_EN);*/
     }
 }
 
@@ -125,7 +121,22 @@ bool Logger::data_available(void)
 {
     uint8_t status;
     if (m_sensor->readRegister(&status, LSM6DSL_STATUS_REGISTER) != IMU_SUCCESS) return false;
-    return (status & 0x7) > 0;
+    return (status & 0x7) != 0;
+}
+
+float Logger::convert_acceleration(int16_t v)
+{
+    return (float)v * m_sensor->settings.accelRange / 32767.0;
+}
+
+float Logger::convert_gyrorate(int16_t v)
+{
+    return (float)v * m_sensor->settings.gyroRange / 32767.0;
+}
+
+float Logger::convert_temperature(int16_t t)
+{
+    return (float)t / 256.0 + 25.0;
 }
 
 /// Get the next sensor reading from the IMU, and write into the output stream.
@@ -136,22 +147,27 @@ void Logger::TransferData(void)
 {
     if (m_sensor == nullptr) return;
 
-    float ax, ay, az, gx, gy, gz, t;
+    int16_t ax, ay, az, gx, gy, gz, t;
     unsigned long now = millis();
 
-    if (imu_data_ready) {
-        ax = m_sensor->readFloatAccelX();
-        ay = m_sensor->readFloatAccelY();
-        az = m_sensor->readFloatAccelZ();
-        gx = m_sensor->readFloatGyroX();
-        gy = m_sensor->readFloatGyroY();
-        gz = m_sensor->readFloatGyroZ();
-        t = m_sensor->readTemperatureC();
+    if (data_available()) {
+        ax = m_sensor->readRawAccelX();
+        ay = m_sensor->readRawAccelY();
+        az = m_sensor->readRawAccelZ();
+        gx = m_sensor->readRawGyroX();
+        gy = m_sensor->readRawGyroY();
+        gz = m_sensor->readRawGyroZ();
+        t = m_sensor->readRawTemperature();
+        Serial.printf("DBG: a = (%X, %X, %X) g = (%X, %X, %X) t = %X\n", ax, ay, az, gx, gy, gz, t);
         Serialisable buffer(7*sizeof(float) + sizeof(unsigned long));
         buffer += static_cast<uint32_t>(now);
-        buffer += ax; buffer += ay; buffer += az;
-        buffer += gx; buffer += gy; buffer += gz;
-        buffer += t;
+        buffer += convert_acceleration(ax);
+        buffer += convert_acceleration(ay);
+        buffer += convert_acceleration(az);
+        buffer += convert_gyrorate(gx);
+        buffer += convert_gyrorate(gy);
+        buffer += convert_gyrorate(gz);
+        buffer += convert_temperature(t);
         m_output->Record(logger::Manager::PacketIDs::Pkt_LocalIMU, buffer);
 
         imu_data_ready = false;

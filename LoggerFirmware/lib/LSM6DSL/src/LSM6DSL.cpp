@@ -1,5 +1,5 @@
 #include "LSM6DSL.h"
-
+#include "Arduino.h"
 
 LSM6DSLCore::LSM6DSLCore(uint8_t addr):
  opMode(LSM6DSL_MODE_I2C),
@@ -84,15 +84,21 @@ lsm6dsl_status_t LSM6DSLCore::readRegisterRegion(uint8_t* output, uint8_t offset
     if (opMode == LSM6DSL_MODE_I2C) {
         Wire.beginTransmission(i2cAddress);
         Wire.write(offset);
-        if (Wire.endTransmission() != 0) {
+        if (Wire.endTransmission(false) != 0) {
             returnStatus = IMU_HW_ERROR;
         } else {
-            Wire.requestFrom(i2cAddress, length);
-            while (Wire.available() && (i < length)) {
-                c = Wire.read();
-                *output = c;
-                output++;
-                i++;
+            Serial.printf("DBG: read cycle start\n");
+            if (Wire.requestFrom(i2cAddress, length) != length) {
+                Serial.printf("DBG: Failed to get %d bytes from IMU\n", length);
+                returnStatus = IMU_HW_ERROR;
+            } else {
+                while (Wire.available() && (i < length)) {
+                    c = Wire.read();
+                    Serial.printf("DBG: read %02X from 0x%02X\n", c, offset);
+                    *output = c;
+                    output++;
+                    i++;
+                }
             }
         }
     } else if (opMode == LSM6DSL_MODE_SPI) {
@@ -123,7 +129,8 @@ lsm6dsl_status_t LSM6DSLCore::readRegisterInt16(int16_t* output, uint8_t offset)
     uint8_t buffer[2];
     lsm6dsl_status_t returnStatus = readRegisterRegion(buffer, offset, 2);
     *output = (int16_t)buffer[0] | (int16_t)buffer[1] << 8;
-
+    Serial.printf("DBG: Read %X, %X from %X -> %X\n", buffer[0], buffer[1], offset, *output);
+    
     return returnStatus;
 }
 

@@ -67,6 +67,9 @@ private:
     LSM6DSL             *m_sensor;      ///< Pointer to the motion sensor interface library
 
     bool data_available(void);
+    float convert_acceleration(int16_t v);
+    float convert_gyrorate(int16_t v);
+    float convert_temperature(int16_t t);
 };
 
 }
