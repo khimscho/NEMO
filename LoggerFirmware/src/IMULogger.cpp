@@ -115,10 +115,16 @@ Logger::Logger(logger::Manager *output)
     m_sensor = new LSM6DSL(LSM6DSL_MODE_I2C, IMUAddressI2C);
     
     // After construction of the instance, we can change configuration before the begin()
-    m_sensor->settings.gyroRange = LSM6DSL_ACC_GYRO_FS_G_245dps;       // Full scale degrees per second (must be from known list)
-    m_sensor->settings.gyroSampleRate = LSM6DSL_ACC_GYRO_ODR_G_13Hz;   // Sampling rate, Hz (must be from known list)
-    m_sensor->settings.accelRange = LSM6DSL_ACC_GYRO_FS_XL_4g;          // Full scale in Gs (must be from known list)
-    m_sensor->settings.accelSampleRate = LSM6DSL_ACC_GYRO_ODR_XL_13Hz; // Sampling rate, Hz (must be from known list)
+    m_sensor->settings.gyroRange = 245;         // Full scale degrees per second (must be from known list)
+    m_sensor->settings.gyroSampleRate = 13;     // Sampling rate, Hz (must be from known list)
+    m_sensor->settings.accelRange = 4;          // Full scale in Gs (must be from known list)
+    m_sensor->settings.accelSampleRate = 13;    // Sampling rate, Hz (must be from known list)
+
+    // Set up scale factors for conversion from int16_t at full scale to floating-point value
+    m_accelScale = 4.0 / 32767.0;
+    m_gyroScale = 245.0 / 32767.0;
+    m_tempScale = (1.0 / 256.0);
+    m_tempOffset = 25.0;
 
     if (m_sensor->begin() != IMU_SUCCESS) {
         Serial.println("Failed to initialise LSM6DSL; logging disabled.");
@@ -167,17 +173,17 @@ bool Logger::data_available(void)
 
 float Logger::convert_acceleration(int16_t v)
 {
-    return (float)v * m_sensor->settings.accelRange / 32767.0;
+    return v * m_accelScale;
 }
 
 float Logger::convert_gyrorate(int16_t v)
 {
-    return (float)v * m_sensor->settings.gyroRange / 32767.0;
+    return v * m_gyroScale;
 }
 
 float Logger::convert_temperature(int16_t t)
 {
-    return (float)t / 256.0 + 25.0;
+    return t * m_tempScale + m_tempOffset;
 }
 
 /// Get the next sensor reading from the IMU, and write into the output stream.
@@ -191,7 +197,7 @@ void Logger::TransferData(void)
     int16_t ax, ay, az, gx, gy, gz, t;
     unsigned long now = millis();
 
-    if (data_available()) {
+    if (imu_data_ready && data_available()) {
         ax = m_sensor->readRawAccelX();
         ay = m_sensor->readRawAccelY();
         az = m_sensor->readRawAccelZ();

@@ -65,6 +65,10 @@ private:
     logger::Manager     *m_output;      ///< Pointer to the log manager to use for reporting data
     bool                m_verbose;      ///< Flag: True => write more data about operations, False => quiet mode
     LSM6DSL             *m_sensor;      ///< Pointer to the motion sensor interface library
+    float               m_accelScale;   ///< Scale factor to convert IMU 16-bit signed int acceleration to float
+    float               m_gyroScale;    ///< Scale factor to convert IMU 16-bit signed int gyro rate to float
+    float               m_tempScale;    ///< Scale factor to convert IMU ambient temperature to float
+    float               m_tempOffset;   ///< Offset for IMU ambient temperature
 
     bool data_available(void);
     float convert_acceleration(int16_t v);
