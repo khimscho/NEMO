@@ -87,14 +87,11 @@ lsm6dsl_status_t LSM6DSLCore::readRegisterRegion(uint8_t* output, uint8_t offset
         if (Wire.endTransmission(false) != 0) {
             returnStatus = IMU_HW_ERROR;
         } else {
-            Serial.printf("DBG: read cycle start\n");
             if (Wire.requestFrom(i2cAddress, length) != length) {
-                Serial.printf("DBG: Failed to get %d bytes from IMU\n", length);
                 returnStatus = IMU_HW_ERROR;
             } else {
                 while (Wire.available() && (i < length)) {
                     c = Wire.read();
-                    Serial.printf("DBG: read %02X from 0x%02X\n", c, offset);
                     *output = c;
                     output++;
                     i++;
@@ -129,7 +126,6 @@ lsm6dsl_status_t LSM6DSLCore::readRegisterInt16(int16_t* output, uint8_t offset)
     uint8_t buffer[2];
     lsm6dsl_status_t returnStatus = readRegisterRegion(buffer, offset, 2);
     *output = (int16_t)buffer[0] | (int16_t)buffer[1] << 8;
-    Serial.printf("DBG: Read %X, %X from %X -> %X\n", buffer[0], buffer[1], offset, *output);
     
     return returnStatus;
 }
@@ -187,7 +183,6 @@ lsm6dsl_status_t LSM6DSLCore::embeddedPage() {
 lsm6dsl_status_t LSM6DSLCore::basePage() {
     return writeRegister(LSM6DSL_ACC_GYRO_RAM_ACCESS_REG, 0x00);
 }
-
 
 /* LSM6DSL class definitions */
 
