@@ -899,6 +899,7 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  password [wifi-password]            Set the WiFi password.\n", src);
     EmitMessage("  radio ble|wifi                      Set the radio to boot on initialisation.\n", src);
     EmitMessage("  restart                             Restart the logger module hardware.\n", src);
+    EmitMessage("  scales                              Report any registered sensor-specific scale factors.\n", src);
     EmitMessage("  sizes                               Output list of the extant log files, and their sizes in bytes.\n", src);
     EmitMessage("  speed 1|2 baud-rate                 Set the baud rate for the RS-422 input channels.\n", src);
     EmitMessage("  ssid [wifi-ssid]                    Set the WiFi SSID.\n", src);
