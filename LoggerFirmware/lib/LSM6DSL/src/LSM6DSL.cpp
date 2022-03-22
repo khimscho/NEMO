@@ -437,3 +437,9 @@ float LSM6DSL::convertGyro(int16_t axisValue) {
 
     return (float)(axisValue) * 4.375 * divisor / 1000;
 }
+
+lsm6dsl_status_t LSM6DSL::readFullData(int16_t output[7])
+{
+    lsm6dsl_status_t status = readRegisterRegion((uint8_t*)output, LSM6DSL_ACC_GYRO_OUT_L_TEMP_REG, 14);
+    return status;
+}

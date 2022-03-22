@@ -851,6 +851,31 @@ void SerialCommand::AddNMEAFilter(String const& params, CommandSource src)
     }
 }
 
+/// Report the set of scales set for any on-board sensors that record binary data that needs to be
+/// scaled to useful units and/or into a float in the first place.  This reports the sensor elements
+/// specified in the store as JSON fragments, which should be convertable as usual in any language
+/// supporting JSON objects.
+///
+/// \param src      Channel on which to report the results of the command (Serial, WiFi, BLE)
+
+void SerialCommand::ReportScalesElement(CommandSource src)
+{
+    logger::ScalesStore scales;
+    EmitMessage("Sensor scales for on-board sensors:\n", src);
+    switch(src) {
+        case CommandSource::SerialPort:
+        case CommandSource::WirelessPort:
+            EmitMessage(scales.GetScales() + "\n", src);
+            break;
+        case CommandSource::BluetoothPort:
+            m_ble->WriteString("ERR: Cannot report sensor scales on BLE.\n");
+            break;
+        default:
+            EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
+            break;
+    }
+}
+
 /// Output a list of known commands, since there are now enough of them to make remembering them
 /// all a little difficult.
 
@@ -983,6 +1008,8 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         } else {
             AddNMEAFilter(cmd.substring(7), src);
         }
+    } else if (cmd == "scales") {
+        ReportScalesElement(src);
     } else if (cmd == "help" || cmd == "syntax") {
         Syntax(src);
     } else {

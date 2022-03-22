@@ -35,7 +35,7 @@
 #include "FS.h"
 
 const int SerialiserVersionMajor = 1; ///< Major version number for the serialiser
-const int SerialiserVersionMinor = 1; ///< Minor version number for the serialiser
+const int SerialiserVersionMinor = 2; ///< Minor version number for the serialiser
 
 /// \class Serialisable
 /// \brief Provide encapsulation for data to be written to store
@@ -55,6 +55,8 @@ public:
     void operator+=(uint8_t b);
     /// \brief Add a 2-byte half-word to the output buffer
     void operator+=(uint16_t w);
+    /// \brief Adda 2-byte signed half-word to the output buffer
+    void operator+=(int16_t w);
     /// \brief Add a 4-byte word to the output buffer
     void operator+=(uint32_t dw);
     /// \brief Add an 8-byte double word to the output buffer

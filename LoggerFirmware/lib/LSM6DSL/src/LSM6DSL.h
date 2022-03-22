@@ -112,6 +112,8 @@ public:
     float convertAccel(int16_t axisValue);
     float convertGyro(int16_t axisValue);
 
+    lsm6dsl_status_t readFullData(int16_t output[7]);
+
 private:
     void initSettings();
 };

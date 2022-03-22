@@ -27,6 +27,7 @@
 #include "serialisation.h"
 #include "LogManager.h"
 #include "LSM6DSL.h"
+#include "NVMFile.h"
 #include "IMULogger.h"
 
 namespace imu {
@@ -125,6 +126,13 @@ Logger::Logger(logger::Manager *output)
     m_gyroScale = 245.0 / 32767.0;
     m_tempScale = (1.0 / 256.0);
     m_tempOffset = 25.0;
+    logger::ScalesStore scales;
+    String scales_string = "{ \"recipAccelScale\": " + String(1.0/m_accelScale, 6) +
+                            ", \"recipGyroScale\": " + String(1.0/m_gyroScale, 6) +
+                            ", \"recipTempScale\": " + String(1.0/m_tempScale, 6) +
+                            ", \"tempOffset\": " + String(m_tempOffset, 6) +
+                            "}";
+    scales.AddScalesGroup("imu", scales_string);
 
     if (m_sensor->begin() != IMU_SUCCESS) {
         Serial.println("Failed to initialise LSM6DSL; logging disabled.");
@@ -194,27 +202,19 @@ void Logger::TransferData(void)
 {
     if (m_sensor == nullptr) return;
 
-    int16_t ax, ay, az, gx, gy, gz, t;
+    int16_t reading[7];
     unsigned long now = millis();
 
     if (imu_data_ready && data_available()) {
-        ax = m_sensor->readRawAccelX();
-        ay = m_sensor->readRawAccelY();
-        az = m_sensor->readRawAccelZ();
-        gx = m_sensor->readRawGyroX();
-        gy = m_sensor->readRawGyroY();
-        gz = m_sensor->readRawGyroZ();
-        t = m_sensor->readRawTemperature();
-        Serialisable buffer(7*sizeof(float) + sizeof(unsigned long));
-        buffer += static_cast<uint32_t>(now);
-        buffer += convert_acceleration(ax);
-        buffer += convert_acceleration(ay);
-        buffer += convert_acceleration(az);
-        buffer += convert_gyrorate(gx);
-        buffer += convert_gyrorate(gy);
-        buffer += convert_gyrorate(gz);
-        buffer += convert_temperature(t);
-        m_output->Record(logger::Manager::PacketIDs::Pkt_LocalIMU, buffer);
+        if (m_sensor->readFullData(reading) != IMU_SUCCESS) {
+            Serial.print("ERR: failed to read from IMU system ... needs investigation.\n");
+        } else {
+            Serialisable buffer(7*sizeof(int16_t) + sizeof(unsigned long));
+            buffer += static_cast<uint32_t>(now);
+            for (uint32_t i = 0; i < 7; ++i)
+                buffer += reading[i];
+            m_output->Record(logger::Manager::PacketIDs::Pkt_RawIMU, buffer);
+        }
 
         imu_data_ready = false;
     }
