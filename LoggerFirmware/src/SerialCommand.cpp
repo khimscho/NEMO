@@ -876,6 +876,17 @@ void SerialCommand::ReportScalesElement(CommandSource src)
     }
 }
 
+/// Report the number of files that are available on the SD card for transfer.
+///
+/// \param src      Channel on which to report the results of the command (Serial, WiFi, BLE)
+
+void SerialCommand::ReportFileCount(CommandSource src)
+{
+    int filenumber[logger::MaxLogFiles];
+    int file_count = m_logManager->CountLogFiles(filenumber);
+    EmitMessage(String(file_count) + "\n", src);
+}
+
 /// Output a list of known commands, since there are now enough of them to make remembering them
 /// all a little difficult.
 
@@ -888,6 +899,7 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  configure [on|off logger-name]      Configure individual loggers on/off (or report config).\n", src);
     EmitMessage("  echo on|off                         Control character echo on serial line.\n", src);
     EmitMessage("  erase file-number|all               Remove a specific [file-number] or all log files.\n", src);
+    EmitMessage("  filecount                           Report the number of log files currently available for transfer.\n", src);
     EmitMessage("  heap                                Report current free heap size.\n", src);
     EmitMessage("  help|syntax                         Generate this list.\n", src);
     EmitMessage("  uniqueid [logger-name]              Set or report the logger's unique identification string.\n", src);
@@ -1011,6 +1023,8 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         }
     } else if (cmd == "scales") {
         ReportScalesElement(src);
+    } else if (cmd == "filecount") {
+        ReportFileCount(src);
     } else if (cmd == "help" || cmd == "syntax") {
         Syntax(src);
     } else {
