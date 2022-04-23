@@ -23449,7 +23449,7 @@ SA0=low -&gt; 0x6A</text>
 <text x="162.56" y="7.62" size="3.81" layer="94">Wireless Inexpensive
 Bathymetry Logger
 (WIBL)</text>
-<text x="216.916" y="20.32" size="2.54" layer="94">V2.3.0 (2021-06-25)</text>
+<text x="216.916" y="20.32" size="2.54" layer="94">V2.4.0 (2022-04-23)</text>
 </plain>
 <instances>
 <instance part="R1" gate="G$1" x="114.3" y="53.34" smashed="yes" rot="R90">
@@ -23865,12 +23865,7 @@ Bathymetry Logger
 <pinref part="U3" gate="G$1" pin="VDDIO"/>
 <wire x1="226.06" y1="119.38" x2="226.06" y2="121.92" width="0.1524" layer="91"/>
 <wire x1="226.06" y1="96.52" x2="226.06" y2="104.14" width="0.1524" layer="91"/>
-<pinref part="U3" gate="G$1" pin="SDX"/>
-<pinref part="U3" gate="G$1" pin="SCX"/>
-<wire x1="190.5" y1="81.28" x2="190.5" y2="78.74" width="0.1524" layer="91"/>
-<wire x1="190.5" y1="78.74" x2="190.5" y2="68.58" width="0.1524" layer="91"/>
-<wire x1="190.5" y1="68.58" x2="236.22" y2="68.58" width="0.1524" layer="91"/>
-<junction x="190.5" y="78.74"/>
+<wire x1="185.42" y1="68.58" x2="236.22" y2="68.58" width="0.1524" layer="91"/>
 <wire x1="236.22" y1="68.58" x2="236.22" y2="96.52" width="0.1524" layer="91"/>
 <wire x1="236.22" y1="96.52" x2="231.14" y2="96.52" width="0.1524" layer="91"/>
 <junction x="226.06" y="96.52"/>
@@ -23878,26 +23873,30 @@ Bathymetry Logger
 <wire x1="231.14" y1="96.52" x2="226.06" y2="96.52" width="0.1524" layer="91"/>
 <wire x1="231.14" y1="91.44" x2="231.14" y2="96.52" width="0.1524" layer="91"/>
 <junction x="231.14" y="96.52"/>
-<junction x="190.5" y="81.28"/>
 <wire x1="226.06" y1="119.38" x2="187.96" y2="119.38" width="0.1524" layer="91"/>
 <junction x="226.06" y="119.38"/>
-<pinref part="R8" gate="G$1" pin="2"/>
 <wire x1="187.96" y1="119.38" x2="185.42" y2="119.38" width="0.1524" layer="91"/>
 <wire x1="185.42" y1="119.38" x2="180.34" y2="119.38" width="0.1524" layer="91"/>
-<wire x1="180.34" y1="119.38" x2="175.26" y2="119.38" width="0.1524" layer="91"/>
-<wire x1="175.26" y1="119.38" x2="175.26" y2="116.84" width="0.1524" layer="91"/>
 <pinref part="R36" gate="G$1" pin="2"/>
 <wire x1="180.34" y1="116.84" x2="180.34" y2="119.38" width="0.1524" layer="91"/>
-<junction x="180.34" y="119.38"/>
 <pinref part="R7" gate="G$1" pin="2"/>
 <wire x1="185.42" y1="116.84" x2="185.42" y2="119.38" width="0.1524" layer="91"/>
 <junction x="185.42" y="119.38"/>
-<junction x="175.26" y="119.38"/>
 <pinref part="U3" gate="G$1" pin="CS"/>
 <wire x1="190.5" y1="96.52" x2="187.96" y2="96.52" width="0.1524" layer="91"/>
 <wire x1="187.96" y1="96.52" x2="187.96" y2="119.38" width="0.1524" layer="91"/>
 <junction x="187.96" y="119.38"/>
-<junction x="187.96" y="96.52"/>
+<pinref part="R8" gate="G$1" pin="2"/>
+<wire x1="175.26" y1="119.38" x2="175.26" y2="116.84" width="0.1524" layer="91"/>
+<wire x1="180.34" y1="119.38" x2="175.26" y2="119.38" width="0.1524" layer="91"/>
+<junction x="180.34" y="119.38"/>
+<pinref part="U3" gate="G$1" pin="SDX"/>
+<wire x1="190.5" y1="81.28" x2="185.42" y2="81.28" width="0.1524" layer="91"/>
+<wire x1="185.42" y1="81.28" x2="185.42" y2="78.74" width="0.1524" layer="91"/>
+<wire x1="185.42" y1="78.74" x2="185.42" y2="68.58" width="0.1524" layer="91"/>
+<pinref part="U3" gate="G$1" pin="SCX"/>
+<wire x1="190.5" y1="78.74" x2="185.42" y2="78.74" width="0.1524" layer="91"/>
+<junction x="185.42" y="78.74"/>
 </segment>
 <segment>
 <pinref part="+3V3" gate="G$1" pin="+3V3"/>
@@ -24096,8 +24095,8 @@ Bathymetry Logger
 </net>
 <net name="VSENSE" class="0">
 <segment>
-<wire x1="33.02" y1="114.3" x2="33.02" y2="124.46" width="0.1524" layer="91"/>
-<label x="33.02" y="124.46" size="1.778" layer="95" rot="R90" xref="yes"/>
+<wire x1="33.02" y1="114.3" x2="33.02" y2="132.08" width="0.1524" layer="91"/>
+<label x="33.02" y="132.08" size="1.778" layer="95" rot="R90" xref="yes"/>
 <wire x1="45.72" y1="114.3" x2="33.02" y2="114.3" width="0.1524" layer="91"/>
 <pinref part="U1" gate="G$1" pin="GPI36/S-VP"/>
 </segment>
@@ -24326,10 +24325,8 @@ Bathymetry Logger
 <pinref part="I2C" gate="G$1" pin="1"/>
 <wire x1="154.94" y1="111.76" x2="142.24" y2="111.76" width="0.1524" layer="91"/>
 <wire x1="142.24" y1="111.76" x2="142.24" y2="104.14" width="0.1524" layer="91"/>
-<wire x1="142.24" y1="104.14" x2="142.24" y2="93.98" width="0.1524" layer="91"/>
-<wire x1="96.52" y1="99.06" x2="139.7" y2="99.06" width="0.1524" layer="91"/>
-<wire x1="139.7" y1="99.06" x2="139.7" y2="93.98" width="0.1524" layer="91"/>
-<wire x1="139.7" y1="93.98" x2="142.24" y2="93.98" width="0.1524" layer="91"/>
+<wire x1="142.24" y1="104.14" x2="142.24" y2="99.06" width="0.1524" layer="91"/>
+<wire x1="96.52" y1="99.06" x2="142.24" y2="99.06" width="0.1524" layer="91"/>
 <pinref part="U1" gate="G$1" pin="GPIO21/SDA"/>
 <pinref part="R7" gate="G$1" pin="1"/>
 <pinref part="U3" gate="G$1" pin="SDA"/>
@@ -24343,17 +24340,19 @@ Bathymetry Logger
 <net name="INT1" class="0">
 <segment>
 <pinref part="U3" gate="G$1" pin="INT1"/>
-<pinref part="R8" gate="G$1" pin="1"/>
 <wire x1="190.5" y1="88.9" x2="175.26" y2="88.9" width="0.1524" layer="91"/>
-<wire x1="175.26" y1="88.9" x2="175.26" y2="106.68" width="0.1524" layer="91"/>
-<junction x="175.26" y="106.68"/>
-<junction x="190.5" y="88.9"/>
-<label x="170.18" y="96.52" size="1.778" layer="95"/>
+<pinref part="R8" gate="G$1" pin="1"/>
+<wire x1="175.26" y1="106.68" x2="175.26" y2="96.52" width="0.1524" layer="91"/>
+<wire x1="175.26" y1="96.52" x2="175.26" y2="88.9" width="0.1524" layer="91"/>
+<wire x1="175.26" y1="96.52" x2="170.18" y2="96.52" width="0.1524" layer="91"/>
+<junction x="175.26" y="96.52"/>
+<label x="170.18" y="96.52" size="1.778" layer="95" rot="R180" xref="yes"/>
 </segment>
 <segment>
 <pinref part="U1" gate="G$1" pin="GPI37/S-VN"/>
 <wire x1="45.72" y1="111.76" x2="35.56" y2="111.76" width="0.1524" layer="91"/>
-<label x="33.02" y="111.76" size="1.778" layer="95"/>
+<wire x1="35.56" y1="111.76" x2="35.56" y2="119.38" width="0.1524" layer="91"/>
+<label x="35.56" y="119.38" size="1.778" layer="95" rot="R90" xref="yes"/>
 </segment>
 </net>
 </nets>
@@ -24364,7 +24363,7 @@ Bathymetry Logger
 <text x="114.3" y="-22.86" size="3.81" layer="94">Wireless Inexpensive
 Bathymetry Logger
 (WIBL)</text>
-<text x="168.656" y="-10.16" size="2.54" layer="94">V 2.3.0 (2021-06-25)</text>
+<text x="168.656" y="-10.16" size="2.54" layer="94">V 2.4.0 (2022-04-23)</text>
 </plain>
 <instances>
 <instance part="FRAME2" gate="G$1" x="-48.26" y="-30.48" smashed="yes">
