@@ -34,8 +34,8 @@ from urllib.parse import unquote_plus
 from typing import Dict, Any
 
 # Local modules
-import config as conf
-import datasource as ds
+import wibl.core.config as conf
+import wibl.core.datasource as ds
 
 s3 = boto3.resource('s3')
 

@@ -36,11 +36,11 @@ import boto3
 from typing import Dict, Any
 
 # Local modules
-import config as conf
-import datasource as ds
-import Timestamping as ts
-import GeoJSONConvert as gj
-from algorithms.deduplicate import deduplicate as dedup
+import wibl.core.config as conf
+import wibl.core.datasource as ds
+import wibl.core.timestamping as ts
+import wibl.core.geojson_convert as gj
+import wibl.processing.algorithms.deduplicate as dedup
 
 s3 = boto3.resource('s3')
     

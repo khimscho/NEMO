@@ -31,7 +31,7 @@
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
 import numpy as np
-from algorithms.common import lineage
+from wibl.processing.algorithms.common import lineage
 from typing import Dict, Any
 
 def find_duplicates(source: Dict, config: Dict[str,Any]) -> np.ndarray:
