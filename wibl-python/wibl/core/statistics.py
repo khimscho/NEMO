@@ -31,6 +31,7 @@
 from dataclasses import dataclass
 from enum import Enum
 
+
 ## Exception indicating that the caller asked for a packet type that is not being tracked
 class NoSuchPacket(Exception):
     pass

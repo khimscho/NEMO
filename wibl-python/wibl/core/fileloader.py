@@ -35,9 +35,12 @@
 from enum import Enum
 from typing import List, Tuple
 import datetime as dt
+
 import pynmea2 as nmea
-from .statistics import PktStats, PktFaults
-import logger_file
+
+from wibl.core.statistics import PktStats, PktFaults
+import wibl.core.logger_file as LoggerFile
+
 
 ## Exception to report that no adequate source of real-world time information is available
 class NoTimeSource(Exception):
@@ -110,7 +113,8 @@ def determine_time_source(stats: PktStats) -> TimeSource:
 # \param maxreports     Limit on how many errors should be reported before suppressing and summarising
 # \return Tuple of PktStats, TimeSource, and a list of DataPacket entries from the file
 
-def load_file(filename: str, verbose: bool, maxreports: int) -> Tuple[PktStats, TimeSource, List[logger_file.DataPacket]]:
+
+def load_file(filename: str, verbose: bool, maxreports: int) -> Tuple[PktStats, TimeSource, List[LoggerFile.DataPacket]]:
     """Load the entirety of a WIBL binary file into memory, in the process determining the type of time
        source that can be used to add timestamps to the data, and fixing up any messages that don't have
        any elapsed time (i.e., time of reception) stamps.  This provides a set of data where it should
@@ -131,12 +135,12 @@ def load_file(filename: str, verbose: bool, maxreports: int) -> Tuple[PktStats, 
     packets = []
     needs_elapsed_time_fixup = False
     with open(filename, 'rb') as file:
-        source = logger_file.PacketFactory(file)
+        source = LoggerFile.PacketFactory(file)
         packet_count = 0
         while source.has_more():
             pkt = source.next_packet()
             if pkt is not None:
-                if isinstance(pkt, logger_file.SerialString):
+                if isinstance(pkt, LoggerFile.SerialString):
                     # We need to pull out the NMEA0183 recognition string
                     try:
                         name = pkt.data[3:6].decode('UTF-8')
@@ -175,7 +179,7 @@ def load_file(filename: str, verbose: bool, maxreports: int) -> Tuple[PktStats, 
             # generating intermediate elapsed time estimates subsequently.
             realtime_elapsed_zero = None
             for n in range(len(packets)):
-                if isinstance(packets[n], logger_file.SerialString) and packets[n].elapsed == 0:
+                if isinstance(packets[n], LoggerFile.SerialString) and packets[n].elapsed == 0:
                     # Decode the packet string to identify ZDA/RMC
                     msg_id = packets[n].data[3:6].decode('UTF-8')
                     if (msg_id == 'ZDA' and timesource == TimeSource.Time_ZDA) or (msg_id == 'RMC' and timesource == TimeSource.Time_RMC):

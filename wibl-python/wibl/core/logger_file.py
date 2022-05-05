@@ -32,6 +32,7 @@ from abc import ABC, abstractmethod
 import io
 from enum import Enum
 
+
 ## Exception used to report bad keyword parameters when setting up a packet from scratch in code
 class SpecificationError(Exception):
     pass

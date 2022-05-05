@@ -28,16 +28,17 @@
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
 import json
+from typing import Dict, Any
+
 import requests
 import boto3
-from urllib.parse import unquote_plus
-from typing import Dict, Any
 
 # Local modules
 import wibl.core.config as conf
 import wibl.core.datasource as ds
 
 s3 = boto3.resource('s3')
+
 
 ## Helper function to read a local file with an AWS Lambda event in JSON format
 #

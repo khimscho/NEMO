@@ -43,7 +43,8 @@ import wibl.core.geojson_convert as gj
 import wibl.processing.algorithms.deduplicate as dedup
 
 s3 = boto3.resource('s3')
-    
+
+
 def read_local_event(event_file: str) -> Dict:
     """For local testing, you need to simulate an AWS Lambda event stucture to give the code something
        to do.  You can download the JSON for a typical event from the AWS Lambda console and store it

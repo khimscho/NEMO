@@ -38,10 +38,12 @@
 from typing import Dict, Any
 import datetime as dt
 import pynmea2 as nmea
-import logger_file
-from fileloader import TimeSource, load_file
-from interpolation import InterpTable
-from .statistics import PktStats, PktFaults
+
+import wibl.core.logger_file as LoggerFile
+from wibl.core.fileloader import TimeSource, load_file
+from wibl.core.interpolation import InterpTable
+from wibl.core.statistics import PktStats, PktFaults
+
 
 ## Exception to indicate that there is no data to interpolate from the WIBL file
 class NoData(Exception):
@@ -134,19 +136,19 @@ def time_interpolation(filename: str, elapsed_time_quantum: int, **kwargs) -> Di
         # There are some informational packets in the file that we can handle even if they
         # don't have assigned elapsed times; we deal with these first so that we can then
         # safely ignore any packets that are not time-enabled.
-        if isinstance(pkt, logger_file.SerialiserVersion):
+        if isinstance(pkt, LoggerFile.SerialiserVersion):
             stats.Observed(pkt.name())
             if protocol_version(pkt.major, pkt.minor) > maximum_version:
                 raise NewerDataFile()
             logger_version = f'{pkt.major}.{pkt.minor}/{pkt.nmea2000_version}/{pkt.nmea0183_version}'
-        if isinstance(pkt, logger_file.Metadata):
+        if isinstance(pkt, LoggerFile.Metadata):
             stats.Observed(pkt.name())
             logger_name = pkt.logger_name
             platform_name = pkt.ship_name
-        if isinstance(pkt, logger_file.JSONMetadata):
+        if isinstance(pkt, LoggerFile.JSONMetadata):
             stats.Observed(pkt.name())
             metadata = pkt.metadata_element.decode('UTF-8')
-        if isinstance(pkt, logger_file.AlgorithmRequest):
+        if isinstance(pkt, LoggerFile.AlgorithmRequest):
             stats.Observed(pkt.name())
             algo = {
                 "name": pkt.algorithm.decode('UTF-8'),
@@ -166,19 +168,19 @@ def time_interpolation(filename: str, elapsed_time_quantum: int, **kwargs) -> Di
             elapsed_offset = elapsed_offset + elapsed_time_quantum
         last_elapsed = pkt.elapsed
 
-        if isinstance(pkt, logger_file.SystemTime):
+        if isinstance(pkt, LoggerFile.SystemTime):
             stats.Observed(pkt.name())
             if time_source == TimeSource.Time_SysTime:
                 time_table.add_point(pkt.elapsed + elapsed_offset, 'ref', pkt.date * seconds_per_day + pkt.timestamp)
-        if isinstance(pkt, logger_file.Depth):
+        if isinstance(pkt, LoggerFile.Depth):
             stats.Observed(pkt.name())
             depth_table.add_point(pkt.elapsed + elapsed_offset, 'z', pkt.depth)
-        if isinstance(pkt, logger_file.GNSS):
+        if isinstance(pkt, LoggerFile.GNSS):
             stats.Observed(pkt.name())
             if time_source == TimeSource.Time_GNSS:
                 time_table.add_point(pkt.elapsed + elapsed_offset, 'ref', pkt.date * seconds_per_day + pkt.timestamp)
             position_table.add_points(pkt.elapsed + elapsed_offset, ('lat', 'lon'), (pkt.latitude, pkt.longitude))
-        if isinstance(pkt, logger_file.SerialString):
+        if isinstance(pkt, LoggerFile.SerialString):
             try:
                 pkt_name = pkt.data[3:6].decode('UTF-8')
                 stats.Observed(pkt_name)

@@ -32,8 +32,9 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
-import numpy as np
 from typing import List
+
+import numpy as np
 
 ## Exception to indicate that the variable requested in the InterpTable does not exist
 class NoSuchVariable(Exception):
