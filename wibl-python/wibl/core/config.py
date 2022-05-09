@@ -46,6 +46,11 @@ from typing import Dict, Any
 # \param config_file
 # \return JSON-file converted into a dictionary (per JSON library)
 
+
+class BadConfiguration(Exception):
+    pass
+
+
 def read_config(config_file: str) -> Dict[str, Any]:
     """There are a number of configuration parameters for the algorithm, such as the provider ID name
        to write into the metadata, and use for filenames; where to stage the intermediate GeoJSON files
@@ -60,13 +65,16 @@ def read_config(config_file: str) -> Dict[str, Any]:
        This code reads the JSON file with these parameters, and does appropriate translations to them so
        that the rest of the code can just read from the resulting dictionary.
     """
-    with open(config_file) as f:
-        config = json.load(f)
+    try:
+        with open(config_file) as f:
+            config = json.load(f)
         
-    # We need to tell the timestamping code what the roll-over size is for the elapsed times
-    # stored in the WIBL file.  This allows it to determine when to add a day to the count
-    # so that we don't wrap the interpolation.
-    config['elapsed_time_quantum'] = 1 << config['elapsed_time_width']
-    
-    return config
+        # We need to tell the timestamping code what the roll-over size is for the elapsed times
+        # stored in the WIBL file.  This allows it to determine when to add a day to the count
+        # so that we don't wrap the interpolation.
+        config['elapsed_time_quantum'] = 1 << config['elapsed_time_width']
 
+        return config
+
+    except Exception as e:
+        raise BadConfiguration(e)
