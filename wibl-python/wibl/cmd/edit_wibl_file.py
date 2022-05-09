@@ -29,12 +29,14 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
-import LoggerFile as lf
 import argparse as arg
-from sys import exit
+import sys
 import json
 
-def main():
+from wibl.core import logger_file as lf
+
+
+def editwibl():
     parser = arg.ArgumentParser(description = 'Edit WIBL logger files (in a limited capacity)')
     parser.add_argument('-n', '--name', type=str, help = 'Set the logger name (string)')
     parser.add_argument('-u', '--uniq', type=str, help = 'Set the unique ID for the logger (string)')
@@ -45,15 +47,13 @@ def main():
     parser.add_argument('input', type=str, help = 'WIBL format input file')
     parser.add_argument('output', type=str, help = 'WIBL format output file')
 
-    optargs = parser.parse_args()
+    optargs = parser.parse_args(sys.argv[2:])
 
     if not optargs.input:
-        print('Error: must have an input file!')
-        exit(1)
+        sys.exit('Error: must have an input file!')
     
     if not optargs.output:
-        print('Error: must have an output file!')
-        exit(1)
+        sys.exit('Error: must have an output file!')
 
     if optargs.name:
         logger_name = optargs.name
@@ -148,6 +148,3 @@ def main():
     
     op.flush()
     op.close()
-
-if __name__== "__main__":
-    main()
