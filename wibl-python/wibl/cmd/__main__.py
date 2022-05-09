@@ -3,6 +3,7 @@ import argparse
 
 from wibl import __version__ as version
 from wibl.cmd.edit_wibl_file import editwibl
+from wibl.cmd.datasim import datasim
 
 
 class WIBL:
@@ -31,7 +32,7 @@ class WIBL:
         getattr(self, args.command)()
 
     def datasim(self):
-        raise NotImplementedError()
+        datasim()
 
     def editwibl(self):
         editwibl()
