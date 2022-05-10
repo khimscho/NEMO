@@ -37,6 +37,7 @@ from enum import Enum
 class SpecificationError(Exception):
     pass
 
+
 ## Enumeration of the identification numbers associated with the various packets in a WIBL file
 class PacketTypes(Enum):
     ## Version information for the logger's file construction code, and the NMEA2000 and NMEA0183 loggers
