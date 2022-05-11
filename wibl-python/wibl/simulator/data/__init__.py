@@ -1,3 +1,5 @@
+import time
+import math
 from typing import NamedTuple, NoReturn
 from datetime import datetime, date, timedelta
 import binascii
@@ -8,8 +10,14 @@ import logging
 import wibl.core.logger_file as lf
 
 
-
 logger = logging.getLogger(__name__)
+
+
+TICKS_PER_SECOND = 100_000
+
+
+def get_clock_ticks() -> int:
+    return math.floor(time.monotonic() * TICKS_PER_SECOND)
 
 
 class Serialisable:
@@ -67,10 +75,14 @@ class TimeDatum:
 
 
 class Timestamp:
-    def __init__(self, date: int, timestamp: float, counter: int):
+    def __init__(self, date: int = None, timestamp: float = None, counter: int = None):
+        self._init_time: int = get_clock_ticks()
+
         self._m_last_datum_date: int = date
         self._m_last_datum_time: float = timestamp
         self._m_elapsed_time_at_datum: int = counter
+        if counter is None:
+            self._m_elapsed_time_at_datum = self._init_time
 
     def update(self, date: int, timestamp: float, *, counter: int = None) -> NoReturn:
         """
@@ -80,14 +92,16 @@ class Timestamp:
         :param counter:
         :return:
         """
-        pass
+        self._m_last_datum_date: int = date
+        self._m_last_datum_time: float = timestamp
+        self._m_elapsed_time_at_datum: int = counter
 
     def is_valid(self) -> bool:
         """
         Indicate whether a good timestamp has been generated yet
         :return:
         """
-        return self._m_last_datum_time >= 0.0
+        return self._m_last_datum_time >= 0.0 if self._m_last_datum_time else False
 
     def now(self) -> TimeDatum:
         """
@@ -128,13 +142,14 @@ class ComponentDateTime:
     information to be converted into a number of different formats as required by the NMEA0183 and
     NMEA2000 packets.
     """
-    def __init__(self):
+    def __init__(self, tick_count: int):
         """
-        Empty constructor for an initialised (but invalid) object
+
+        :param tick_count:
         """
-        self._dt: datetime = None
-        # System clock ticks for the current time
-        self.tick_count: int = 0
+        self._dt: datetime = datetime(2020, 1, 1, 0, 0, 0, 0)
+        self._init_time_ticks: int = tick_count
+        self._init_time_sec: int = self._init_time_ticks * TICKS_PER_SECOND
 
     @property
     def year(self):
@@ -180,13 +195,17 @@ class ComponentDateTime:
             return float(self._dt.second) + (self._dt.microsecond / 1000000)
         return None
 
-    def update(self, tick_count: int):
+    def update(self, tick_count: int = None):
         """
         Set the current time (in clock ticks)
         :param tick_count:
         :return:
         """
-        pass
+        if tick_count is None:
+            tick_count = get_clock_ticks()
+        tick_sec = tick_count * TICKS_PER_SECOND
+        delta = timedelta(seconds=tick_sec - self._init_time_sec)
+        self._dt = self._dt + delta
 
     def days_since_epoch(self) -> int:
         """
@@ -216,7 +235,10 @@ class State:
         State objects should only be constructed from within Engine
         """
         # Current timestamp for the simulation
-        self.sim_time: ComponentDateTime = None
+        self.init_ticks: int = get_clock_ticks()
+        self.curr_ticks: int = self.init_ticks
+        self.tick_count: int = 0
+        self.sim_time: ComponentDateTime = ComponentDateTime(self.tick_count)
         # Depth in metres
         self.current_depth: float = 10.0
         # Depth sounder measurement uncertainty, std. dev.
@@ -229,11 +251,11 @@ class State:
         self.current_latitude: float = 43.0
 
         # Next clock tick count at which to update reference time state
-        self._target_reference_time: int = None
+        self._target_reference_time: int = 0
         # Next clock tick count at which to update depth state
-        self._target_depth_time: int = None
+        self._target_depth_time: int = 0
         # Next clock tick count at which to update position state
-        self._target_position_time: int = None
+        self._target_position_time: int = 0
 
         # Standard deviation, metres change in one second
         self._depth_random_walk: float = 0.02
@@ -375,7 +397,7 @@ class DataGenerator:
             hemisphere='N' if formatted_angle.hemisphere == 1 else 'S'
         )
         formatted_angle = DataGenerator.format_angle(state.current_longitude)
-        msg = "{msg},{degrees:02d}{minutes:09.6f},{hemisphere}".format(
+        msg = "{msg},{degrees:03d}{minutes:09.6f},{hemisphere}".format(
             msg=msg,
             degrees=formatted_angle.degrees,
             minutes=formatted_angle.minutes,
@@ -387,7 +409,7 @@ class DataGenerator:
         msg = f"{msg},{chksum:02X}\r\n"
 
         data = {'payload': bytes(msg, 'ascii'),
-                'elapsed_time': state.sim_time.tick_count
+                'elapsed_time': state.tick_count
                 }
 
         pkt: lf.DataPacket = lf.SerialString(**data)
