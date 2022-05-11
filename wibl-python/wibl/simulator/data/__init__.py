@@ -1,9 +1,12 @@
 from typing import NamedTuple, NoReturn
 from datetime import datetime, date, timedelta
 import binascii
+import io
 import logging
 
-from wibl.simulator.data.writer import Writer
+
+import wibl.core.logger_file as lf
+
 
 
 logger = logging.getLogger(__name__)
@@ -129,18 +132,53 @@ class ComponentDateTime:
         """
         Empty constructor for an initialised (but invalid) object
         """
+        self._dt: datetime = None
         # System clock ticks for the current time
-        self.tick_count: int = None
-        # Converted Gregorian year
-        self.year: int = None
-        # Day of the current time within the year
-        self.day_of_year: int
-        # Hour of the current time with the day-of-year
-        self.hour: int
-        # Minute of the current time within the hour
-        self.minute: int
-        # Second (with fractions) of the current time within the minute
-        self.second: float
+        self.tick_count: int = 0
+
+    @property
+    def year(self):
+        """
+        Converted Gregorian year
+        :return:
+        """
+        return self._dt.year if self._dt else None
+
+    @property
+    def day_of_year(self):
+        """
+        Day of the current time within the year
+        :return:
+        """
+        if self._dt:
+            return (self._dt.date() - date(self._dt.year, 1, 1)).days
+        return None
+
+    @property
+    def hour(self):
+        """
+        Hour of the current time with the day-of-year
+        :return:
+        """
+        return self._dt.hour if self._dt else None
+
+    @property
+    def minute(self):
+        """
+        Minute of the current time within the hour
+        :return:
+        """
+        return self._dt.minute if self._dt else None
+
+    @property
+    def second(self):
+        """
+        Second (with fractions) of the current time within the minute
+        :return:
+        """
+        if self._dt:
+            return float(self._dt.second) + (self._dt.microsecond / 1000000)
+        return None
 
     def update(self, tick_count: int):
         """
@@ -169,6 +207,7 @@ class ComponentDateTime:
         Convert the current time into a TimeDatum for use in data construction
         :return: ?! Timestamp::TimeDatum but maybe just Python datetime !?
         """
+        pass
 
 
 class State:
@@ -177,17 +216,17 @@ class State:
         State objects should only be constructed from within Engine
         """
         # Current timestamp for the simulation
-        self._sim_time: datetime = None
+        self.sim_time: ComponentDateTime = None
         # Depth in metres
-        self._current_depth: float = 10.0
+        self.current_depth: float = 10.0
         # Depth sounder measurement uncertainty, std. dev.
-        self._measurement_uncertainty: float = 0.06
+        self.measurement_uncertainty: float = 0.06
         # Reference timestamp for the ZDA/SystemTime
-        self._ref_time: datetime = None
+        self.ref_time: datetime = None
         # Longitude in degrees
-        self._current_longitude: float = -75.0
+        self.current_longitude: float = -75.0
         # Latitude in degress
-        self._current_latitude: float = 43.0
+        self.current_latitude: float = 43.0
 
         # Next clock tick count at which to update reference time state
         self._target_reference_time: int = None
@@ -236,11 +275,11 @@ class DataGenerator:
             logger.warning('User asked for neither NMEA0183 or NMEA2000; defaulting to generating NMEA2000')
             self._m_binary = True
 
-    def emit_time(self, state: State, output: Writer) -> NoReturn:
+    def emit_time(self, state: State, output: io.BufferedWriter) -> NoReturn:
         """
         Generate a timestamping message for the current state of the simulator
         :param state:
-        :param writer:
+        :param output:
         :return:
         """
         if self._m_binary:
@@ -248,11 +287,11 @@ class DataGenerator:
         if self._m_serial:
             self._generate_zda(state, output)
 
-    def emit_position(self, state: State, output: Writer) -> NoReturn:
+    def emit_position(self, state: State, output: io.BufferedWriter) -> NoReturn:
         """
         Generate messages for the current configuration of the simulator
         :param state:
-        :param writer:
+        :param output:
         :return:
         """
         if self._m_binary:
@@ -260,11 +299,11 @@ class DataGenerator:
         if self._m_serial:
             self._generate_gga(state, output)
 
-    def emit_depth(self, state: State, output: Writer) -> NoReturn:
+    def emit_depth(self, state: State, output: io.BufferedWriter) -> NoReturn:
         """
         Generate a depth message from the current state of the simulator
         :param state:
-        :param writer:
+        :param output:
         :return:
         """
         if self._m_binary:
@@ -280,7 +319,7 @@ class DataGenerator:
         """
         self._m_verbose = verb
 
-    def _generate_system_time(self, state: State, output: Writer) -> NoReturn:
+    def _generate_system_time(self, state: State, output: io.BufferedWriter) -> NoReturn:
         """
         Generate NMEA2000 timestamp information
         :param state:
@@ -289,7 +328,7 @@ class DataGenerator:
         """
         pass
 
-    def _generate_gnss(self, state: State, output: Writer) -> NoReturn:
+    def _generate_gnss(self, state: State, output: io.BufferedWriter) -> NoReturn:
         """
         Generate NMEA2000 positioning information
         :param state:
@@ -298,7 +337,7 @@ class DataGenerator:
         """
         pass
 
-    def _generate_depth(self, state: State, output: Writer) -> NoReturn:
+    def _generate_depth(self, state: State, output: io.BufferedWriter) -> NoReturn:
         """
         Generate NMEA2000 depth information
         :param state:
@@ -307,7 +346,7 @@ class DataGenerator:
         """
         pass
 
-    def _generate_zda(self, state: State, output: Writer) -> NoReturn:
+    def _generate_zda(self, state: State, output: io.BufferedWriter) -> NoReturn:
         """
         Generate NMEA0183 timestamp (ZDA) information
         :param state:
@@ -316,16 +355,45 @@ class DataGenerator:
         """
         pass
 
-    def _generate_gga(self, state: State, output: Writer) -> NoReturn:
+    def generate_gga(self, state: State, output: io.BufferedWriter) -> NoReturn:
         """
         Generate NMEA0183 positioning (GPGGA) information
         :param state:
         :param output:
         :return:
         """
-        pass
+        msg = "$GPGGA,{hour:02d}{minute:02d}{second:06.3f}".format(
+            hour=state.sim_time.hour,
+            minute=state.sim_time.minute,
+            second=state.sim_time.second
+        )
+        formatted_angle = DataGenerator.format_angle(state.current_latitude)
+        msg = "{msg},{degrees:02d}{minutes:09.6f},{hemisphere}".format(
+            msg=msg,
+            degrees=formatted_angle.degrees,
+            minutes=formatted_angle.minutes,
+            hemisphere='N' if formatted_angle.hemisphere == 1 else 'S'
+        )
+        formatted_angle = DataGenerator.format_angle(state.current_longitude)
+        msg = "{msg},{degrees:02d}{minutes:09.6f},{hemisphere}".format(
+            msg=msg,
+            degrees=formatted_angle.degrees,
+            minutes=formatted_angle.minutes,
+            hemisphere='E' if formatted_angle.hemisphere == 1 else 'W'
+        )
+        # Dummy remainder of message
+        msg = f"{msg},3,12,1.0,-19.5,M,22.5,M,0.0,0000*"
+        chksum = DataGenerator.compute_checksum(msg)
+        msg = f"{msg},{chksum:02X}\r\n"
 
-    def _generate_dbt(self, state: State, output: Writer) -> NoReturn:
+        data = {'payload': bytes(msg, 'ascii'),
+                'elapsed_time': state.sim_time.tick_count
+                }
+
+        pkt: lf.DataPacket = lf.SerialString(**data)
+        pkt.serialise(output)
+
+    def _generate_dbt(self, state: State, output: io.BufferedWriter) -> NoReturn:
         """
         Generate NMEA0183 depth (SDDBT) information
         :param state:
@@ -334,7 +402,8 @@ class DataGenerator:
         """
         pass
 
-    def _compute_checksum(self, msg: str) -> int:
+    @staticmethod
+    def compute_checksum(msg: str) -> int:
         """
         Compute a NMEA0183 sentence checksum
         :param msg:
@@ -360,7 +429,8 @@ class DataGenerator:
         # Reference to space for a hemisphere indicator
         hemisphere: int
 
-    def _format_angle(self, angle: float) -> FormattedAngle:
+    @staticmethod
+    def format_angle(angle: float) -> FormattedAngle:
         """
         Convert an angle in decimal degrees into integer degrees and decimal minutes, with hemispehere indicator
         :param angle:
