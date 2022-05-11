@@ -341,7 +341,7 @@ class DataGenerator:
         :return:
         """
         chk: int = 0
-        for b in binascii.a2b_qp(msg):
+        for b in binascii.a2b_qp(msg[1:-1]):
             chk ^= b
         return chk
 
