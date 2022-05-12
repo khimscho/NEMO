@@ -1,6 +1,9 @@
+import struct
 import unittest
 import io
+import time
 
+from wibl.core.logger_file import PacketTypes
 from wibl.simulator.data import DataGenerator, State
 
 
@@ -34,7 +37,7 @@ class TestDataGenerator(unittest.TestCase):
         buff: bytes = bio.getvalue()
         self.assertIsNotNone(buff)
         # Message type is the first byte (little endian)
-        self.assertEqual(10, buff[0])
+        self.assertEqual(PacketTypes.SerialString.value, buff[0])
         # Empty high-order bytes
         self.assertEqual(0, buff[1])
         self.assertEqual(0, buff[2])
@@ -182,6 +185,43 @@ class TestDataGenerator(unittest.TestCase):
         self.assertEqual(13, buff[95])
         self.assertEqual(10, buff[96])
 
+    def test_generate_system_time(self):
+        state: State = State()
+        # Simulate first time after initial time step
+        state.update_ticks(300536)
+        state.ref_time.update(state.curr_ticks)
+        gen: DataGenerator = DataGenerator()
+
+        bio = io.BytesIO()
+        writer = io.BufferedWriter(bio)
+        gen.generate_system_time(state, writer)
+
+        writer.flush()
+        buff: bytes = bio.getvalue()
+        self.assertIsNotNone(buff)
+        # Message type is the first byte (little endian)
+        self.assertEqual(PacketTypes.SystemTime.value, buff[0])
+        # Empty high-order bytes
+        self.assertEqual(0, buff[1])
+        self.assertEqual(0, buff[2])
+        self.assertEqual(0, buff[3])
+        # Message length is the 5th byte (little endian)
+        self.assertEqual(15, buff[4])
+        # Empty high-order bytes
+        self.assertEqual(0, buff[5])
+        self.assertEqual(0, buff[6])
+        self.assertEqual(0, buff[7])
+        # Days since epoch from bytes 9 and 10
+        days_since_epoch = (buff[9] << 8) | buff[8]
+        self.assertEqual(18262, days_since_epoch)
+        # Read timestamp from bytes 11-19
+        timestamp = struct.unpack('<d', buff[10:18])[0]
+        self.assertEqual(3.00536, timestamp)
+        # Elapsed time should equal state.tick_count
+        elapsed = struct.unpack('<I', buff[18:22])[0]
+        self.assertEqual(state.tick_count, elapsed)
+        # Data source is the final byte (23) and should be 0 for now
+        self.assertEqual(0, buff[22])
 
 if __name__ == '__main__':
     unittest.main()

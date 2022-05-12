@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 TICKS_PER_SECOND = 100_000
+EPOCH_START = datetime(1970, 1, 1)
 
 
 def get_clock_ticks() -> int:
@@ -195,15 +196,15 @@ class ComponentDateTime:
             return float(self._dt.second) + (self._dt.microsecond / 1000000)
         return None
 
-    def update(self, tick_count: int = None):
+    def update(self, ticks: int = None):
         """
         Set the current time (in clock ticks)
-        :param tick_count:
+        :param ticks:
         :return:
         """
-        if tick_count is None:
-            tick_count = get_clock_ticks()
-        tick_sec = tick_count * TICKS_PER_SECOND
+        if ticks is None:
+            ticks = get_clock_ticks()
+        tick_sec = ticks / TICKS_PER_SECOND
         delta = timedelta(seconds=tick_sec - self._init_time_sec)
         self._dt = self._dt + delta
 
@@ -212,14 +213,16 @@ class ComponentDateTime:
         Compute and return the number of days since Unix epoch for the current time
         :return:
         """
-        pass
+        return (self._dt - EPOCH_START).days
 
     def seconds_in_day(self) -> float:
         """
         Compute and return the total number of seconds for the current time since midnight
         :return:
         """
-        pass
+        begining_of_day = datetime(self._dt.year, self._dt.month, self._dt.day)
+        delta = self._dt - begining_of_day
+        return delta.seconds + (delta.microseconds / 1_000_000)
 
     def time(self):
         """
@@ -244,7 +247,7 @@ class State:
         # Depth sounder measurement uncertainty, std. dev.
         self.measurement_uncertainty: float = 0.06
         # Reference timestamp for the ZDA/SystemTime
-        self.ref_time: datetime = None
+        self.ref_time: ComponentDateTime = ComponentDateTime(self.tick_count)
         # Longitude in degrees
         self.current_longitude: float = -75.0
         # Latitude in degress
@@ -266,6 +269,12 @@ class State:
         self._latitude_scale: float = 1.0
         # Last time the latitude changed direction
         self._last_latitude_reversal: float = 0.0
+
+    def update_ticks(self, ticks: int = None):
+        if ticks is None:
+            ticks = get_clock_ticks()
+        self.curr_ticks = ticks
+        self.tick_count = self.curr_ticks - self.init_ticks
 
 
 class DataGenerator:
@@ -305,7 +314,7 @@ class DataGenerator:
         :return:
         """
         if self._m_binary:
-            self._generate_system_time(state, output)
+            self.generate_system_time(state, output)
         if self._m_serial:
             self._generate_zda(state, output)
 
@@ -341,14 +350,22 @@ class DataGenerator:
         """
         self._m_verbose = verb
 
-    def _generate_system_time(self, state: State, output: io.BufferedWriter) -> NoReturn:
+    def generate_system_time(self, state: State, output: io.BufferedWriter) -> NoReturn:
         """
         Generate NMEA2000 timestamp information
         :param state:
         :param output:
         :return:
         """
-        pass
+        data = {
+            'date': state.ref_time.days_since_epoch(),
+            'timestamp': state.ref_time.seconds_in_day(),
+            'elapsed_time': state.tick_count,
+            'data_source': 0
+        }
+
+        pkt: lf.DataPacket = lf.SystemTime(**data)
+        pkt.serialise(output)
 
     def _generate_gnss(self, state: State, output: io.BufferedWriter) -> NoReturn:
         """
