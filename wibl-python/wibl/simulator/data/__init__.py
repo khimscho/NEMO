@@ -430,7 +430,8 @@ class DataGenerator:
         """
         self._m_verbose = verb
 
-    def generate_system_time(self, state: State, output: io.BufferedWriter) -> NoReturn:
+    @staticmethod
+    def generate_system_time(state: State, output: io.BufferedWriter) -> NoReturn:
         """
         Generate NMEA2000 timestamp information
         :param state: Simulator state to use for generation
@@ -447,7 +448,8 @@ class DataGenerator:
         pkt: lf.DataPacket = lf.SystemTime(**data)
         pkt.serialise(output)
 
-    def generate_gnss(self, state: State, output: io.BufferedWriter) -> NoReturn:
+    @staticmethod
+    def generate_gnss(state: State, output: io.BufferedWriter) -> NoReturn:
         """
         Generate a GNSS packet using the current state information
         :param state: Simulator state to use for generation
@@ -478,7 +480,8 @@ class DataGenerator:
         pkt: lf.DataPacket = lf.GNSS(**data)
         pkt.serialise(output)
 
-    def generate_depth(self, state: State, output: io.BufferedWriter) -> NoReturn:
+    @staticmethod
+    def generate_depth(state: State, output: io.BufferedWriter) -> NoReturn:
         """
         Construct a NMEA2000 depth packet using the current state information
         :param state:
@@ -497,7 +500,8 @@ class DataGenerator:
         pkt: lf.DataPacket = lf.Depth(**data)
         pkt.serialise(output)
 
-    def generate_zda(self, state: State, output: io.BufferedWriter) -> NoReturn:
+    @staticmethod
+    def generate_zda(state: State, output: io.BufferedWriter) -> NoReturn:
         """
         Generate NMEA0183 timestamp (ZDA) information
         :param state:
@@ -523,7 +527,8 @@ class DataGenerator:
         pkt: lf.DataPacket = lf.SerialString(**data)
         pkt.serialise(output)
 
-    def generate_gga(self, state: State, output: io.BufferedWriter) -> NoReturn:
+    @staticmethod
+    def generate_gga(state: State, output: io.BufferedWriter) -> NoReturn:
         """
         Generate a simulated position (GGA) message.  This formats the current state for position as
         required for GGA messages, and then appends a standard trailer to meet the NMEA0183 requirements.
@@ -565,7 +570,8 @@ class DataGenerator:
         pkt: lf.DataPacket = lf.SerialString(**data)
         pkt.serialise(output)
 
-    def generate_dbt(self, state: State, output: io.BufferedWriter) -> NoReturn:
+    @staticmethod
+    def generate_dbt(state: State, output: io.BufferedWriter) -> NoReturn:
         """
         Generate NMEA0183 depth (SDDBT) information
         :param state:
