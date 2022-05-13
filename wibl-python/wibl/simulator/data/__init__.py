@@ -21,6 +21,22 @@ def get_clock_ticks() -> int:
     return math.floor(time.monotonic() * TICKS_PER_SECOND)
 
 
+class MonthDay(NamedTuple):
+    month: int
+    day: int
+
+
+def to_day_month(year: int, year_day: int) -> MonthDay:
+    """
+    Convert the current time into broken out form
+    :param year:
+    :param year_day:
+    :return: MonthDay
+    """
+    d = date(year, 1, 1) + timedelta(days=year_day - 1)
+    return MonthDay(d.month, d.day)
+
+
 class Serialisable:
     pass
 
@@ -316,7 +332,7 @@ class DataGenerator:
         if self._m_binary:
             self.generate_system_time(state, output)
         if self._m_serial:
-            self._generate_zda(state, output)
+            self.generate_zda(state, output)
 
     def emit_position(self, state: State, output: io.BufferedWriter) -> NoReturn:
         """
@@ -328,7 +344,7 @@ class DataGenerator:
         if self._m_binary:
             self.generate_gnss(state, output)
         if self._m_serial:
-            self._generate_gga(state, output)
+            self.generate_gga(state, output)
 
     def emit_depth(self, state: State, output: io.BufferedWriter) -> NoReturn:
         """
@@ -417,14 +433,31 @@ class DataGenerator:
         pkt: lf.DataPacket = lf.Depth(**data)
         pkt.serialise(output)
 
-    def _generate_zda(self, state: State, output: io.BufferedWriter) -> NoReturn:
+    def generate_zda(self, state: State, output: io.BufferedWriter) -> NoReturn:
         """
         Generate NMEA0183 timestamp (ZDA) information
         :param state:
         :param output:
         :return:
         """
-        pass
+        month_day: MonthDay = to_day_month(state.sim_time.year, state.sim_time.day_of_year)
+        msg = "$GPZDA,{hour:02d}{minute:02d}{second:06.3f},{day:02d},{month:02d},{year:04d},00,00*".format(
+            hour=state.sim_time.hour,
+            minute=state.sim_time.minute,
+            second=state.sim_time.second,
+            day=month_day.day,
+            month=month_day.month,
+            year=state.sim_time.year
+        )
+        chksum = DataGenerator.compute_checksum(msg)
+        msg = f"{msg},{chksum:02X}\r\n"
+
+        data = {'payload': bytes(msg, 'ascii'),
+                'elapsed_time': state.tick_count
+                }
+
+        pkt: lf.DataPacket = lf.SerialString(**data)
+        pkt.serialise(output)
 
     def generate_gga(self, state: State, output: io.BufferedWriter) -> NoReturn:
         """
@@ -522,20 +555,6 @@ class DataGenerator:
         out_minutes = out_angle - out_degrees
 
         return DataGenerator.FormattedAngle(degrees=out_degrees, minutes=out_minutes, hemisphere=out_hemi)
-
-    class MonthDay(NamedTuple):
-        month: int
-        day: int
-
-    def _to_day_month(self, year: int, year_day: int) -> MonthDay:
-        """
-        Convert the current time into broken out form
-        :param year:
-        :param year_day:
-        :return: MonthDay
-        """
-        d = date(year, 1, 1) + timedelta(days=year_day - 1)
-        return DataGenerator.MonthDay(d.month, d.day)
 
 
 class Engine:

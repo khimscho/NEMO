@@ -27,6 +27,10 @@ class TestDataGenerator(unittest.TestCase):
         # Simulate first position after initial position step
         state.current_longitude = -74.999996729200006
         state.current_latitude = 43.000003270800001
+        # Simulate first time after initial time step
+        state.update_ticks(300536)
+        state.ref_time.update(state.curr_ticks)
+        state.sim_time.update(math.floor(state.curr_ticks / 2))
         gen: DataGenerator = DataGenerator()
 
         bio = io.BytesIO()
@@ -36,23 +40,14 @@ class TestDataGenerator(unittest.TestCase):
         writer.flush()
         buff: bytes = bio.getvalue()
         self.assertIsNotNone(buff)
-        # Message type is the first byte (little endian)
-        self.assertEqual(PacketTypes.SerialString.value, buff[0])
-        # Empty high-order bytes
-        self.assertEqual(0, buff[1])
-        self.assertEqual(0, buff[2])
-        self.assertEqual(0, buff[3])
-        # Message length is the 5th byte (little endian)
-        self.assertEqual(89, buff[4])
-        # Empty high-order bytes
-        self.assertEqual(0, buff[5])
-        self.assertEqual(0, buff[6])
-        self.assertEqual(0, buff[7])
-        # Tick count is zero initially (4-bytes)
-        self.assertEqual(0, buff[8])
-        self.assertEqual(0, buff[9])
-        self.assertEqual(0, buff[10])
-        self.assertEqual(0, buff[11])
+
+        # Message type is the 1st-4th bytes
+        self.assertEqual(PacketTypes.SerialString.value, struct.unpack('<I', buff[0:4])[0])
+        # Message length is the 5th-9th bytes
+        self.assertEqual(89, struct.unpack('<I', buff[4:8])[0])
+        # Days since epoch from bytes 9 and 10
+        self.assertEqual(state.tick_count, struct.unpack('<I', buff[8:12])[0])
+
         # First byte of message body is '$' = ASCII 36 (decimal)
         self.assertEqual(36, buff[12])
         # Message descriptor: GPGGA
@@ -71,14 +66,18 @@ class TestDataGenerator(unittest.TestCase):
         self.assertEqual(48, buff[20])
         self.assertEqual(48, buff[21])
         self.assertEqual(48, buff[22])
+        # Seconds '01.503'
         self.assertEqual(48, buff[23])
-        self.assertEqual(48, buff[24])
-        # . = 46
+        # '1' = 49
+        self.assertEqual(49, buff[24])
+        # '.' = 46
         self.assertEqual(46, buff[25])
         # Decimal part of seconds
-        self.assertEqual(48, buff[26])
+        # '5' = 53
+        self.assertEqual(53, buff[26])
         self.assertEqual(48, buff[27])
-        self.assertEqual(48, buff[28])
+        # '3' = 51
+        self.assertEqual(51, buff[28])
         # Component separator is , = 44
         self.assertEqual(44, buff[29])
         # Beginning of latitude: 43 degrees, 00.000003 minutes/seconds (in ASCII)
@@ -179,11 +178,9 @@ class TestDataGenerator(unittest.TestCase):
         # Component separator is , = 44
         self.assertEqual(44, buff[92])
         # Checksum: '7C'
-        self.assertEqual(55, buff[93])
-        self.assertEqual(67, buff[94])
-        # '\r\n'
-        self.assertEqual(13, buff[95])
-        self.assertEqual(10, buff[96])
+        self.assertEqual(b'7B', buff[93:95])
+        # End of message: '\r\n'
+        self.assertEqual(b'\r\n', buff[95:97])
 
     def test_generate_system_time(self):
         state: State = State()
@@ -199,21 +196,12 @@ class TestDataGenerator(unittest.TestCase):
         writer.flush()
         buff: bytes = bio.getvalue()
         self.assertIsNotNone(buff)
-        # Message type is the first byte (little endian)
-        self.assertEqual(PacketTypes.SystemTime.value, buff[0])
-        # Empty high-order bytes
-        self.assertEqual(0, buff[1])
-        self.assertEqual(0, buff[2])
-        self.assertEqual(0, buff[3])
-        # Message length is the 5th byte (little endian)
-        self.assertEqual(15, buff[4])
-        # Empty high-order bytes
-        self.assertEqual(0, buff[5])
-        self.assertEqual(0, buff[6])
-        self.assertEqual(0, buff[7])
+        # Message type is the 1st-4th bytes
+        self.assertEqual(PacketTypes.SystemTime.value, struct.unpack('<I', buff[0:4])[0])
+        # Message length is the 5th-9th bytes
+        self.assertEqual(15, struct.unpack('<I', buff[4:8])[0])
         # Days since epoch from bytes 9 and 10
-        days_since_epoch = (buff[9] << 8) | buff[8]
-        self.assertEqual(18262, days_since_epoch)
+        self.assertEqual(18262, struct.unpack('<H', buff[8:10])[0])
         # Read timestamp from bytes 11-19
         timestamp = struct.unpack('<d', buff[10:18])[0]
         self.assertEqual(3.00536, timestamp)
@@ -241,21 +229,12 @@ class TestDataGenerator(unittest.TestCase):
         writer.flush()
         buff: bytes = bio.getvalue()
         self.assertIsNotNone(buff)
-        # Message type is the first byte (little endian)
-        self.assertEqual(PacketTypes.GNSS.value, buff[0])
-        # Empty high-order bytes
-        self.assertEqual(0, buff[1])
-        self.assertEqual(0, buff[2])
-        self.assertEqual(0, buff[3])
-        # Message length is the 5th byte (little endian)
-        self.assertEqual(87, buff[4])
-        # Empty high-order bytes
-        self.assertEqual(0, buff[5])
-        self.assertEqual(0, buff[6])
-        self.assertEqual(0, buff[7])
+        # Message type is the 1st-4th bytes
+        self.assertEqual(PacketTypes.GNSS.value, struct.unpack('<I', buff[0:4])[0])
+        # Message length is the 5th-9th bytes
+        self.assertEqual(87, struct.unpack('<I', buff[4:8])[0])
         # Days since epoch from bytes 9 and 10
-        days_since_epoch = (buff[9] << 8) | buff[8]
-        self.assertEqual(18262, days_since_epoch)
+        self.assertEqual(18262, struct.unpack('<H', buff[8:10])[0])
         # Read timestamp from bytes 11-19
         self.assertEqual(3.00536, struct.unpack('<d', buff[10:18])[0])
         # Elapsed time should equal state.tick_count
@@ -321,6 +300,90 @@ class TestDataGenerator(unittest.TestCase):
         self.assertEqual(0.0, struct.unpack('<d', buff[30:38])[0])
         # Hard-coded range
         self.assertEqual(200.0, struct.unpack('<d', buff[38:46])[0])
+
+    def test_generate_zda(self):
+        state: State = State()
+        # Simulate first position after initial position step
+        state.current_longitude = -74.999996729200006
+        state.current_latitude = 43.000003270800001
+        # Simulate first time after initial time step
+        state.update_ticks(300536)
+        state.ref_time.update(state.curr_ticks)
+        state.sim_time.update(math.floor(state.curr_ticks / 2))
+        gen: DataGenerator = DataGenerator()
+
+        bio = io.BytesIO()
+        writer = io.BufferedWriter(bio)
+        gen.generate_zda(state, writer)
+
+        writer.flush()
+        buff: bytes = bio.getvalue()
+        self.assertIsNotNone(buff)
+
+        # Message type is the 1st-4th bytes
+        self.assertEqual(PacketTypes.SerialString.value, struct.unpack('<I', buff[0:4])[0])
+        # Message length is the 5th-9th bytes
+        self.assertEqual(44, struct.unpack('<I', buff[4:8])[0])
+        # Days since epoch from bytes 9 and 10
+        self.assertEqual(state.tick_count, struct.unpack('<I', buff[8:12])[0])
+
+        # First byte of message body is '$' = ASCII 36 (decimal)
+        self.assertEqual(36, buff[12])
+        # Message descriptor: GPZDA
+        # G = 71
+        self.assertEqual(71, buff[13])
+        # P = 80
+        self.assertEqual(80, buff[14])
+        # Z = 90
+        self.assertEqual(90, buff[15])
+        # D = 68
+        self.assertEqual(68, buff[16])
+        # A = 65
+        self.assertEqual(65, buff[17])
+        # Component separator is , = 44
+        self.assertEqual(44, buff[18])
+        # Hour, minute, and decimal seconds (all initially ASCII 0=48 decimal)
+        self.assertEqual(48, buff[19])
+        self.assertEqual(48, buff[20])
+        self.assertEqual(48, buff[21])
+        self.assertEqual(48, buff[22])
+        # Seconds '01.503'
+        self.assertEqual(48, buff[23])
+        # '1' = 49
+        self.assertEqual(49, buff[24])
+        # '.' = 46
+        self.assertEqual(46, buff[25])
+        # Decimal part of seconds
+        # '5' = 53
+        self.assertEqual(53, buff[26])
+        self.assertEqual(48, buff[27])
+        # '3' = 51
+        self.assertEqual(51, buff[28])
+        # Component separator is , = 44
+        self.assertEqual(44, buff[29])
+        # Month day is '31'
+        self.assertEqual(b'31', buff[30:32])
+        # Component separator is , = 44
+        self.assertEqual(44, buff[32])
+        # Month is '12'
+        self.assertEqual(b'12', buff[33:35])
+        # Component separator is , = 44
+        self.assertEqual(44, buff[35])
+        # Year is '2020'
+        self.assertEqual(b'2020', buff[36:40])
+        # Component separator is , = 44
+        self.assertEqual(44, buff[40])
+        # End of message is hard-coded with '00,00*'
+        self.assertEqual(b'00,00*', buff[41:47])
+        # Component separator is , = 44
+        self.assertEqual(44, buff[47])
+        # Checksum: '50'
+        self.assertEqual(b'50', buff[48:50])
+        # End of message: '\r\n'
+        self.assertEqual(b'\r\n', buff[50:52])
+
+
+
 
 if __name__ == '__main__':
     unittest.main()
