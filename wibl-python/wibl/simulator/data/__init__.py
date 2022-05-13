@@ -4,6 +4,7 @@ from typing import NamedTuple, NoReturn
 from datetime import datetime, date, timedelta
 import binascii
 import io
+import random
 import logging
 
 
@@ -286,11 +287,39 @@ class State:
         # Last time the latitude changed direction
         self._last_latitude_reversal: float = 0.0
 
-    def update_ticks(self, ticks: int = None):
+        # Global for Gaussian variate generator (from Numerical Recipies)
+        self._iset: bool = False
+        # Global state for Gaussian variate generator (from Numerical Recipies)
+        self._gset: float = None
+
+    def update_ticks(self, ticks: int = None) -> NoReturn:
         if ticks is None:
             ticks = get_clock_ticks()
         self.curr_ticks = ticks
         self.tick_count = self.curr_ticks - self.init_ticks
+
+    def unit_normal(self) -> float:
+        fac: float; rsq: float; v1: float; v2: float
+        u: float; v: float; r: float
+
+        if not self._iset:
+            while True:
+                u = random.random()
+                v = random.random()
+                v1 = 2.0 * u - 1.0
+                v2 = 2.0 * v - 1.0
+                rsq = v1 * v1 + v2 * v2
+                if not (rsq >= 1.0 or rsq == 0.0):
+                    break
+            fac = math.sqrt(-2.0 * math.log(rsq) / rsq)
+            self._gset = v1 * fac
+            self._iset = True
+            r = v2 * fac
+        else:
+            self._iset = False
+            r = self._gset
+
+        return r
 
 
 class DataGenerator:
@@ -356,7 +385,7 @@ class DataGenerator:
         if self._m_binary:
             self.generate_depth(state, output)
         if self._m_serial:
-            self._generate_dbt(state, output)
+            self.generate_dbt(state, output)
 
     def set_verbose(self, verb: bool):
         """
@@ -501,14 +530,31 @@ class DataGenerator:
         pkt: lf.DataPacket = lf.SerialString(**data)
         pkt.serialise(output)
 
-    def _generate_dbt(self, state: State, output: io.BufferedWriter) -> NoReturn:
+    def generate_dbt(self, state: State, output: io.BufferedWriter) -> NoReturn:
         """
         Generate NMEA0183 depth (SDDBT) information
         :param state:
         :param output:
         :return:
         """
-        pass
+        depth_metres: float = state.current_depth + state.measurement_uncertainty * state.unit_normal()
+        depth_feet: float = depth_metres * 3.2808
+        depth_fathoms: float = depth_metres * 0.5468
+
+        msg = "$SDDBT,{feet:.1f},f,{metres:.1f},M,{fathoms:.1f},F*".format(
+            feet=depth_feet,
+            metres=depth_metres,
+            fathoms=depth_fathoms
+        )
+        chksum = DataGenerator.compute_checksum(msg)
+        msg = f"{msg},{chksum:02X}\r\n"
+
+        data = {'payload': bytes(msg, 'ascii'),
+                'elapsed_time': state.tick_count
+                }
+
+        pkt: lf.DataPacket = lf.SerialString(**data)
+        pkt.serialise(output)
 
     @staticmethod
     def compute_checksum(msg: str) -> int:

@@ -382,7 +382,100 @@ class TestDataGenerator(unittest.TestCase):
         # End of message: '\r\n'
         self.assertEqual(b'\r\n', buff[50:52])
 
+    def test_generate_dbt(self):
+        state: State = State()
+        # Simulate first position after initial position step
+        state.current_longitude = -74.999996729200006
+        state.current_latitude = 43.000003270800001
+        # Simulate first time after initial time step
+        state.update_ticks(300536)
+        state.ref_time.update(state.curr_ticks)
+        state.sim_time.update(math.floor(state.curr_ticks / 2))
+        gen: DataGenerator = DataGenerator()
 
+        bio = io.BytesIO()
+        writer = io.BufferedWriter(bio)
+        gen.generate_dbt(state, writer)
+
+        writer.flush()
+        buff: bytes = bio.getvalue()
+        self.assertIsNotNone(buff)
+
+        # Message type is the 1st-4th bytes
+        self.assertEqual(PacketTypes.SerialString.value, struct.unpack('<I', buff[0:4])[0])
+        # Message length is the 5th-9th bytes
+        self.assertEqual(36, struct.unpack('<I', buff[4:8])[0])
+        # Days since epoch from bytes 9 and 10
+        self.assertEqual(state.tick_count, struct.unpack('<I', buff[8:12])[0])
+
+        # First byte of message body is '$' = ASCII 36 (decimal)
+        self.assertEqual(36, buff[12])
+        # Message descriptor: SDDBT
+        # S = 83
+        self.assertEqual(83, buff[13])
+        # D = 68
+        self.assertEqual(68, buff[14])
+        # D = 68
+        self.assertEqual(68, buff[15])
+        # B = 66
+        self.assertEqual(66, buff[16])
+        # T = 84
+        self.assertEqual(84, buff[17])
+        # Component separator is , = 44
+        self.assertEqual(44, buff[18])
+
+        # Depth in feet (random value so we just make sure it is a valid float)
+        exc_raised = False
+        try:
+            depth_feet = float(buff[19:23])
+        except ValueError:
+            exc_raised = True
+        self.assertFalse(exc_raised)
+        # Component separator is , = 44
+        self.assertEqual(44, buff[23])
+        # Unit: 'f' = 102
+        self.assertEqual(102, buff[24])
+        # Component separator is , = 44
+        self.assertEqual(44, buff[25])
+
+        # Depth in metres (random value so we just make sure it is a valid float)
+        exc_raised = False
+        try:
+            depth_metres = float(buff[26:30])
+        except ValueError:
+            exc_raised = True
+        self.assertFalse(exc_raised)
+        # Component separator is , = 44
+        self.assertEqual(44, buff[30])
+        # Unit: 'M' = 77
+        self.assertEqual(77, buff[31])
+        # Component separator is , = 44
+        self.assertEqual(44, buff[32])
+
+        # Depth in fathoms (random value so we just make sure it is a valid float)
+        exc_raised = False
+        try:
+            depth_fathoms = float(buff[33:36])
+        except ValueError:
+            exc_raised = True
+        self.assertFalse(exc_raised)
+        # Component separator is , = 44
+        self.assertEqual(44, buff[36])
+        # Unit and message end: 'F*'
+        self.assertEqual(b'F*', buff[37:39])
+        # Component separator is , = 44
+        self.assertEqual(44, buff[39])
+
+        # Checksum may be different each time due to random elements above so just make sure
+        # it is an integer in hexadecimal form.
+        exc_raised = False
+        try:
+            depth_fathoms = int(buff[40:42], 16)
+        except ValueError:
+            exc_raised = True
+        self.assertFalse(exc_raised)
+        # End of message: '\r\n'
+        self.assertEqual(b'\r\n', buff[42:44])
 
 
 if __name__ == '__main__':
