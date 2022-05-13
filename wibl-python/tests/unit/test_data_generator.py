@@ -4,7 +4,7 @@ import io
 import math
 
 from wibl.core.logger_file import PacketTypes
-from wibl.simulator.data import DataGenerator, State
+from wibl.simulator.data import DataGenerator, State, FormattedAngle, format_angle
 
 
 class TestDataGenerator(unittest.TestCase):
@@ -12,12 +12,12 @@ class TestDataGenerator(unittest.TestCase):
         self.assertEqual(86, DataGenerator.compute_checksum("$GPZDA,000000.000,01,01,2020,00,00*"))
 
     def test_format_angle(self):
-        fa: DataGenerator.FormattedAngle = DataGenerator.format_angle(43.000003270800001)
+        fa: FormattedAngle = format_angle(43.000003270800001)
         self.assertEqual(43, fa.degrees)
         self.assertEqual(0.0000032708000006209659, fa.minutes)
         self.assertEqual(1, fa.hemisphere)
 
-        fa: DataGenerator.FormattedAngle = DataGenerator.format_angle(-74.999996729200006)
+        fa: FormattedAngle = format_angle(-74.999996729200006)
         self.assertEqual(74, fa.degrees)
         self.assertEqual(0.99999672920000648, fa.minutes)
         self.assertEqual(0, fa.hemisphere)

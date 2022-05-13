@@ -18,13 +18,25 @@ TICKS_PER_SECOND = 100_000
 EPOCH_START = datetime(1970, 1, 1)
 
 
-def get_clock_ticks() -> int:
-    return math.floor(time.monotonic() * TICKS_PER_SECOND)
-
-
 class MonthDay(NamedTuple):
     month: int
     day: int
+
+
+class FormattedAngle(NamedTuple):
+    """
+    Break an angle in degrees into the components required to format for ouptut
+    in a NMEA0183 GGA message (i.e., integer degrees and decimal minutes, with an
+    indicator for which hemisphere to use).  To allow this to be uniform, the code
+    assumes a positive angle is hemisphere 1, and negative angle hemisphere 0.  It's
+    up to the caller to decide what decorations are used for those in the display.
+    """
+    # Reference to space for the integer part of the angle (degrees)
+    degrees: int
+    # Reference to space for the decimal minutes part of the angle
+    minutes: float
+    # Reference to space for a hemisphere indicator
+    hemisphere: int
 
 
 def to_day_month(year: int, year_day: int) -> MonthDay:
@@ -36,6 +48,29 @@ def to_day_month(year: int, year_day: int) -> MonthDay:
     """
     d = date(year, 1, 1) + timedelta(days=year_day - 1)
     return MonthDay(d.month, d.day)
+
+
+def format_angle(angle: float) -> FormattedAngle:
+    """
+    Convert an angle in decimal degrees into integer degrees and decimal minutes, with hemispehere indicator
+    :param angle:
+    :return: FormattedAngle
+    """
+    if angle > 0.0:
+        out_hemi = 1
+        out_angle = angle
+    else:
+        out_hemi = 0
+        out_angle = -angle
+
+    out_degrees = int(out_angle)
+    out_minutes = out_angle - out_degrees
+
+    return FormattedAngle(degrees=out_degrees, minutes=out_minutes, hemisphere=out_hemi)
+
+
+def get_clock_ticks() -> int:
+    return math.floor(time.monotonic() * TICKS_PER_SECOND)
 
 
 class Serialisable:
@@ -504,14 +539,14 @@ class DataGenerator:
             minute=state.sim_time.minute,
             second=state.sim_time.second
         )
-        formatted_angle = DataGenerator.format_angle(state.current_latitude)
+        formatted_angle = format_angle(state.current_latitude)
         msg = "{msg},{degrees:02d}{minutes:09.6f},{hemisphere}".format(
             msg=msg,
             degrees=formatted_angle.degrees,
             minutes=formatted_angle.minutes,
             hemisphere='N' if formatted_angle.hemisphere == 1 else 'S'
         )
-        formatted_angle = DataGenerator.format_angle(state.current_longitude)
+        formatted_angle = format_angle(state.current_longitude)
         msg = "{msg},{degrees:03d}{minutes:09.6f},{hemisphere}".format(
             msg=msg,
             degrees=formatted_angle.degrees,
@@ -567,40 +602,6 @@ class DataGenerator:
         for b in binascii.a2b_qp(msg[1:-1]):
             chk ^= b
         return chk
-
-    class FormattedAngle(NamedTuple):
-        """
-        Break an angle in degrees into the components required to format for ouptut
-        in a NMEA0183 GGA message (i.e., integer degrees and decimal minutes, with an
-        indicator for which hemisphere to use).  To allow this to be uniform, the code
-        assumes a positive angle is hemisphere 1, and negative angle hemisphere 0.  It's
-        up to the caller to decide what decorations are used for those in the display.
-        """
-        # Reference to space for the integer part of the angle (degrees)
-        degrees: int
-        # Reference to space for the decimal minutes part of the angle
-        minutes: float
-        # Reference to space for a hemisphere indicator
-        hemisphere: int
-
-    @staticmethod
-    def format_angle(angle: float) -> FormattedAngle:
-        """
-        Convert an angle in decimal degrees into integer degrees and decimal minutes, with hemispehere indicator
-        :param angle:
-        :return: FormattedAngle
-        """
-        if angle > 0.0:
-            out_hemi = 1
-            out_angle = angle
-        else:
-            out_hemi = 0
-            out_angle = -angle
-
-        out_degrees = int(out_angle)
-        out_minutes = out_angle - out_degrees
-
-        return DataGenerator.FormattedAngle(degrees=out_degrees, minutes=out_minutes, hemisphere=out_hemi)
 
 
 class Engine:
