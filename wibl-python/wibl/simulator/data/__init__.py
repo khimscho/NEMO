@@ -326,7 +326,7 @@ class DataGenerator:
         :return:
         """
         if self._m_binary:
-            self._generate_gnss(state, output)
+            self.generate_gnss(state, output)
         if self._m_serial:
             self._generate_gga(state, output)
 
@@ -353,8 +353,8 @@ class DataGenerator:
     def generate_system_time(self, state: State, output: io.BufferedWriter) -> NoReturn:
         """
         Generate NMEA2000 timestamp information
-        :param state:
-        :param output:
+        :param state: Simulator state to use for generation
+        :param output: Output writer to use for serialisation of the simulated position report
         :return:
         """
         data = {
@@ -367,14 +367,36 @@ class DataGenerator:
         pkt: lf.DataPacket = lf.SystemTime(**data)
         pkt.serialise(output)
 
-    def _generate_gnss(self, state: State, output: io.BufferedWriter) -> NoReturn:
+    def generate_gnss(self, state: State, output: io.BufferedWriter) -> NoReturn:
         """
-        Generate NMEA2000 positioning information
-        :param state:
-        :param output:
+        Generate a GNSS packet using the current state information
+        :param state: Simulator state to use for generation
+        :param output: Output writer to use for serialisation of the simulated position report
         :return:
         """
-        pass
+        data = {
+            'date': state.ref_time.days_since_epoch(),
+            'timestamp': state.ref_time.seconds_in_day(),
+            'elapsed_time': state.tick_count,
+            'msg_date': state.sim_time.days_since_epoch(),
+            'msg_timestamp': state.sim_time.seconds_in_day(),
+            'latitude': state.current_latitude,
+            'longitude': state.current_longitude,
+            'altitude': -19.323,
+            'rx_type': 0,   # GPS
+            'rx_method': 2, # DGNSS
+            'num_svs': 12,
+            'horizontal_dop': 1.5,
+            'position_dop': 2.2,
+            'sep': 22.3453,
+            'n_refs': 1,
+            'refs_type': 4, # All constellations
+            'refs_id': 12312,
+            'correction_age': 2.32
+        }
+
+        pkt: lf.DataPacket = lf.GNSS(**data)
+        pkt.serialise(output)
 
     def _generate_depth(self, state: State, output: io.BufferedWriter) -> NoReturn:
         """
@@ -396,9 +418,13 @@ class DataGenerator:
 
     def generate_gga(self, state: State, output: io.BufferedWriter) -> NoReturn:
         """
-        Generate NMEA0183 positioning (GPGGA) information
-        :param state:
-        :param output:
+        Generate a simulated position (GGA) message.  This formats the current state for position as
+        required for GGA messages, and then appends a standard trailer to meet the NMEA0183 requirements.
+        Since this trailer is always fixed, it won't exercise potential modifications based on changes
+        to the ellipsoid separation or antenna height, etc., although those are expected to be very low
+        priority for the expected use of the data being generated.
+        :param state: Simulator state to use for generation
+        :param output: Output writer to use for serialisation of the simulated position report
         :return:
         """
         msg = "$GPGGA,{hour:02d}{minute:02d}{second:06.3f}".format(

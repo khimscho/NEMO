@@ -1,7 +1,7 @@
 import struct
 import unittest
 import io
-import time
+import math
 
 from wibl.core.logger_file import PacketTypes
 from wibl.simulator.data import DataGenerator, State
@@ -222,6 +222,75 @@ class TestDataGenerator(unittest.TestCase):
         self.assertEqual(state.tick_count, elapsed)
         # Data source is the final byte (23) and should be 0 for now
         self.assertEqual(0, buff[22])
+
+    def test_generate_gnss(self):
+        state: State = State()
+        # Simulate first time after initial time step
+        state.update_ticks(300536)
+        state.ref_time.update(state.curr_ticks)
+        state.sim_time.update(math.floor(state.curr_ticks / 2))
+        # Simulate first position after initial position step
+        state.current_longitude = -74.999996729200006
+        state.current_latitude = 43.000003270800001
+        gen: DataGenerator = DataGenerator()
+
+        bio = io.BytesIO()
+        writer = io.BufferedWriter(bio)
+        gen.generate_gnss(state, writer)
+
+        writer.flush()
+        buff: bytes = bio.getvalue()
+        self.assertIsNotNone(buff)
+        # Message type is the first byte (little endian)
+        self.assertEqual(PacketTypes.GNSS.value, buff[0])
+        # Empty high-order bytes
+        self.assertEqual(0, buff[1])
+        self.assertEqual(0, buff[2])
+        self.assertEqual(0, buff[3])
+        # Message length is the 5th byte (little endian)
+        self.assertEqual(87, buff[4])
+        # Empty high-order bytes
+        self.assertEqual(0, buff[5])
+        self.assertEqual(0, buff[6])
+        self.assertEqual(0, buff[7])
+        # Days since epoch from bytes 9 and 10
+        days_since_epoch = (buff[9] << 8) | buff[8]
+        self.assertEqual(18262, days_since_epoch)
+        # Read timestamp from bytes 11-19
+        self.assertEqual(3.00536, struct.unpack('<d', buff[10:18])[0])
+        # Elapsed time should equal state.tick_count
+        self.assertEqual(state.tick_count, struct.unpack('<I', buff[18:22])[0])
+        # Message date should equal state.sim_time.days_since_epoch()
+        self.assertEqual(state.sim_time.days_since_epoch(), struct.unpack('<H', buff[22:24])[0])
+        # Message timestamp = state.sim_time.seconds_in_day()
+        self.assertEqual(state.sim_time.seconds_in_day(), struct.unpack('<d', buff[24:32])[0])
+        # Latitude
+        self.assertEqual(state.current_latitude, struct.unpack('<d', buff[32:40])[0])
+        # Longitude
+        self.assertEqual(state.current_longitude, struct.unpack('<d', buff[40:48])[0])
+        # Hard-coded altitude
+        self.assertEqual(-19.323, struct.unpack('<d', buff[48:56])[0])
+        # Hard-coded rx_type
+        self.assertEqual(0, buff[56])
+        # Hard-coded rx_method
+        self.assertEqual(2, buff[57])
+        # Hard-coded num SVs
+        self.assertEqual(12, buff[58])
+        # Hard-coded horizontal DOP
+        self.assertEqual(1.5, struct.unpack('<d', buff[59:67])[0])
+        # Hard-coded position DOP
+        self.assertEqual(2.2, struct.unpack('<d', buff[67:75])[0])
+        # Hard-coded sep
+        self.assertEqual(22.3453, struct.unpack('<d', buff[75:83])[0])
+        # Hard-coded n_refs
+        self.assertEqual(1, buff[83])
+        # Hard-coded refs_type
+        self.assertEqual(4, buff[84])
+        # Hard-coded refs_id
+        self.assertEqual(12312, struct.unpack('<H', buff[85:87])[0])
+        # Hard-coded correction_age
+        self.assertEqual(2.32, struct.unpack('<d', buff[87:95])[0])
+
 
 if __name__ == '__main__':
     unittest.main()
