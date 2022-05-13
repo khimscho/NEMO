@@ -291,6 +291,36 @@ class TestDataGenerator(unittest.TestCase):
         # Hard-coded correction_age
         self.assertEqual(2.32, struct.unpack('<d', buff[87:95])[0])
 
+    def test_generate_depth(self):
+        state: State = State()
+        # Simulate first time after initial time step
+        state.update_ticks(300536)
+        state.ref_time.update(state.curr_ticks)
+        gen: DataGenerator = DataGenerator()
+
+        bio = io.BytesIO()
+        writer = io.BufferedWriter(bio)
+        gen.generate_depth(state, writer)
+
+        writer.flush()
+        buff: bytes = bio.getvalue()
+        self.assertIsNotNone(buff)
+        # Message type is the 1st-4th bytes
+        self.assertEqual(PacketTypes.Depth.value, struct.unpack('<I', buff[0:4])[0])
+        # Message length is the 5th-9th bytes
+        self.assertEqual(38, struct.unpack('<I', buff[4:8])[0])
+        # Days since epoch from bytes 9 and 10
+        self.assertEqual(18262, struct.unpack('<H', buff[8:10])[0])
+        # Read timestamp from bytes 11-19
+        self.assertEqual(3.00536, struct.unpack('<d', buff[10:18])[0])
+        # Elapsed time should equal state.tick_count
+        self.assertEqual(state.tick_count, struct.unpack('<I', buff[18:22])[0])
+        # Depth should equal state.current_depth
+        self.assertEqual(state.current_depth, struct.unpack('<d', buff[22:30])[0])
+        # Hard-coded offset
+        self.assertEqual(0.0, struct.unpack('<d', buff[30:38])[0])
+        # Hard-coded range
+        self.assertEqual(200.0, struct.unpack('<d', buff[38:46])[0])
 
 if __name__ == '__main__':
     unittest.main()

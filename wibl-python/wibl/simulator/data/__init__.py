@@ -338,7 +338,7 @@ class DataGenerator:
         :return:
         """
         if self._m_binary:
-            self._generate_depth(state, output)
+            self.generate_depth(state, output)
         if self._m_serial:
             self._generate_dbt(state, output)
 
@@ -398,14 +398,24 @@ class DataGenerator:
         pkt: lf.DataPacket = lf.GNSS(**data)
         pkt.serialise(output)
 
-    def _generate_depth(self, state: State, output: io.BufferedWriter) -> NoReturn:
+    def generate_depth(self, state: State, output: io.BufferedWriter) -> NoReturn:
         """
-        Generate NMEA2000 depth information
+        Construct a NMEA2000 depth packet using the current state information
         :param state:
         :param output:
         :return:
         """
-        pass
+        data = {
+            'date': state.ref_time.days_since_epoch(),
+            'timestamp': state.ref_time.seconds_in_day(),
+            'elapsed_time': state.tick_count,
+            'depth': state.current_depth,
+            'offset': 0.0,
+            'range': 200.0
+        }
+
+        pkt: lf.DataPacket = lf.Depth(**data)
+        pkt.serialise(output)
 
     def _generate_zda(self, state: State, output: io.BufferedWriter) -> NoReturn:
         """
