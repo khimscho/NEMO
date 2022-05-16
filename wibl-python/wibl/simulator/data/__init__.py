@@ -374,10 +374,7 @@ class DataGenerator:
     messages for the same position, time, and depths, so that the output data file is consistent with either
     data source.
     """
-    _m_binary: bool = False
-    _m_serial: bool = False
-
-    def __init___(self, emit_nmea0183: bool = True, emit_nmea2000: bool = True):
+    def __init__(self, emit_nmea0183: bool = True, emit_nmea2000: bool = True):
         """
         Default constructor, given the NMEA2000 object that's doing the data capture
         :param emit_nmea0183:
@@ -646,8 +643,6 @@ class Engine:
 
         self._m_state.ref_time.update(now)
 
-        self._m_state.target_reference_time = self._m_state.ref_time.update(now)
-
         self._m_state.target_reference_time = self._m_state.ref_time.tick_count + CLOCKS_PER_SEC
 
         return True
@@ -712,5 +707,8 @@ class Engine:
             self._m_generator.emit_position(self._m_state, output)
         if depth_change:
             self._m_generator.emit_depth(self._m_state, output)
+
+        # Write output to underlying stream
+        output.flush()
 
         return next_time

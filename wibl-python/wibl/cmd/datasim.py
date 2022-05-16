@@ -38,7 +38,8 @@ def datasim():
     outfile: BinaryIO = open(args.filename, 'wb')
     duration: int = args.duration * CLOCKS_PER_SEC
 
-    gen: DataGenerator = DataGenerator()
+    gen: DataGenerator = DataGenerator(emit_nmea0183=args.emit_serial,
+                                       emit_nmea2000=args.emit_binary)
     writer: io.BufferedWriter = io.BufferedWriter(outfile)
     engine: Engine = Engine(gen)
 
