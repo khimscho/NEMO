@@ -23,7 +23,7 @@ def datasim():
     parser.add_argument('-d', '--duration', help='Duration (seconds) of the simulated data',
                         type=int)
     parser.add_argument('-s', '--emit_serial', help='Write NMEA0183 simulated strings',
-                        action='store_true', default=False)
+                        action='store_true', default=True)
     parser.add_argument('-b', '--emit_binary', help='Write NMEA2000 simulated data packets',
                         action='store_true', default=False)
     parser.add_argument('-v', '--verbose', help='Produce verbose output.',

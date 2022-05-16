@@ -24,11 +24,6 @@ def unit_uniform() -> float:
     return random.uniform(0, MAX_RAND) / MAX_RAND
 
 
-class MonthDay(NamedTuple):
-    month: int
-    day: int
-
-
 class FormattedAngle(NamedTuple):
     """
     Break an angle in degrees into the components required to format for ouptut
@@ -43,17 +38,6 @@ class FormattedAngle(NamedTuple):
     minutes: float
     # Reference to space for a hemisphere indicator
     hemisphere: int
-
-
-def to_day_month(year: int, year_day: int) -> MonthDay:
-    """
-    Convert the current time into broken out form
-    :param year:
-    :param year_day:
-    :return: MonthDay
-    """
-    d = date(year, 1, 1) + timedelta(days=year_day - 1)
-    return MonthDay(d.month, d.day)
 
 
 def format_angle(angle: float) -> FormattedAngle:
@@ -218,6 +202,22 @@ class ComponentDateTime:
         :return:
         """
         return self._dt.year if self._dt else None
+
+    @property
+    def month(self):
+        """
+        Month of year
+        :return:
+        """
+        return self._dt.month if self._dt else None
+
+    @property
+    def day(self):
+        """
+        Day of month
+        :return:
+        """
+        return self._dt.day if self._dt else None
 
     @property
     def day_of_year(self):
@@ -516,17 +516,16 @@ class DataGenerator:
         :param output:
         :return:
         """
-        month_day: MonthDay = to_day_month(state.sim_time.year, state.sim_time.day_of_year)
         msg = "$GPZDA,{hour:02d}{minute:02d}{second:06.3f},{day:02d},{month:02d},{year:04d},00,00*".format(
             hour=state.sim_time.hour,
             minute=state.sim_time.minute,
             second=state.sim_time.second,
-            day=month_day.day,
-            month=month_day.month,
+            day=state.sim_time.day,
+            month=state.sim_time.month,
             year=state.sim_time.year
         )
         chksum = DataGenerator.compute_checksum(msg)
-        msg = f"{msg},{chksum:02X}\r\n"
+        msg = f"{msg}{chksum:02X}\r\n"
 
         data = {'payload': bytes(msg, 'ascii'),
                 'elapsed_time': state.tick_count
@@ -569,7 +568,7 @@ class DataGenerator:
         # Dummy remainder of message
         msg = f"{msg},3,12,1.0,-19.5,M,22.5,M,0.0,0000*"
         chksum = DataGenerator.compute_checksum(msg)
-        msg = f"{msg},{chksum:02X}\r\n"
+        msg = f"{msg}{chksum:02X}\r\n"
 
         data = {'payload': bytes(msg, 'ascii'),
                 'elapsed_time': state.tick_count
@@ -596,7 +595,7 @@ class DataGenerator:
             fathoms=depth_fathoms
         )
         chksum = DataGenerator.compute_checksum(msg)
-        msg = f"{msg},{chksum:02X}\r\n"
+        msg = f"{msg}{chksum:02X}\r\n"
 
         data = {'payload': bytes(msg, 'ascii'),
                 'elapsed_time': state.tick_count

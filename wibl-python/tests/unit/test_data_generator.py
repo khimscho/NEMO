@@ -65,7 +65,7 @@ class TestDataGenerator(unittest.TestCase):
         # Message type is the 1st-4th bytes
         self.assertEqual(PacketTypes.SerialString.value, struct.unpack('<I', buff[0:4])[0])
         # Message length is the 5th-9th bytes
-        self.assertEqual(89, struct.unpack('<I', buff[4:8])[0])
+        self.assertEqual(88, struct.unpack('<I', buff[4:8])[0])
         # Days since epoch from bytes 9 and 10
         self.assertEqual(state.tick_count, struct.unpack('<I', buff[8:12])[0])
 
@@ -196,12 +196,10 @@ class TestDataGenerator(unittest.TestCase):
         self.assertEqual(48, buff[89])
         self.assertEqual(48, buff[90])
         self.assertEqual(42, buff[91])
-        # Component separator is , = 44
-        self.assertEqual(44, buff[92])
         # Checksum: '7C'
-        self.assertEqual(b'7B', buff[93:95])
+        self.assertEqual(b'7B', buff[92:94])
         # End of message: '\r\n'
-        self.assertEqual(b'\r\n', buff[95:97])
+        self.assertEqual(b'\r\n', buff[94:96])
 
     def test_generate_system_time(self):
         state: State = State()
@@ -344,7 +342,7 @@ class TestDataGenerator(unittest.TestCase):
         # Message type is the 1st-4th bytes
         self.assertEqual(PacketTypes.SerialString.value, struct.unpack('<I', buff[0:4])[0])
         # Message length is the 5th-9th bytes
-        self.assertEqual(44, struct.unpack('<I', buff[4:8])[0])
+        self.assertEqual(43, struct.unpack('<I', buff[4:8])[0])
         # Days since epoch from bytes 9 and 10
         self.assertEqual(state.tick_count, struct.unpack('<I', buff[8:12])[0])
 
@@ -382,12 +380,12 @@ class TestDataGenerator(unittest.TestCase):
         self.assertEqual(51, buff[28])
         # Component separator is , = 44
         self.assertEqual(44, buff[29])
-        # Month day is '31'
-        self.assertEqual(b'31', buff[30:32])
+        # Month day is '01'
+        self.assertEqual(b'01', buff[30:32])
         # Component separator is , = 44
         self.assertEqual(44, buff[32])
-        # Month is '12'
-        self.assertEqual(b'12', buff[33:35])
+        # Month is '01'
+        self.assertEqual(b'01', buff[33:35])
         # Component separator is , = 44
         self.assertEqual(44, buff[35])
         # Year is '2020'
@@ -396,12 +394,10 @@ class TestDataGenerator(unittest.TestCase):
         self.assertEqual(44, buff[40])
         # End of message is hard-coded with '00,00*'
         self.assertEqual(b'00,00*', buff[41:47])
-        # Component separator is , = 44
-        self.assertEqual(44, buff[47])
-        # Checksum: '50'
-        self.assertEqual(b'50', buff[48:50])
+        # Checksum: '51'
+        self.assertEqual(b'51', buff[47:49])
         # End of message: '\r\n'
-        self.assertEqual(b'\r\n', buff[50:52])
+        self.assertEqual(b'\r\n', buff[49:51])
 
     def test_generate_dbt(self):
         state: State = State()
@@ -468,6 +464,8 @@ class TestDataGenerator(unittest.TestCase):
         # Depth in metres (random value so we just make sure it is a valid float)
         exc_raised = False
         try:
+            # TODO: This sometimes fails because the formatting for the message doesn't 0-pad the integer part
+            #  of the depth values (metres, as well as feet and fathoms)
             depth_metres = float(buff[26:30])
         except ValueError:
             exc_raised = True
@@ -490,19 +488,17 @@ class TestDataGenerator(unittest.TestCase):
         self.assertEqual(44, buff[36])
         # Unit and message end: 'F*'
         self.assertEqual(b'F*', buff[37:39])
-        # Component separator is , = 44
-        self.assertEqual(44, buff[39])
 
         # Checksum may be different each time due to random elements above so just make sure
         # it is an integer in hexadecimal form.
         exc_raised = False
         try:
-            depth_fathoms = int(buff[40:42], 16)
+            depth_fathoms = int(buff[39:41], 16)
         except ValueError:
             exc_raised = True
         self.assertFalse(exc_raised)
         # End of message: '\r\n'
-        self.assertEqual(b'\r\n', buff[42:44])
+        self.assertEqual(b'\r\n', buff[41:43])
 
 
 if __name__ == '__main__':
