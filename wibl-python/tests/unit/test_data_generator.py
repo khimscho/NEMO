@@ -2,9 +2,15 @@ import struct
 import unittest
 import io
 import math
+import logging
+
+import numpy as np
 
 from wibl.core.logger_file import PacketTypes
 from wibl.simulator.data import DataGenerator, State, FormattedAngle, format_angle
+
+
+logger = logging.getLogger(__name__)
 
 
 class TestDataGenerator(unittest.TestCase):
@@ -21,6 +27,21 @@ class TestDataGenerator(unittest.TestCase):
         self.assertEqual(74, fa.degrees)
         self.assertEqual(0.99999672920000648, fa.minutes)
         self.assertEqual(0, fa.hemisphere)
+
+    def test_unit_normal(self):
+        state: State = State()
+
+        max_itr: int = 1_000_000
+        test_unit_normal = np.zeros((max_itr,))
+        for i in range(max_itr):
+            test_unit_normal[i] = state.unit_normal()
+
+        logger.debug(f"Num iterations: {max_itr}")
+        logger.debug(f"Mean: {np.mean(test_unit_normal)}, min: {min(test_unit_normal)}, max: {max(test_unit_normal)}")
+
+        self.assertAlmostEqual(0.0, np.mean(test_unit_normal), 2)
+        self.assertLess(-5.5, min(test_unit_normal))
+        self.assertGreater(5.5, max(test_unit_normal))
 
     def test_generate_gga(self):
         state: State = State()

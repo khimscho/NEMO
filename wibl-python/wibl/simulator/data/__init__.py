@@ -21,7 +21,7 @@ MAX_RAND = (1 << 31) - 1
 
 
 def unit_uniform() -> float:
-    random.uniform(0, MAX_RAND) / MAX_RAND
+    return random.uniform(0, MAX_RAND) / MAX_RAND
 
 
 class MonthDay(NamedTuple):

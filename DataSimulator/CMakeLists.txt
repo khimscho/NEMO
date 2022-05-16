@@ -30,6 +30,8 @@ set(SIM_VERSION_MAJOR 1)
 set(SIM_VERSION_MINOR 0)
 set(SIM_VERSION_PATCH 0)
 
+set(CMAKE_BUILD_TYPE Debug)
+
 if(APPLE)
     # Note warnings being turned off here for CLang and Boost interactions that spawn hundreds of warnings from Boost headers
     add_definitions("-Wno-unused-local-typedefs")
@@ -49,7 +51,16 @@ set (SIM_HDR
 	Writer.h
 	serialisation.h)
 
+set (TEST_SRC
+	Simulator.cpp
+	Writer.cpp
+	serialisation.cpp
+	test_simulator.cpp)
+
 add_executable(simulate_data ${SIM_SRC} ${SIM_HDR})
 target_link_libraries(simulate_data ${LIBS})
+
+add_executable(test_simulator ${TEST_SRC} ${SIM_HDR})
+target_link_libraries(test_simulator ${LIBS})
 
 install(TARGETS simulate_data RUNTIME DESTINATION ${CMAKE_BINARY_DIR}/bin)
