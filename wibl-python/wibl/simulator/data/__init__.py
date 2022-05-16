@@ -15,7 +15,13 @@ logger = logging.getLogger(__name__)
 
 
 TICKS_PER_SECOND = 100_000
+CLOCKS_PER_SEC = 1_000_000
 EPOCH_START = datetime(1970, 1, 1)
+MAX_RAND = (1 << 31) - 1
+
+
+def unit_uniform() -> float:
+    random.uniform(0, MAX_RAND) / MAX_RAND
 
 
 class MonthDay(NamedTuple):
@@ -201,6 +207,7 @@ class ComponentDateTime:
         :param tick_count:
         """
         self._dt: datetime = datetime(2020, 1, 1, 0, 0, 0, 0)
+        self.tick_count = tick_count
         self._init_time_ticks: int = tick_count
         self._init_time_sec: int = self._init_time_ticks * TICKS_PER_SECOND
 
@@ -259,6 +266,7 @@ class ComponentDateTime:
         tick_sec = ticks / TICKS_PER_SECOND
         delta = timedelta(seconds=tick_sec - self._init_time_sec)
         self._dt = self._dt + delta
+        self.tick_count += ticks
 
     def days_since_epoch(self) -> int:
         """
@@ -306,21 +314,21 @@ class State:
         self.current_latitude: float = 43.0
 
         # Next clock tick count at which to update reference time state
-        self._target_reference_time: int = 0
+        self.target_reference_time: int = 0
         # Next clock tick count at which to update depth state
-        self._target_depth_time: int = 0
+        self.target_depth_time: int = 0
         # Next clock tick count at which to update position state
-        self._target_position_time: int = 0
+        self.target_position_time: int = 0
 
         # Standard deviation, metres change in one second
-        self._depth_random_walk: float = 0.02
+        self.depth_random_walk: float = 0.02
 
         # Change in latitude/longitude per second
-        self._position_step: float = 3.2708e-06
+        self.position_step: float = 3.2708e-06
         # Current direction of latitude change
-        self._latitude_scale: float = 1.0
+        self.latitude_scale: float = 1.0
         # Last time the latitude changed direction
-        self._last_latitude_reversal: float = 0.0
+        self.last_latitude_reversal: float = 0.0
 
         # Global for Gaussian variate generator (from Numerical Recipies)
         self._iset: bool = False
@@ -339,8 +347,8 @@ class State:
 
         if not self._iset:
             while True:
-                u = random.random()
-                v = random.random()
+                u = unit_uniform()
+                v = unit_uniform()
                 v1 = 2.0 * u - 1.0
                 v2 = 2.0 * v - 1.0
                 rsq = v1 * v1 + v2 * v2
@@ -619,38 +627,87 @@ class Engine:
         Default constructor for a simulation engine
         """
         # current state information
-        self._m_state = None
+        self._m_state = State()
         # converter for state to output representation
         self._m_generator = data_generator
 
-    def step_engine(self, write) -> int:
+    def step_time(self, now: int) -> bool:
         """
-        Move the state of the engine on to the next simulation time
-        :param write:
-        :return:
+        Move the real-world time component of the system state to the elapsed time count provided.  Note that this code can
+        be called at any time, but may not step the state until a given target time is reached.
+        :param now: Elapsed time count for the current state instant
+        :return: True if the state was updated, otherwise false
         """
-        pass
+        if now < self._m_state.target_reference_time:
+            return False
 
-    def _step_position(self, now: int) -> bool:
+        self._m_state.ref_time.update(now)
+
+        self._m_state.target_reference_time = self._m_state.ref_time.update(now)
+
+        self._m_state.target_reference_time = self._m_state.ref_time.tick_count + CLOCKS_PER_SEC
+
+        return True
+
+    def step_position(self, now: int) -> bool:
         """
-        Step the position state to a given simulation time (if required)
+        Move the position component of the system state to the elapsed time count provided.  Note that this code can
+        be called at any time, but may not step the state until a given target time is reached.
+        :param now: Elapsed time count for the current state instant
+        :return: True if the state was updated, otherwise false
+        """
+        if now < self._m_state.target_position_time:
+            return False
+
+        self._m_state.current_latitude += self._m_state.latitude_scale * self._m_state.position_step
+        self._m_state.current_longitude += 1.0 * self._m_state.position_step
+
+        if (now - self._m_state.last_latitude_reversal) / 3600.0 > CLOCKS_PER_SEC:
+            self._m_state.latitude_scale = -self._m_state.latitude_scale
+            self._m_state.last_latitude_reversal = now
+
+        self._m_state.target_position_time = now + CLOCKS_PER_SEC
+        return True
+
+    def step_depth(self, now: int) -> bool:
+        """
+        Move the depth component of the system state to the elapsed time count provided.  Note that this code can
+        be called at any time, but may not step the state until a given target time is reached.
         :param now:
         :return:
         """
-        return False
+        if now < self._m_state.target_depth_time:
+            return False
 
-    def _step_depth(self, now: int) -> bool:
+        self._m_state.current_depth += self._m_state.depth_random_walk * self._m_state.unit_normal()
+
+        self._m_state.target_depth_time = now + CLOCKS_PER_SEC + int(CLOCKS_PER_SEC * unit_uniform())
+
+        return True
+
+    def step_engine(self, output: io.BufferedWriter) -> int:
         """
-        Step the depth state to a given simulation time (if required)
-        :param now:
+        Move the state of the system forward to the next target time (depending on when the next depth or
+        position packet is simulated to occur).  This steps the real-world time, depth, and position
+        components of the state as requried, and then generates output packets according to the embedded
+        data generator, and writes them to the specified output location.
+        :param output:
         :return:
         """
-        return False
+        next_time: int = min(self._m_state.target_depth_time, self._m_state.target_position_time)
+        next_time = min(next_time, self._m_state.target_reference_time)
 
-    def _step_time(self, now: int) -> bool:
-        """
-        Step the real-world time state to a given simulation time (if required)
-        :param now:
-        :return:
-        """
-        return False
+        self._m_state.sim_time.update(next_time)
+
+        time_change: bool = self.step_time(next_time)
+        position_change: bool = self.step_position(next_time)
+        depth_change: bool = self.step_depth(next_time)
+
+        if time_change:
+            self._m_generator.emit_time(self._m_state, output)
+        if position_change:
+            self._m_generator.emit_position(self._m_state, output)
+        if depth_change:
+            self._m_generator.emit_depth(self._m_state, output)
+
+        return next_time
