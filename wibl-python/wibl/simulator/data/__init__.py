@@ -63,117 +63,117 @@ def get_clock_ticks() -> int:
     return math.floor(time.monotonic() * TICKS_PER_SECOND)
 
 
-class Serialisable:
-    pass
+# class Serialisable:
+#     pass
+#
+#
+# class TimeDatum:
+#     """
+#     POD for a time instant
+#
+#     This provides a data object that represents a single point in time, with real-time interpolated
+#     from the elapsed time at construction based on the real-time reference and elapsed time
+#     offset in the supporting \a Timestamp object.
+#     """
+#     def __init__(self):
+#         self.datestamp: int = 0
+#         self.timestamp: float = -1.0
+#         self._m_elapsed: int = 0
+#
+#     def is_valid(self) -> bool:
+#         """
+#         Test whether timestamp is valid
+#         :return:
+#         """
+#         return self.timestamp >= 0.0
+#
+#     def serialise(self, target: Serialisable) -> NoReturn:
+#         """
+#         Serialise the datum into a given target
+#         :param target:
+#         :return:
+#         """
+#         pass
+#
+#     def serialisation_size(self) -> int:
+#         """
+#         Give the size of the object once serialised
+#         :return: ?! Probably don't need this. !?
+#         """
+#         pass
+#
+#     def printable(self) -> str:
+#         """
+#         Provide something that's a printable version
+#         :return:
+#         """
+#         pass
+#
+#     def raw_elapsed(self) -> int:
+#         """
+#         Provide the raw observation (rarely required)
+#         :return:
+#         """
+#         return self._m_elapsed
 
 
-class TimeDatum:
-    """
-    POD for a time instant
-
-    This provides a data object that represents a single point in time, with real-time interpolated
-    from the elapsed time at construction based on the real-time reference and elapsed time
-    offset in the supporting \a Timestamp object.
-    """
-    def __init__(self):
-        self.datestamp: int = 0
-        self.timestamp: float = -1.0
-        self._m_elapsed: int = 0
-
-    def is_valid(self) -> bool:
-        """
-        Test whether timestamp is valid
-        :return:
-        """
-        return self.timestamp >= 0.0
-
-    def serialise(self, target: Serialisable) -> NoReturn:
-        """
-        Serialise the datum into a given target
-        :param target:
-        :return:
-        """
-        pass
-
-    def serialisation_size(self) -> int:
-        """
-        Give the size of the object once serialised
-        :return: ?! Probably don't need this. !?
-        """
-        pass
-
-    def printable(self) -> str:
-        """
-        Provide something that's a printable version
-        :return:
-        """
-        pass
-
-    def raw_elapsed(self) -> int:
-        """
-        Provide the raw observation (rarely required)
-        :return:
-        """
-        return self._m_elapsed
-
-
-class Timestamp:
-    def __init__(self, date: int = None, timestamp: float = None, counter: int = None):
-        self._init_time: int = get_clock_ticks()
-
-        self._m_last_datum_date: int = date
-        self._m_last_datum_time: float = timestamp
-        self._m_elapsed_time_at_datum: int = counter
-        if counter is None:
-            self._m_elapsed_time_at_datum = self._init_time
-
-    def update(self, date: int, timestamp: float, *, counter: int = None) -> NoReturn:
-        """
-        Provide a new observation of a known (UTC) time and (optionally) elapsed time
-        :param date:
-        :param timestamp:
-        :param counter:
-        :return:
-        """
-        self._m_last_datum_date: int = date
-        self._m_last_datum_time: float = timestamp
-        self._m_elapsed_time_at_datum: int = counter
-
-    def is_valid(self) -> bool:
-        """
-        Indicate whether a good timestamp has been generated yet
-        :return:
-        """
-        return self._m_last_datum_time >= 0.0 if self._m_last_datum_time else False
-
-    def now(self) -> TimeDatum:
-        """
-        Generate a timestamp for the current time, if possible.
-        :return:
-        """
-        pass
-
-    def datum(self) -> TimeDatum:
-        """
-        Generate a datum for the reference information
-        :return:
-        """
-        pass
-
-    def printable(self) -> str:
-        """
-        Generate a string-printable representation of the information
-        :return:
-        """
-        pass
-
-    def count_to_milliseconds(self, count: int) -> float:
-        """
-        Convert from internal count to milliseconds
-        :param count:
-        :return:
-        """
-        pass
+# class Timestamp:
+#     def __init__(self, date: int = None, timestamp: float = None, counter: int = None):
+#         self._init_time: int = get_clock_ticks()
+#
+#         self._m_last_datum_date: int = date
+#         self._m_last_datum_time: float = timestamp
+#         self._m_elapsed_time_at_datum: int = counter
+#         if counter is None:
+#             self._m_elapsed_time_at_datum = self._init_time
+#
+#     def update(self, date: int, timestamp: float, *, counter: int = None) -> NoReturn:
+#         """
+#         Provide a new observation of a known (UTC) time and (optionally) elapsed time
+#         :param date:
+#         :param timestamp:
+#         :param counter:
+#         :return:
+#         """
+#         self._m_last_datum_date: int = date
+#         self._m_last_datum_time: float = timestamp
+#         self._m_elapsed_time_at_datum: int = counter
+#
+#     def is_valid(self) -> bool:
+#         """
+#         Indicate whether a good timestamp has been generated yet
+#         :return:
+#         """
+#         return self._m_last_datum_time >= 0.0 if self._m_last_datum_time else False
+#
+#     def now(self) -> TimeDatum:
+#         """
+#         Generate a timestamp for the current time, if possible.
+#         :return:
+#         """
+#         pass
+#
+#     def datum(self) -> TimeDatum:
+#         """
+#         Generate a datum for the reference information
+#         :return:
+#         """
+#         pass
+#
+#     def printable(self) -> str:
+#         """
+#         Generate a string-printable representation of the information
+#         :return:
+#         """
+#         pass
+#
+#     def count_to_milliseconds(self, count: int) -> float:
+#         """
+#         Convert from internal count to milliseconds
+#         :param count:
+#         :return:
+#         """
+#         pass
 
 
 class ComponentDateTime:
@@ -341,6 +341,15 @@ class State:
         self.curr_ticks = ticks
         self.tick_count = self.curr_ticks - self.init_ticks
 
+    def tick_count_to_milliseconds(self) -> int:
+        """
+        Convert from internal count to milliseconds
+        :param count:
+        :return:
+        """
+        # Conversion factor = 1000 / CLOCKS_PER_SEC
+        return int(self.tick_count * 0.001)
+
     def unit_normal(self) -> float:
         fac: float; rsq: float; v1: float; v2: float
         u: float; v: float; r: float
@@ -384,7 +393,7 @@ class DataGenerator:
         # Flag for verbose debug output
         self._m_verbose: bool = False
         # Timestamp information for the current output state
-        self._m_now: Timestamp = Timestamp(0, 0.0, 0)
+        # self._m_now: Timestamp = Timestamp(0, 0.0, 0)
         # Emit serial strings for NMEA0183
         self._m_serial: bool = emit_nmea0183
         # Emit binary data for NMEA2000
@@ -449,7 +458,7 @@ class DataGenerator:
         data = {
             'date': state.ref_time.days_since_epoch(),
             'timestamp': state.ref_time.seconds_in_day(),
-            'elapsed_time': state.tick_count,
+            'elapsed_time': state.tick_count_to_milliseconds(),
             'data_source': 0
         }
 
@@ -467,7 +476,7 @@ class DataGenerator:
         data = {
             'date': state.ref_time.days_since_epoch(),
             'timestamp': state.ref_time.seconds_in_day(),
-            'elapsed_time': state.tick_count,
+            'elapsed_time': state.tick_count_to_milliseconds(),
             'msg_date': state.sim_time.days_since_epoch(),
             'msg_timestamp': state.sim_time.seconds_in_day(),
             'latitude': state.current_latitude,
@@ -499,7 +508,7 @@ class DataGenerator:
         data = {
             'date': state.ref_time.days_since_epoch(),
             'timestamp': state.ref_time.seconds_in_day(),
-            'elapsed_time': state.tick_count,
+            'elapsed_time': state.tick_count_to_milliseconds(),
             'depth': state.current_depth,
             'offset': 0.0,
             'range': 200.0
@@ -528,7 +537,7 @@ class DataGenerator:
         msg = f"{msg}{chksum:02X}\r\n"
 
         data = {'payload': bytes(msg, 'ascii'),
-                'elapsed_time': state.tick_count
+                'elapsed_time': state.tick_count_to_milliseconds()
                 }
 
         pkt: lf.DataPacket = lf.SerialString(**data)
@@ -571,7 +580,7 @@ class DataGenerator:
         msg = f"{msg}{chksum:02X}\r\n"
 
         data = {'payload': bytes(msg, 'ascii'),
-                'elapsed_time': state.tick_count
+                'elapsed_time': state.tick_count_to_milliseconds()
                 }
 
         pkt: lf.DataPacket = lf.SerialString(**data)
@@ -598,7 +607,7 @@ class DataGenerator:
         msg = f"{msg}{chksum:02X}\r\n"
 
         data = {'payload': bytes(msg, 'ascii'),
-                'elapsed_time': state.tick_count
+                'elapsed_time': state.tick_count_to_milliseconds()
                 }
 
         pkt: lf.DataPacket = lf.SerialString(**data)
