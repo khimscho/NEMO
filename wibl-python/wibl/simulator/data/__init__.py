@@ -1,20 +1,19 @@
-import time
 import math
 from typing import NamedTuple, NoReturn
 from datetime import datetime, date, timedelta
 import binascii
-import io
+import struct
 import random
 import logging
 
 
 import wibl.core.logger_file as lf
+from wibl.simulator.data.writer import Writer
 
 
 logger = logging.getLogger(__name__)
 
 
-TICKS_PER_SECOND = 100_000
 CLOCKS_PER_SEC = 1_000_000
 EPOCH_START = datetime(1970, 1, 1)
 MAX_RAND = (1 << 31) - 1
@@ -59,124 +58,18 @@ def format_angle(angle: float) -> FormattedAngle:
     return FormattedAngle(degrees=out_degrees, minutes=out_minutes, hemisphere=out_hemi)
 
 
-def get_clock_ticks() -> int:
-    return math.floor(time.monotonic() * TICKS_PER_SECOND)
+class TickCountMillisecondsMixin:
+    def tick_count_to_milliseconds(self) -> int:
+        """
+        Convert from internal count to milliseconds
+        :param count:
+        :return:
+        """
+        # Conversion factor = 1000 / CLOCKS_PER_SEC
+        return int(self.tick_count * 0.001)
 
 
-# class Serialisable:
-#     pass
-#
-#
-# class TimeDatum:
-#     """
-#     POD for a time instant
-#
-#     This provides a data object that represents a single point in time, with real-time interpolated
-#     from the elapsed time at construction based on the real-time reference and elapsed time
-#     offset in the supporting \a Timestamp object.
-#     """
-#     def __init__(self):
-#         self.datestamp: int = 0
-#         self.timestamp: float = -1.0
-#         self._m_elapsed: int = 0
-#
-#     def is_valid(self) -> bool:
-#         """
-#         Test whether timestamp is valid
-#         :return:
-#         """
-#         return self.timestamp >= 0.0
-#
-#     def serialise(self, target: Serialisable) -> NoReturn:
-#         """
-#         Serialise the datum into a given target
-#         :param target:
-#         :return:
-#         """
-#         pass
-#
-#     def serialisation_size(self) -> int:
-#         """
-#         Give the size of the object once serialised
-#         :return: ?! Probably don't need this. !?
-#         """
-#         pass
-#
-#     def printable(self) -> str:
-#         """
-#         Provide something that's a printable version
-#         :return:
-#         """
-#         pass
-#
-#     def raw_elapsed(self) -> int:
-#         """
-#         Provide the raw observation (rarely required)
-#         :return:
-#         """
-#         return self._m_elapsed
-
-
-# class Timestamp:
-#     def __init__(self, date: int = None, timestamp: float = None, counter: int = None):
-#         self._init_time: int = get_clock_ticks()
-#
-#         self._m_last_datum_date: int = date
-#         self._m_last_datum_time: float = timestamp
-#         self._m_elapsed_time_at_datum: int = counter
-#         if counter is None:
-#             self._m_elapsed_time_at_datum = self._init_time
-#
-#     def update(self, date: int, timestamp: float, *, counter: int = None) -> NoReturn:
-#         """
-#         Provide a new observation of a known (UTC) time and (optionally) elapsed time
-#         :param date:
-#         :param timestamp:
-#         :param counter:
-#         :return:
-#         """
-#         self._m_last_datum_date: int = date
-#         self._m_last_datum_time: float = timestamp
-#         self._m_elapsed_time_at_datum: int = counter
-#
-#     def is_valid(self) -> bool:
-#         """
-#         Indicate whether a good timestamp has been generated yet
-#         :return:
-#         """
-#         return self._m_last_datum_time >= 0.0 if self._m_last_datum_time else False
-#
-#     def now(self) -> TimeDatum:
-#         """
-#         Generate a timestamp for the current time, if possible.
-#         :return:
-#         """
-#         pass
-#
-#     def datum(self) -> TimeDatum:
-#         """
-#         Generate a datum for the reference information
-#         :return:
-#         """
-#         pass
-#
-#     def printable(self) -> str:
-#         """
-#         Generate a string-printable representation of the information
-#         :return:
-#         """
-#         pass
-#
-#     def count_to_milliseconds(self, count: int) -> float:
-#         """
-#         Convert from internal count to milliseconds
-#         :param count:
-#         :return:
-#         """
-#         pass
-
-
-class ComponentDateTime:
+class ComponentDateTime(TickCountMillisecondsMixin):
     """
     POD structure to maintain the broken-out components associated with a date-time
 
@@ -193,7 +86,7 @@ class ComponentDateTime:
         self._dt: datetime = datetime(2020, 1, 1, 0, 0, 0, 0)
         self.tick_count = tick_count
         self._init_time_ticks: int = tick_count
-        self._init_time_sec: int = self._init_time_ticks * TICKS_PER_SECOND
+        self._init_time_sec: int = int(self._init_time_ticks / CLOCKS_PER_SEC)
 
     @property
     def year(self):
@@ -255,15 +148,13 @@ class ComponentDateTime:
             return float(self._dt.second) + (self._dt.microsecond / 1000000)
         return None
 
-    def update(self, ticks: int = None):
+    def update(self, ticks: int):
         """
         Set the current time (in clock ticks)
         :param ticks:
         :return:
         """
-        if ticks is None:
-            ticks = get_clock_ticks()
-        tick_sec = ticks / TICKS_PER_SECOND
+        tick_sec = ticks / CLOCKS_PER_SEC
         delta = timedelta(seconds=tick_sec - self._init_time_sec)
         self._dt = self._dt + delta
         self.tick_count += ticks
@@ -292,13 +183,14 @@ class ComponentDateTime:
         pass
 
 
-class State:
+class State(TickCountMillisecondsMixin):
     def __init__(self):
         """
         State objects should only be constructed from within Engine
         """
         # Current timestamp for the simulation
-        self.init_ticks: int = get_clock_ticks()
+        # self.init_ticks: int = get_clock_ticks()
+        self.init_ticks: int = 0
         self.curr_ticks: int = self.init_ticks
         self.tick_count: int = 0
         self.sim_time: ComponentDateTime = ComponentDateTime(self.tick_count)
@@ -335,20 +227,9 @@ class State:
         # Global state for Gaussian variate generator (from Numerical Recipies)
         self._gset: float = None
 
-    def update_ticks(self, ticks: int = None) -> NoReturn:
-        if ticks is None:
-            ticks = get_clock_ticks()
+    def update_ticks(self, ticks: int) -> NoReturn:
         self.curr_ticks = ticks
         self.tick_count = self.curr_ticks - self.init_ticks
-
-    def tick_count_to_milliseconds(self) -> int:
-        """
-        Convert from internal count to milliseconds
-        :param count:
-        :return:
-        """
-        # Conversion factor = 1000 / CLOCKS_PER_SEC
-        return int(self.tick_count * 0.001)
 
     def unit_normal(self) -> float:
         fac: float; rsq: float; v1: float; v2: float
@@ -403,7 +284,7 @@ class DataGenerator:
             logger.warning('User asked for neither NMEA0183 or NMEA2000; defaulting to generating NMEA2000')
             self._m_binary = True
 
-    def emit_time(self, state: State, output: io.BufferedWriter) -> NoReturn:
+    def emit_time(self, state: State, output: Writer) -> NoReturn:
         """
         Generate a timestamping message for the current state of the simulator
         :param state:
@@ -415,7 +296,7 @@ class DataGenerator:
         if self._m_serial:
             self.generate_zda(state, output)
 
-    def emit_position(self, state: State, output: io.BufferedWriter) -> NoReturn:
+    def emit_position(self, state: State, output: Writer) -> NoReturn:
         """
         Generate messages for the current configuration of the simulator
         :param state:
@@ -427,7 +308,7 @@ class DataGenerator:
         if self._m_serial:
             self.generate_gga(state, output)
 
-    def emit_depth(self, state: State, output: io.BufferedWriter) -> NoReturn:
+    def emit_depth(self, state: State, output: Writer) -> NoReturn:
         """
         Generate a depth message from the current state of the simulator
         :param state:
@@ -448,77 +329,146 @@ class DataGenerator:
         self._m_verbose = verb
 
     @staticmethod
-    def generate_system_time(state: State, output: io.BufferedWriter) -> NoReturn:
+    def generate_system_time(state: State, output: Writer) -> NoReturn:
         """
         Generate NMEA2000 timestamp information
         :param state: Simulator state to use for generation
         :param output: Output writer to use for serialisation of the simulated position report
         :return:
         """
-        data = {
-            'date': state.ref_time.days_since_epoch(),
-            'timestamp': state.ref_time.seconds_in_day(),
-            'elapsed_time': state.tick_count_to_milliseconds(),
-            'data_source': 0
-        }
+        # data = {
+        #     'date': state.ref_time.days_since_epoch(),
+        #     'timestamp': state.ref_time.seconds_in_day(),
+        #     'elapsed_time': state.tick_count_to_milliseconds(),
+        #     'data_source': 0
+        # }
+        #
+        # pkt: lf.DataPacket = lf.SystemTime(**data)
 
-        pkt: lf.DataPacket = lf.SystemTime(**data)
-        pkt.serialise(output)
+        buffer = struct.pack('<HdLB',
+                             state.ref_time.days_since_epoch(),
+                             state.ref_time.seconds_in_day(),
+                             state.ref_time.tick_count_to_milliseconds(),
+                             0)
+        pkt: lf.DataPacket = lf.SystemTime(buffer=buffer)
+
+        # pkt.serialise(output)
+        output.record(pkt)
 
     @staticmethod
-    def generate_gnss(state: State, output: io.BufferedWriter) -> NoReturn:
+    def generate_gnss(state: State, output: Writer) -> NoReturn:
         """
         Generate a GNSS packet using the current state information
         :param state: Simulator state to use for generation
         :param output: Output writer to use for serialisation of the simulated position report
         :return:
         """
-        data = {
-            'date': state.ref_time.days_since_epoch(),
-            'timestamp': state.ref_time.seconds_in_day(),
-            'elapsed_time': state.tick_count_to_milliseconds(),
-            'msg_date': state.sim_time.days_since_epoch(),
-            'msg_timestamp': state.sim_time.seconds_in_day(),
-            'latitude': state.current_latitude,
-            'longitude': state.current_longitude,
-            'altitude': -19.323,
-            'rx_type': 0,   # GPS
-            'rx_method': 2, # DGNSS
-            'num_svs': 12,
-            'horizontal_dop': 1.5,
-            'position_dop': 2.2,
-            'sep': 22.3453,
-            'n_refs': 1,
-            'refs_type': 4, # All constellations
-            'refs_id': 12312,
-            'correction_age': 2.32
-        }
+        # data = {
+        #     'date': state.ref_time.days_since_epoch(),
+        #     'timestamp': state.ref_time.seconds_in_day(),
+        #     'elapsed_time': state.tick_count_to_milliseconds(),
+        #     'msg_date': state.sim_time.days_since_epoch(),
+        #     'msg_timestamp': state.sim_time.seconds_in_day(),
+        #     'latitude': state.current_latitude,
+        #     'longitude': state.current_longitude,
+        #     'altitude': -19.323,
+        #     'rx_type': 0,   # GPS
+        #     'rx_method': 2, # DGNSS
+        #     'num_svs': 12,
+        #     'horizontal_dop': 1.5,
+        #     'position_dop': 2.2,
+        #     'sep': 22.3453,
+        #     'n_refs': 1,
+        #     'refs_type': 4, # All constellations
+        #     'refs_id': 12312,
+        #     'correction_age': 2.32
+        # }
+        #
+        # pkt: lf.DataPacket = lf.GNSS(**data)
 
-        pkt: lf.DataPacket = lf.GNSS(**data)
-        pkt.serialise(output)
+        # H = sim_time.days since epoch
+        # d = sim_time.seconds in day
+        # I = sim_time.tick_count milliseconds
+        # H = sim_time.days since epoch
+        # d = sim_time.seconds in day
+        # d = curr lat
+        # d = curr lon
+        # d = altitude
+        # B = rx_type
+        # B = rx_method
+        # B = num_SVs
+        # d = hdop
+        # d = pdop
+        # d = sep
+        # B = n ref stations
+        # B = ref station type
+        # H = ref station ID
+        # d = correction age
+        buffer = struct.pack('<HdIHddddBBBdddBBHd',
+                             state.sim_time.days_since_epoch(),
+                             state.sim_time.seconds_in_day(),
+                             state.sim_time.tick_count_to_milliseconds(),
+                             state.sim_time.days_since_epoch(),
+                             state.sim_time.seconds_in_day(),
+                             state.current_latitude,
+                             state.current_longitude,
+                             -19.323,
+                             0,  # GPS
+                             2,  # DGNSS
+                             12,
+                             1.5,
+                             2.2,
+                             22.3453,
+                             1,
+                             4,  # All constellations
+                             12312,
+                             2.32
+                             )
+        pkt: lf.DataPacket = lf.GNSS(buffer=buffer)
+
+        # pkt.serialise(output)
+        output.record(pkt)
 
     @staticmethod
-    def generate_depth(state: State, output: io.BufferedWriter) -> NoReturn:
+    def generate_depth(state: State, output: Writer) -> NoReturn:
         """
         Construct a NMEA2000 depth packet using the current state information
         :param state:
         :param output:
         :return:
         """
-        data = {
-            'date': state.ref_time.days_since_epoch(),
-            'timestamp': state.ref_time.seconds_in_day(),
-            'elapsed_time': state.tick_count_to_milliseconds(),
-            'depth': state.current_depth,
-            'offset': 0.0,
-            'range': 200.0
-        }
+        # data = {
+        #     'date': state.ref_time.days_since_epoch(),
+        #     'timestamp': state.ref_time.seconds_in_day(),
+        #     'elapsed_time': state.tick_count_to_milliseconds(),
+        #     'depth': state.current_depth,
+        #     'offset': 0.0,
+        #     'range': 200.0
+        # }
+        #
+        # pkt: lf.DataPacket = lf.Depth(**data)
 
-        pkt: lf.DataPacket = lf.Depth(**data)
-        pkt.serialise(output)
+        # H = sim_time.days since epoch
+        # d = sim_time.seconds in day
+        # I = sim_time.tick_count milliseconds
+        # d = state.curr depth
+        # d = offset
+        # d = range
+        buffer = struct.pack('<HdIddd',
+                             state.sim_time.days_since_epoch(),
+                             state.sim_time.seconds_in_day(),
+                             state.sim_time.tick_count_to_milliseconds(),
+                             state.current_depth,
+                             0.0, # offset hard-coded to 0
+                             200.0, # range hard-coded to 200
+                             )
+        pkt: lf.DataPacket = lf.Depth(buffer=buffer)
+
+        # pkt.serialise(output)
+        output.record(pkt)
 
     @staticmethod
-    def generate_zda(state: State, output: io.BufferedWriter) -> NoReturn:
+    def generate_zda(state: State, output: Writer) -> NoReturn:
         """
         Generate NMEA0183 timestamp (ZDA) information
         :param state:
@@ -536,15 +486,21 @@ class DataGenerator:
         chksum = DataGenerator.compute_checksum(msg)
         msg = f"{msg}{chksum:02X}\r\n"
 
-        data = {'payload': bytes(msg, 'ascii'),
-                'elapsed_time': state.tick_count_to_milliseconds()
-                }
+        # data = {'payload': bytes(msg, 'ascii'),
+        #         'elapsed_time': state.tick_count_to_milliseconds()
+        #         }
+        #
+        # pkt: lf.DataPacket = lf.SerialString(**data)
 
-        pkt: lf.DataPacket = lf.SerialString(**data)
-        pkt.serialise(output)
+        elapsed_bytes = struct.pack('<I', state.sim_time.tick_count_to_milliseconds())
+        buffer = elapsed_bytes + bytes(msg, 'ascii')
+        pkt: lf.DataPacket = lf.SerialString(buffer=buffer)
+
+        # pkt.serialise(output)
+        output.record(pkt)
 
     @staticmethod
-    def generate_gga(state: State, output: io.BufferedWriter) -> NoReturn:
+    def generate_gga(state: State, output: Writer) -> NoReturn:
         """
         Generate a simulated position (GGA) message.  This formats the current state for position as
         required for GGA messages, and then appends a standard trailer to meet the NMEA0183 requirements.
@@ -579,15 +535,24 @@ class DataGenerator:
         chksum = DataGenerator.compute_checksum(msg)
         msg = f"{msg}{chksum:02X}\r\n"
 
-        data = {'payload': bytes(msg, 'ascii'),
-                'elapsed_time': state.tick_count_to_milliseconds()
-                }
+        # data = {'payload': bytes(msg, 'ascii'),
+        #         'elapsed_time': state.tick_count_to_milliseconds()
+        #         }
+        #
+        # pkt: lf.DataPacket = lf.SerialString(**data)
 
-        pkt: lf.DataPacket = lf.SerialString(**data)
-        pkt.serialise(output)
+        try:
+            elapsed_bytes = struct.pack('<I', state.sim_time.tick_count_to_milliseconds())
+        except struct.error as e:
+            print(e)
+        buffer = elapsed_bytes + bytes(msg, 'ascii')
+        pkt: lf.DataPacket = lf.SerialString(buffer=buffer)
+
+        # pkt.serialise(output)
+        output.record(pkt)
 
     @staticmethod
-    def generate_dbt(state: State, output: io.BufferedWriter) -> NoReturn:
+    def generate_dbt(state: State, output: Writer) -> NoReturn:
         """
         Generate NMEA0183 depth (SDDBT) information
         :param state:
@@ -606,12 +571,21 @@ class DataGenerator:
         chksum = DataGenerator.compute_checksum(msg)
         msg = f"{msg}{chksum:02X}\r\n"
 
-        data = {'payload': bytes(msg, 'ascii'),
-                'elapsed_time': state.tick_count_to_milliseconds()
-                }
+        # data = {'payload': bytes(msg, 'ascii'),
+        #         'elapsed_time': state.tick_count_to_milliseconds()
+        #         }
+        #
+        # pkt: lf.DataPacket = lf.SerialString(**data)
 
-        pkt: lf.DataPacket = lf.SerialString(**data)
-        pkt.serialise(output)
+        try:
+            elapsed_bytes = struct.pack('<I', state.sim_time.tick_count_to_milliseconds())
+        except struct.error as e:
+            print(e)
+        buffer = elapsed_bytes + bytes(msg, 'ascii')
+        pkt: lf.DataPacket = lf.SerialString(buffer=buffer)
+
+        # pkt.serialise(output)
+        output.record(pkt)
 
     @staticmethod
     def compute_checksum(msg: str) -> int:
@@ -691,7 +665,7 @@ class Engine:
 
         return True
 
-    def step_engine(self, output: io.BufferedWriter) -> int:
+    def step_engine(self, output: Writer) -> int:
         """
         Move the state of the system forward to the next target time (depending on when the next depth or
         position packet is simulated to occur).  This steps the real-world time, depth, and position
@@ -715,8 +689,5 @@ class Engine:
             self._m_generator.emit_position(self._m_state, output)
         if depth_change:
             self._m_generator.emit_depth(self._m_state, output)
-
-        # Write output to underlying stream
-        output.flush()
 
         return next_time

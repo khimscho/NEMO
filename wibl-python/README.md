@@ -30,7 +30,7 @@ optional arguments:
 ### Run WIBL data simulator
 Run data simulator to generate test data and store it in a binary WIBL file:
 ```
-$ wibl datasim -f test.bin -d 3600
+$ wibl datasim -f test.bin -d 360
 ```
 
 For more information on simulator, use the `-h` option:

@@ -1,10 +1,9 @@
-import io
-from typing import BinaryIO
 import sys
 import argparse
 import logging
 
 from wibl.simulator.data import DataGenerator, Engine, CLOCKS_PER_SEC
+from wibl.simulator.data.writer import Writer
 
 
 logger = logging.getLogger(__name__)
@@ -35,18 +34,21 @@ def datasim():
     else:
         logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
-    outfile: BinaryIO = open(args.filename, 'wb')
     duration: int = args.duration * CLOCKS_PER_SEC
 
     gen: DataGenerator = DataGenerator(emit_nmea0183=args.emit_serial,
                                        emit_nmea2000=args.emit_binary)
-    writer: io.BufferedWriter = io.BufferedWriter(outfile)
+    writer: Writer = Writer(args.filename, 'Gulf Surveyor', 'WIBL-Simulator')
     engine: Engine = Engine(gen)
 
     first_time: int
     current_time: int
 
     current_time = first_time = engine.step_engine(writer)
+    num_itr: int = 0
     while current_time - first_time < duration:
         current_time = engine.step_engine(writer)
         logger.info(f"Step to time: {current_time}")
+        num_itr += 1
+
+    logger.info(f"Total iterations: {num_itr}")
