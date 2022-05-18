@@ -264,11 +264,14 @@ class DataGenerator:
     messages for the same position, time, and depths, so that the output data file is consistent with either
     data source.
     """
-    def __init__(self, emit_nmea0183: bool = True, emit_nmea2000: bool = True):
+    def __init__(self, emit_nmea0183: bool = True, emit_nmea2000: bool = True, *,
+                 use_data_constructor: bool = True):
         """
         Default constructor, given the NMEA2000 object that's doing the data capture
         :param emit_nmea0183:
         :param emit_nmea2000:
+        :param use_data_constructor: When True, use data constructor for data packets. When False,
+            use buffer constructor for data packets.
         :return:
         """
         # Flag for verbose debug output
@@ -279,6 +282,7 @@ class DataGenerator:
         self._m_serial: bool = emit_nmea0183
         # Emit binary data for NMEA2000
         self._m_binary: bool = emit_nmea2000
+        self._use_data_constructor = use_data_constructor
 
         if not emit_nmea0183 and not emit_nmea2000:
             logger.warning('User asked for neither NMEA0183 or NMEA2000; defaulting to generating NMEA2000')
@@ -328,151 +332,149 @@ class DataGenerator:
         """
         self._m_verbose = verb
 
-    @staticmethod
-    def generate_system_time(state: State, output: Writer) -> NoReturn:
+    def generate_system_time(self, state: State, output: Writer) -> NoReturn:
         """
         Generate NMEA2000 timestamp information
         :param state: Simulator state to use for generation
-        :param output: Output writer to use for serialisation of the simulated position report
+        :param output: Output writer to use for serialisation of the simulated system time report
         :return:
         """
-        # data = {
-        #     'date': state.ref_time.days_since_epoch(),
-        #     'timestamp': state.ref_time.seconds_in_day(),
-        #     'elapsed_time': state.tick_count_to_milliseconds(),
-        #     'data_source': 0
-        # }
-        #
-        # pkt: lf.DataPacket = lf.SystemTime(**data)
+        if self._use_data_constructor:
+            data = {
+                'date': state.ref_time.days_since_epoch(),
+                'timestamp': state.ref_time.seconds_in_day(),
+                'elapsed_time': state.tick_count_to_milliseconds(),
+                'data_source': 0
+            }
+            pkt: lf.DataPacket = lf.SystemTime(**data)
+        else:
+            # Use buffer constructor
+            buffer = struct.pack('<HdLB',
+                                 state.ref_time.days_since_epoch(),
+                                 state.ref_time.seconds_in_day(),
+                                 state.ref_time.tick_count_to_milliseconds(),
+                                 0)
+            pkt: lf.DataPacket = lf.SystemTime(buffer=buffer)
 
-        buffer = struct.pack('<HdLB',
-                             state.ref_time.days_since_epoch(),
-                             state.ref_time.seconds_in_day(),
-                             state.ref_time.tick_count_to_milliseconds(),
-                             0)
-        pkt: lf.DataPacket = lf.SystemTime(buffer=buffer)
-
-        # pkt.serialise(output)
         output.record(pkt)
 
-    @staticmethod
-    def generate_gnss(state: State, output: Writer) -> NoReturn:
+    def generate_gnss(self, state: State, output: Writer) -> NoReturn:
         """
         Generate a GNSS packet using the current state information
         :param state: Simulator state to use for generation
-        :param output: Output writer to use for serialisation of the simulated position report
+        :param output: Output writer to use for serialisation of the simulated GNSS report
         :return:
         """
-        # data = {
-        #     'date': state.ref_time.days_since_epoch(),
-        #     'timestamp': state.ref_time.seconds_in_day(),
-        #     'elapsed_time': state.tick_count_to_milliseconds(),
-        #     'msg_date': state.sim_time.days_since_epoch(),
-        #     'msg_timestamp': state.sim_time.seconds_in_day(),
-        #     'latitude': state.current_latitude,
-        #     'longitude': state.current_longitude,
-        #     'altitude': -19.323,
-        #     'rx_type': 0,   # GPS
-        #     'rx_method': 2, # DGNSS
-        #     'num_svs': 12,
-        #     'horizontal_dop': 1.5,
-        #     'position_dop': 2.2,
-        #     'sep': 22.3453,
-        #     'n_refs': 1,
-        #     'refs_type': 4, # All constellations
-        #     'refs_id': 12312,
-        #     'correction_age': 2.32
-        # }
-        #
-        # pkt: lf.DataPacket = lf.GNSS(**data)
+        if self._use_data_constructor:
+            data = {
+                'date': state.ref_time.days_since_epoch(),
+                'timestamp': state.ref_time.seconds_in_day(),
+                'elapsed_time': state.tick_count_to_milliseconds(),
+                'msg_date': state.sim_time.days_since_epoch(),
+                'msg_timestamp': state.sim_time.seconds_in_day(),
+                'latitude': state.current_latitude,
+                'longitude': state.current_longitude,
+                'altitude': -19.323,
+                'rx_type': 0,   # GPS
+                'rx_method': 2, # DGNSS
+                'num_svs': 12,
+                'horizontal_dop': 1.5,
+                'position_dop': 2.2,
+                'sep': 22.3453,
+                'n_refs': 1,
+                'refs_type': 4, # All constellations
+                'refs_id': 12312,
+                'correction_age': 2.32
+            }
 
-        # H = sim_time.days since epoch
-        # d = sim_time.seconds in day
-        # I = sim_time.tick_count milliseconds
-        # H = sim_time.days since epoch
-        # d = sim_time.seconds in day
-        # d = curr lat
-        # d = curr lon
-        # d = altitude
-        # B = rx_type
-        # B = rx_method
-        # B = num_SVs
-        # d = hdop
-        # d = pdop
-        # d = sep
-        # B = n ref stations
-        # B = ref station type
-        # H = ref station ID
-        # d = correction age
-        buffer = struct.pack('<HdIHddddBBBdddBBHd',
-                             state.sim_time.days_since_epoch(),
-                             state.sim_time.seconds_in_day(),
-                             state.sim_time.tick_count_to_milliseconds(),
-                             state.sim_time.days_since_epoch(),
-                             state.sim_time.seconds_in_day(),
-                             state.current_latitude,
-                             state.current_longitude,
-                             -19.323,
-                             0,  # GPS
-                             2,  # DGNSS
-                             12,
-                             1.5,
-                             2.2,
-                             22.3453,
-                             1,
-                             4,  # All constellations
-                             12312,
-                             2.32
-                             )
-        pkt: lf.DataPacket = lf.GNSS(buffer=buffer)
+            pkt: lf.DataPacket = lf.GNSS(**data)
+        else:
+            # Use buffer constructor
+            # H = sim_time.days since epoch
+            # d = sim_time.seconds in day
+            # I = sim_time.tick_count milliseconds
+            # H = sim_time.days since epoch
+            # d = sim_time.seconds in day
+            # d = curr lat
+            # d = curr lon
+            # d = altitude
+            # B = rx_type
+            # B = rx_method
+            # B = num_SVs
+            # d = hdop
+            # d = pdop
+            # d = sep
+            # B = n ref stations
+            # B = ref station type
+            # H = ref station ID
+            # d = correction age
+            buffer = struct.pack('<HdIHddddBBBdddBBHd',
+                                 state.sim_time.days_since_epoch(),
+                                 state.sim_time.seconds_in_day(),
+                                 state.sim_time.tick_count_to_milliseconds(),
+                                 state.sim_time.days_since_epoch(),
+                                 state.sim_time.seconds_in_day(),
+                                 state.current_latitude,
+                                 state.current_longitude,
+                                 -19.323,
+                                 0,  # GPS
+                                 2,  # DGNSS
+                                 12,
+                                 1.5,
+                                 2.2,
+                                 22.3453,
+                                 1,
+                                 4,  # All constellations
+                                 12312,
+                                 2.32
+                                 )
+            pkt: lf.DataPacket = lf.GNSS(buffer=buffer)
 
-        # pkt.serialise(output)
         output.record(pkt)
 
-    @staticmethod
-    def generate_depth(state: State, output: Writer) -> NoReturn:
+    def generate_depth(self, state: State, output: Writer) -> NoReturn:
         """
         Construct a NMEA2000 depth packet using the current state information
-        :param state:
-        :param output:
+        :param state: Simulator state to use for generation
+        :param output: Output writer to use for serialisation of the simulated depth report
         :return:
         """
-        # data = {
-        #     'date': state.ref_time.days_since_epoch(),
-        #     'timestamp': state.ref_time.seconds_in_day(),
-        #     'elapsed_time': state.tick_count_to_milliseconds(),
-        #     'depth': state.current_depth,
-        #     'offset': 0.0,
-        #     'range': 200.0
-        # }
-        #
-        # pkt: lf.DataPacket = lf.Depth(**data)
+        if self._use_data_constructor:
+            data = {
+                'date': state.ref_time.days_since_epoch(),
+                'timestamp': state.ref_time.seconds_in_day(),
+                'elapsed_time': state.tick_count_to_milliseconds(),
+                'depth': state.current_depth,
+                'offset': 0.0,
+                'range': 200.0
+            }
 
-        # H = sim_time.days since epoch
-        # d = sim_time.seconds in day
-        # I = sim_time.tick_count milliseconds
-        # d = state.curr depth
-        # d = offset
-        # d = range
-        buffer = struct.pack('<HdIddd',
-                             state.sim_time.days_since_epoch(),
-                             state.sim_time.seconds_in_day(),
-                             state.sim_time.tick_count_to_milliseconds(),
-                             state.current_depth,
-                             0.0, # offset hard-coded to 0
-                             200.0, # range hard-coded to 200
-                             )
-        pkt: lf.DataPacket = lf.Depth(buffer=buffer)
+            pkt: lf.DataPacket = lf.Depth(**data)
+        else:
+            # Use buffer constructor
+            # H = sim_time.days since epoch
+            # d = sim_time.seconds in day
+            # I = sim_time.tick_count milliseconds
+            # d = state.curr depth
+            # d = offset
+            # d = range
+            buffer = struct.pack('<HdIddd',
+                                 state.sim_time.days_since_epoch(),
+                                 state.sim_time.seconds_in_day(),
+                                 state.sim_time.tick_count_to_milliseconds(),
+                                 state.current_depth,
+                                 0.0, # offset hard-coded to 0
+                                 200.0 # range hard-coded to 200
+                                 )
+            pkt: lf.DataPacket = lf.Depth(buffer=buffer)
 
-        # pkt.serialise(output)
         output.record(pkt)
 
-    @staticmethod
-    def generate_zda(state: State, output: Writer) -> NoReturn:
+    def generate_zda(self, state: State, output: Writer) -> NoReturn:
         """
         Generate NMEA0183 timestamp (ZDA) information
-        :param state:
-        :param output:
+        :param state: Simulator state to use for generation
+        :param output: Output writer to use for serialisation of the simulated ZDA report
         :return:
         """
         msg = "$GPZDA,{hour:02d}{minute:02d}{second:06.3f},{day:02d},{month:02d},{year:04d},00,00*".format(
@@ -486,21 +488,21 @@ class DataGenerator:
         chksum = DataGenerator.compute_checksum(msg)
         msg = f"{msg}{chksum:02X}\r\n"
 
-        # data = {'payload': bytes(msg, 'ascii'),
-        #         'elapsed_time': state.tick_count_to_milliseconds()
-        #         }
-        #
-        # pkt: lf.DataPacket = lf.SerialString(**data)
+        if self._use_data_constructor:
+            data = {'payload': bytes(msg, 'ascii'),
+                    'elapsed_time': state.tick_count_to_milliseconds()
+                    }
 
-        elapsed_bytes = struct.pack('<I', state.sim_time.tick_count_to_milliseconds())
-        buffer = elapsed_bytes + bytes(msg, 'ascii')
-        pkt: lf.DataPacket = lf.SerialString(buffer=buffer)
+            pkt: lf.DataPacket = lf.SerialString(**data)
+        else:
+            # Use buffer constructor
+            elapsed_bytes = struct.pack('<I', state.sim_time.tick_count_to_milliseconds())
+            buffer = elapsed_bytes + bytes(msg, 'ascii')
+            pkt: lf.DataPacket = lf.SerialString(buffer=buffer)
 
-        # pkt.serialise(output)
         output.record(pkt)
 
-    @staticmethod
-    def generate_gga(state: State, output: Writer) -> NoReturn:
+    def generate_gga(self, state: State, output: Writer) -> NoReturn:
         """
         Generate a simulated position (GGA) message.  This formats the current state for position as
         required for GGA messages, and then appends a standard trailer to meet the NMEA0183 requirements.
@@ -508,7 +510,7 @@ class DataGenerator:
         to the ellipsoid separation or antenna height, etc., although those are expected to be very low
         priority for the expected use of the data being generated.
         :param state: Simulator state to use for generation
-        :param output: Output writer to use for serialisation of the simulated position report
+        :param output: Output writer to use for serialisation of the simulated GGA report
         :return:
         """
         msg = "$GPGGA,{hour:02d}{minute:02d}{second:06.3f}".format(
@@ -535,28 +537,25 @@ class DataGenerator:
         chksum = DataGenerator.compute_checksum(msg)
         msg = f"{msg}{chksum:02X}\r\n"
 
-        # data = {'payload': bytes(msg, 'ascii'),
-        #         'elapsed_time': state.tick_count_to_milliseconds()
-        #         }
-        #
-        # pkt: lf.DataPacket = lf.SerialString(**data)
+        if self._use_data_constructor:
+            data = {'payload': bytes(msg, 'ascii'),
+                    'elapsed_time': state.tick_count_to_milliseconds()
+                    }
 
-        try:
+            pkt: lf.DataPacket = lf.SerialString(**data)
+        else:
+            # Use buffer constructor
             elapsed_bytes = struct.pack('<I', state.sim_time.tick_count_to_milliseconds())
-        except struct.error as e:
-            print(e)
-        buffer = elapsed_bytes + bytes(msg, 'ascii')
-        pkt: lf.DataPacket = lf.SerialString(buffer=buffer)
+            buffer = elapsed_bytes + bytes(msg, 'ascii')
+            pkt: lf.DataPacket = lf.SerialString(buffer=buffer)
 
-        # pkt.serialise(output)
         output.record(pkt)
 
-    @staticmethod
-    def generate_dbt(state: State, output: Writer) -> NoReturn:
+    def generate_dbt(self, state: State, output: Writer) -> NoReturn:
         """
         Generate NMEA0183 depth (SDDBT) information
-        :param state:
-        :param output:
+        :param state: Simulator state to use for generation
+        :param output: Output writer to use for serialisation of the simulated DBT report
         :return:
         """
         depth_metres: float = state.current_depth + state.measurement_uncertainty * state.unit_normal()
@@ -571,20 +570,18 @@ class DataGenerator:
         chksum = DataGenerator.compute_checksum(msg)
         msg = f"{msg}{chksum:02X}\r\n"
 
-        # data = {'payload': bytes(msg, 'ascii'),
-        #         'elapsed_time': state.tick_count_to_milliseconds()
-        #         }
-        #
-        # pkt: lf.DataPacket = lf.SerialString(**data)
+        if self._use_data_constructor:
+            data = {'payload': bytes(msg, 'ascii'),
+                    'elapsed_time': state.tick_count_to_milliseconds()
+                    }
 
-        try:
+            pkt: lf.DataPacket = lf.SerialString(**data)
+        else:
+            # Use buffer constructor
             elapsed_bytes = struct.pack('<I', state.sim_time.tick_count_to_milliseconds())
-        except struct.error as e:
-            print(e)
-        buffer = elapsed_bytes + bytes(msg, 'ascii')
-        pkt: lf.DataPacket = lf.SerialString(buffer=buffer)
+            buffer = elapsed_bytes + bytes(msg, 'ascii')
+            pkt: lf.DataPacket = lf.SerialString(buffer=buffer)
 
-        # pkt.serialise(output)
         output.record(pkt)
 
     @staticmethod

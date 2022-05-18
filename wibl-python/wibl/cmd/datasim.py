@@ -25,6 +25,10 @@ def datasim():
                         action='store_true', default=True)
     parser.add_argument('-b', '--emit_binary', help='Write NMEA2000 simulated data packets',
                         action='store_true', default=False)
+    parser.add_argument('--use_buffer_constructor',
+                        help=('Use buffer constructor, rather than data constructor, for data packets. '
+                              'If not specified, data constructor will be used.'),
+                        action='store_true', default=False)
     parser.add_argument('-v', '--verbose', help='Produce verbose output.',
                         action='store_true', default=False)
     args = parser.parse_args(sys.argv[2:])
@@ -35,9 +39,11 @@ def datasim():
         logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
     duration: int = args.duration * CLOCKS_PER_SEC
+    use_data_constructor = not args.use_buffer_constructor
 
     gen: DataGenerator = DataGenerator(emit_nmea0183=args.emit_serial,
-                                       emit_nmea2000=args.emit_binary)
+                                       emit_nmea2000=args.emit_binary,
+                                       use_data_constructor=use_data_constructor)
     writer: Writer = Writer(args.filename, 'Gulf Surveyor', 'WIBL-Simulator')
     engine: Engine = Engine(gen)
 
