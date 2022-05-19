@@ -183,7 +183,7 @@ class TestDataGenerator(unittest.TestCase):
         self.assertEqual(87, buff[124])
         # Component separator is , = 44
         self.assertEqual(44, buff[125])
-        # Dummy party of message: 3,12,1.0,-19.5,M,22.5,M,0.0,0000*
+        # Dummy part of message: 3,12,1.0,-19.5,M,22.5,M,0.0,0000*
         # '3'
         self.assertEqual(51, buff[126])
         # Component separator is , = 44

@@ -16,13 +16,13 @@ SERIALISER_VERSION_NMEA0183 = (1, 0, 0)
 
 class Writer(ABC):
     def __init__(self, logger_name: str, logger_id: str):
-        # Write serialiser version to file
+        # Write serialiser version to underlying data stream
         version: DataPacket = SerialiserVersion(major=SERIALISER_VERSION_MAJOR,
                                                 minor=SERIALISER_VERSION_MINOR,
                                                 n2000=SERIALISER_VERSION_NMEA2000,
                                                 n0183=SERIALISER_VERSION_NMEA0183)
         self.record(version)
-        # Write metadata to file
+        # Write metadata to underlying data stream
         meta: DataPacket = Metadata(logger=logger_name,
                                     uniqid=logger_id)
         self.record(meta)
