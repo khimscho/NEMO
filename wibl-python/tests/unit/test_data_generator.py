@@ -8,6 +8,7 @@ import numpy as np
 
 from wibl.core.logger_file import PacketTypes
 from wibl.simulator.data import DataGenerator, State, FormattedAngle, format_angle
+from wibl.simulator.data.writer import Writer, MemoryWriter
 
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,43 @@ class TestDataGenerator(unittest.TestCase):
         self.assertLess(-5.5, min(test_unit_normal))
         self.assertGreater(5.5, max(test_unit_normal))
 
+    def __test_header_packets(self, buff: bytes):
+        # First packet is SerialiserVersion
+        # Packet ID for SerialiserVersion packet type is 0
+        self.assertEqual(0, struct.unpack('<I', buff[0:4])[0])
+        # Length for SerialiserVersion packet type is 16
+        self.assertEqual(16, struct.unpack('<I', buff[4:8])[0])
+        # Major version in bytes 7-8, equals 1
+        self.assertEqual(1, struct.unpack('<H', buff[8:10])[0])
+        # Minor version in bytes 9-10, equals 0
+        self.assertEqual(0, struct.unpack('<H', buff[10:12])[0])
+        # NMEA2000 major version in bytes 11-12, equals 1
+        self.assertEqual(1, struct.unpack('<H', buff[12:14])[0])
+        # NMEA2000 minor version in bytes 13-14, equals 0
+        self.assertEqual(0, struct.unpack('<H', buff[14:16])[0])
+        # NMEA2000 patch version in bytes 15-16, equals 0
+        self.assertEqual(0, struct.unpack('<H', buff[16:18])[0])
+        # NMEA0183 major version in bytes 17-18, equals 1
+        self.assertEqual(1, struct.unpack('<H', buff[18:20])[0])
+        # NMEA0183 minor version in bytes 19-20, equals 0
+        self.assertEqual(0, struct.unpack('<H', buff[20:22])[0])
+        # NMEA0183 patch version in bytes 21-22, equals 0
+        self.assertEqual(0, struct.unpack('<H', buff[22:24])[0])
+
+        # Second packet is Metadata
+        # Packet ID for Metadata packet type is 12
+        self.assertEqual(12, struct.unpack('<I', buff[24:28])[0])
+        # Length for this Metadata packet is 35
+        self.assertEqual(35, struct.unpack('<I', buff[28:32])[0])
+        # Logger name length in bytes 31-34, equals 13
+        self.assertEqual(13, struct.unpack('<I', buff[32:36])[0])
+        # Logger name in bytes 35-47, equals 'Gulf Surveyor'
+        self.assertEqual('Gulf Surveyor', struct.unpack('<13s', buff[36:49])[0].decode('UTF-8'))
+        # Logger ID length in bytes 48-51, equals 14
+        self.assertEqual(14, struct.unpack('<I', buff[49:53])[0])
+        # Logger ID in bytes 52-65, equals 'WIBL-Simulator'
+        self.assertEqual('WIBL-Simulator', struct.unpack('<14s', buff[53:67])[0].decode('UTF-8'))
+
     def test_generate_gga(self):
         state: State = State()
         # Simulate first position after initial position step
@@ -52,183 +90,187 @@ class TestDataGenerator(unittest.TestCase):
         state.update_ticks(300536)
         state.ref_time.update(state.curr_ticks)
         state.sim_time.update(math.floor(state.curr_ticks / 2))
-        gen: DataGenerator = DataGenerator()
+        gen: DataGenerator = DataGenerator(use_data_constructor=True)
 
-        bio = io.BytesIO()
-        writer = io.BufferedWriter(bio)
+        writer: Writer = MemoryWriter('Gulf Surveyor', 'WIBL-Simulator')
         gen.generate_gga(state, writer)
 
-        writer.flush()
-        buff: bytes = bio.getvalue()
+        buff: bytes = writer.getvalue()
         self.assertIsNotNone(buff)
+        self.__test_header_packets(buff)
 
-        # Message type is the 1st-4th bytes
-        self.assertEqual(PacketTypes.SerialString.value, struct.unpack('<I', buff[0:4])[0])
-        # Message length is the 5th-9th bytes
-        self.assertEqual(88, struct.unpack('<I', buff[4:8])[0])
-        # Days since epoch from bytes 9 and 10
-        self.assertEqual(state.tick_count, struct.unpack('<I', buff[8:12])[0])
+        # Message type in bytes 66-69
+        self.assertEqual(PacketTypes.SerialString.value, struct.unpack('<I', buff[67:71])[0])
+        # Message length in bytes 70-73
+        self.assertEqual(88, struct.unpack('<I', buff[71:75])[0])
+        # Days since epoch from bytes 74-77
+        self.assertEqual(state.tick_count_to_milliseconds(), struct.unpack('<I', buff[75:79])[0])
 
         # First byte of message body is '$' = ASCII 36 (decimal)
-        self.assertEqual(36, buff[12])
+        self.assertEqual(36, buff[79])
         # Message descriptor: GPGGA
         # G = 71
-        self.assertEqual(71, buff[13])
+        self.assertEqual(71, buff[80])
         # P = 80
-        self.assertEqual(80, buff[14])
-        self.assertEqual(71, buff[15])
-        self.assertEqual(71, buff[16])
+        self.assertEqual(80, buff[81])
+        self.assertEqual(71, buff[82])
+        self.assertEqual(71, buff[83])
         # A = 65
-        self.assertEqual(65, buff[17])
+        self.assertEqual(65, buff[84])
         # Component separator is , = 44
-        self.assertEqual(44, buff[18])
+        self.assertEqual(44, buff[85])
         # Hour, minute, and decimal seconds (all initially ASCII 0=48 decimal)
-        self.assertEqual(48, buff[19])
-        self.assertEqual(48, buff[20])
-        self.assertEqual(48, buff[21])
-        self.assertEqual(48, buff[22])
-        # Seconds '01.503'
-        self.assertEqual(48, buff[23])
-        # '1' = 49
-        self.assertEqual(49, buff[24])
-        # '.' = 46
-        self.assertEqual(46, buff[25])
-        # Decimal part of seconds
-        # '5' = 53
-        self.assertEqual(53, buff[26])
-        self.assertEqual(48, buff[27])
-        # '3' = 51
-        self.assertEqual(51, buff[28])
-        # Component separator is , = 44
-        self.assertEqual(44, buff[29])
-        # Beginning of latitude: 43 degrees, 00.000003 minutes/seconds (in ASCII)
-        self.assertEqual(52, buff[30])
-        self.assertEqual(51, buff[31])
-        self.assertEqual(48, buff[32])
-        self.assertEqual(48, buff[33])
-        # . = 46
-        self.assertEqual(46, buff[34])
-        self.assertEqual(48, buff[35])
-        self.assertEqual(48, buff[36])
-        self.assertEqual(48, buff[37])
-        self.assertEqual(48, buff[38])
-        self.assertEqual(48, buff[39])
-        # 3 = 51
-        self.assertEqual(51, buff[40])
-        # Component separator is , = 44
-        self.assertEqual(44, buff[41])
-        # N (North) = 78
-        self.assertEqual(78, buff[42])
-        # Component separator is , = 44 (end of latitude)
-        self.assertEqual(44, buff[43])
-        # Beginning of longitude: 074 degrees, 00.999997 minutes/seconds (in ASCII)
-        self.assertEqual(48, buff[44])
-        # 7 = 55
-        self.assertEqual(55, buff[45])
-        # 4 = 52
-        self.assertEqual(52, buff[46])
-        self.assertEqual(48, buff[47])
-        self.assertEqual(48, buff[48])
-        # . = 46
-        self.assertEqual(46, buff[49])
-        # 9 = 57
-        self.assertEqual(57, buff[50])
-        self.assertEqual(57, buff[51])
-        self.assertEqual(57, buff[52])
-        self.assertEqual(57, buff[53])
-        self.assertEqual(57, buff[54])
-        # 7 = 55
-        self.assertEqual(55, buff[55])
-        # Component separator is , = 44
-        self.assertEqual(44, buff[56])
-        # W (West) = 87
-        self.assertEqual(87, buff[57])
-        # Component separator is , = 44
-        self.assertEqual(44, buff[58])
-        # Dummy party of message: 3,12,1.0,-19.5,M,22.5,M,0.0,0000*
-        # '3'
-        self.assertEqual(51, buff[59])
-        # Component separator is , = 44
-        self.assertEqual(44, buff[60])
-        # '12'
-        self.assertEqual(49, buff[61])
-        self.assertEqual(50, buff[62])
-        # Component separator is , = 44
-        self.assertEqual(44, buff[63])
-        # '1.0'
-        self.assertEqual(49, buff[64])
-        self.assertEqual(46, buff[65])
-        self.assertEqual(48, buff[66])
-        # Component separator is , = 44
-        self.assertEqual(44, buff[67])
-        # '-19.5'
-        self.assertEqual(45, buff[68])
-        self.assertEqual(49, buff[69])
-        self.assertEqual(57, buff[70])
-        self.assertEqual(46, buff[71])
-        self.assertEqual(53, buff[72])
-        # Component separator is , = 44
-        self.assertEqual(44, buff[73])
-        # 'M'
-        self.assertEqual(77, buff[74])
-        # Component separator is , = 44
-        self.assertEqual(44, buff[75])
-        # '22.5'
-        self.assertEqual(50, buff[76])
-        self.assertEqual(50, buff[77])
-        self.assertEqual(46, buff[78])
-        self.assertEqual(53, buff[79])
-        # Component separator is , = 44
-        self.assertEqual(44, buff[80])
-        # 'M'
-        self.assertEqual(77, buff[81])
-        # Component separator is , = 44
-        self.assertEqual(44, buff[82])
-        # '0.0'
-        self.assertEqual(48, buff[83])
-        self.assertEqual(46, buff[84])
-        self.assertEqual(48, buff[85])
-        # Component separator is , = 44
-        self.assertEqual(44, buff[86])
-        # '0000*'
+        self.assertEqual(48, buff[86])
         self.assertEqual(48, buff[87])
         self.assertEqual(48, buff[88])
         self.assertEqual(48, buff[89])
+        # Seconds '00.500'
         self.assertEqual(48, buff[90])
-        self.assertEqual(42, buff[91])
-        # Checksum: '7C'
-        self.assertEqual(b'7B', buff[92:94])
+        # '0' = 48
+        self.assertEqual(48, buff[91])
+        # '.' = 46
+        self.assertEqual(46, buff[92])
+        # Decimal part of seconds
+        # '1' = 49
+        self.assertEqual(49, buff[93])
+        # '5' = 53
+        self.assertEqual(53, buff[94])
+        # '0' = 48
+        self.assertEqual(48, buff[95])
+        # Component separator is , = 44
+        self.assertEqual(44, buff[96])
+        # Beginning of latitude: 43 degrees, 00.000003 minutes/seconds (in ASCII)
+        self.assertEqual(52, buff[97])
+        self.assertEqual(51, buff[98])
+        self.assertEqual(48, buff[99])
+        self.assertEqual(48, buff[100])
+        # . = 46
+        self.assertEqual(46, buff[101])
+        self.assertEqual(48, buff[102])
+        self.assertEqual(48, buff[103])
+        self.assertEqual(48, buff[104])
+        self.assertEqual(48, buff[105])
+        self.assertEqual(48, buff[106])
+        # 3 = 51
+        self.assertEqual(51, buff[107])
+        # Component separator is , = 44
+        self.assertEqual(44, buff[108])
+        # N (North) = 78
+        self.assertEqual(78, buff[109])
+        # Component separator is , = 44 (end of latitude)
+        self.assertEqual(44, buff[110])
+        # Beginning of longitude: 074 degrees, 00.999997 minutes/seconds (in ASCII)
+        self.assertEqual(48, buff[111])
+        # 7 = 55
+        self.assertEqual(55, buff[112])
+        # 4 = 52
+        self.assertEqual(52, buff[113])
+        self.assertEqual(48, buff[114])
+        self.assertEqual(48, buff[115])
+        # . = 46
+        self.assertEqual(46, buff[116])
+        # 9 = 57
+        self.assertEqual(57, buff[117])
+        self.assertEqual(57, buff[118])
+        self.assertEqual(57, buff[119])
+        self.assertEqual(57, buff[120])
+        self.assertEqual(57, buff[121])
+        # 7 = 55
+        self.assertEqual(55, buff[122])
+        # Component separator is , = 44
+        self.assertEqual(44, buff[123])
+        # W (West) = 87
+        self.assertEqual(87, buff[124])
+        # Component separator is , = 44
+        self.assertEqual(44, buff[125])
+        # Dummy party of message: 3,12,1.0,-19.5,M,22.5,M,0.0,0000*
+        # '3'
+        self.assertEqual(51, buff[126])
+        # Component separator is , = 44
+        self.assertEqual(44, buff[127])
+        # '12'
+        self.assertEqual(49, buff[128])
+        self.assertEqual(50, buff[129])
+        # Component separator is , = 44
+        self.assertEqual(44, buff[130])
+        # '1.0'
+        self.assertEqual(49, buff[131])
+        self.assertEqual(46, buff[132])
+        self.assertEqual(48, buff[133])
+        # Component separator is , = 44
+        self.assertEqual(44, buff[134])
+        # '-19.5'
+        self.assertEqual(45, buff[135])
+        self.assertEqual(49, buff[136])
+        self.assertEqual(57, buff[137])
+        self.assertEqual(46, buff[138])
+        self.assertEqual(53, buff[139])
+        # Component separator is , = 44
+        self.assertEqual(44, buff[140])
+        # 'M'
+        self.assertEqual(77, buff[141])
+        # Component separator is , = 44
+        self.assertEqual(44, buff[142])
+        # '22.5'
+        self.assertEqual(50, buff[143])
+        self.assertEqual(50, buff[144])
+        self.assertEqual(46, buff[145])
+        self.assertEqual(53, buff[146])
+        # Component separator is , = 44
+        self.assertEqual(44, buff[147])
+        # 'M'
+        self.assertEqual(77, buff[148])
+        # Component separator is , = 44
+        self.assertEqual(44, buff[149])
+        # '0.0'
+        self.assertEqual(48, buff[150])
+        self.assertEqual(46, buff[151])
+        self.assertEqual(48, buff[152])
+        # Component separator is , = 44
+        self.assertEqual(44, buff[153])
+        # '0000*'
+        self.assertEqual(48, buff[154])
+        self.assertEqual(48, buff[155])
+        self.assertEqual(48, buff[156])
+        self.assertEqual(48, buff[157])
+        self.assertEqual(42, buff[158])
+        # Checksum: '78'
+        self.assertEqual(b'78', buff[159:161])
         # End of message: '\r\n'
-        self.assertEqual(b'\r\n', buff[94:96])
+        self.assertEqual(b'\r\n', buff[161:163])
+
+        with self.assertRaises(IndexError):
+            buff[163]
 
     def test_generate_system_time(self):
         state: State = State()
         # Simulate first time after initial time step
         state.update_ticks(300536)
         state.ref_time.update(state.curr_ticks)
-        gen: DataGenerator = DataGenerator()
+        gen: DataGenerator = DataGenerator(use_data_constructor=True)
 
-        bio = io.BytesIO()
-        writer = io.BufferedWriter(bio)
+        writer: Writer = MemoryWriter('Gulf Surveyor', 'WIBL-Simulator')
         gen.generate_system_time(state, writer)
 
-        writer.flush()
-        buff: bytes = bio.getvalue()
+        buff: bytes = writer.getvalue()
         self.assertIsNotNone(buff)
-        # Message type is the 1st-4th bytes
-        self.assertEqual(PacketTypes.SystemTime.value, struct.unpack('<I', buff[0:4])[0])
-        # Message length is the 5th-9th bytes
-        self.assertEqual(15, struct.unpack('<I', buff[4:8])[0])
-        # Days since epoch from bytes 9 and 10
-        self.assertEqual(18262, struct.unpack('<H', buff[8:10])[0])
-        # Read timestamp from bytes 11-19
-        timestamp = struct.unpack('<d', buff[10:18])[0]
-        self.assertEqual(3.00536, timestamp)
-        # Elapsed time should equal state.tick_count
-        elapsed = struct.unpack('<I', buff[18:22])[0]
-        self.assertEqual(state.tick_count, elapsed)
+        self.__test_header_packets(buff)
+
+        # Message type in bytes 66-69
+        self.assertEqual(PacketTypes.SystemTime.value, struct.unpack('<I', buff[67:71])[0])
+        # Message length in bytes 70-73
+        self.assertEqual(15, struct.unpack('<I', buff[71:75])[0])
+        # Days since epoch from bytes 74-75
+        self.assertEqual(18262, struct.unpack('<H', buff[75:77])[0])
+        # Read timestamp from bytes 76-83
+        self.assertEqual(0.300536, struct.unpack('<d', buff[77:85])[0])
+        # Elapsed time should equal state.tick_count_to_milliseconds()
+        self.assertEqual(state.tick_count_to_milliseconds(), struct.unpack('<I', buff[85:89])[0])
         # Data source is the final byte (23) and should be 0 for now
-        self.assertEqual(0, buff[22])
+        self.assertEqual(0, buff[89])
+
+        with self.assertRaises(IndexError):
+            buff[90]
 
     def test_generate_gnss(self):
         state: State = State()
@@ -239,86 +281,94 @@ class TestDataGenerator(unittest.TestCase):
         # Simulate first position after initial position step
         state.current_longitude = -74.999996729200006
         state.current_latitude = 43.000003270800001
-        gen: DataGenerator = DataGenerator()
+        gen: DataGenerator = DataGenerator(use_data_constructor=True)
 
-        bio = io.BytesIO()
-        writer = io.BufferedWriter(bio)
+        writer: Writer = MemoryWriter('Gulf Surveyor', 'WIBL-Simulator')
         gen.generate_gnss(state, writer)
 
-        writer.flush()
-        buff: bytes = bio.getvalue()
+        buff: bytes = writer.getvalue()
         self.assertIsNotNone(buff)
-        # Message type is the 1st-4th bytes
-        self.assertEqual(PacketTypes.GNSS.value, struct.unpack('<I', buff[0:4])[0])
-        # Message length is the 5th-9th bytes
-        self.assertEqual(87, struct.unpack('<I', buff[4:8])[0])
-        # Days since epoch from bytes 9 and 10
-        self.assertEqual(18262, struct.unpack('<H', buff[8:10])[0])
-        # Read timestamp from bytes 11-19
-        self.assertEqual(3.00536, struct.unpack('<d', buff[10:18])[0])
-        # Elapsed time should equal state.tick_count
-        self.assertEqual(state.tick_count, struct.unpack('<I', buff[18:22])[0])
+        self.__test_header_packets(buff)
+
+        # Message type in bytes 66-69
+        self.assertEqual(PacketTypes.GNSS.value, struct.unpack('<I', buff[67:71])[0])
+        # Message length in bytes 70-73
+        self.assertEqual(87, struct.unpack('<I', buff[71:75])[0])
+        # Days since epoch from bytes 74-75
+        self.assertEqual(18262, struct.unpack('<H', buff[75:77])[0])
+        # Read timestamp from bytes 76-83
+        self.assertEqual(0.300536, struct.unpack('<d', buff[77:85])[0])
+        # Elapsed time should equal state.tick_count_to_milliseconds()
+        self.assertEqual(state.tick_count_to_milliseconds(), struct.unpack('<I', buff[85:89])[0])
+
         # Message date should equal state.sim_time.days_since_epoch()
-        self.assertEqual(state.sim_time.days_since_epoch(), struct.unpack('<H', buff[22:24])[0])
+        self.assertEqual(state.sim_time.days_since_epoch(), struct.unpack('<H', buff[89:91])[0])
         # Message timestamp = state.sim_time.seconds_in_day()
-        self.assertEqual(state.sim_time.seconds_in_day(), struct.unpack('<d', buff[24:32])[0])
+        self.assertEqual(state.sim_time.seconds_in_day(), struct.unpack('<d', buff[91:99])[0])
         # Latitude
-        self.assertEqual(state.current_latitude, struct.unpack('<d', buff[32:40])[0])
+        self.assertEqual(state.current_latitude, struct.unpack('<d', buff[99:107])[0])
         # Longitude
-        self.assertEqual(state.current_longitude, struct.unpack('<d', buff[40:48])[0])
+        self.assertEqual(state.current_longitude, struct.unpack('<d', buff[107:115])[0])
         # Hard-coded altitude
-        self.assertEqual(-19.323, struct.unpack('<d', buff[48:56])[0])
+        self.assertEqual(-19.323, struct.unpack('<d', buff[115:123])[0])
         # Hard-coded rx_type
-        self.assertEqual(0, buff[56])
+        self.assertEqual(0, buff[123])
         # Hard-coded rx_method
-        self.assertEqual(2, buff[57])
+        self.assertEqual(2, buff[124])
         # Hard-coded num SVs
-        self.assertEqual(12, buff[58])
+        self.assertEqual(12, buff[125])
         # Hard-coded horizontal DOP
-        self.assertEqual(1.5, struct.unpack('<d', buff[59:67])[0])
+        self.assertEqual(1.5, struct.unpack('<d', buff[126:134])[0])
         # Hard-coded position DOP
-        self.assertEqual(2.2, struct.unpack('<d', buff[67:75])[0])
+        self.assertEqual(2.2, struct.unpack('<d', buff[134:142])[0])
         # Hard-coded sep
-        self.assertEqual(22.3453, struct.unpack('<d', buff[75:83])[0])
+        self.assertEqual(22.3453, struct.unpack('<d', buff[142:150])[0])
         # Hard-coded n_refs
-        self.assertEqual(1, buff[83])
+        self.assertEqual(1, buff[150])
         # Hard-coded refs_type
-        self.assertEqual(4, buff[84])
+        self.assertEqual(4, buff[151])
         # Hard-coded refs_id
-        self.assertEqual(12312, struct.unpack('<H', buff[85:87])[0])
+        self.assertEqual(12312, struct.unpack('<H', buff[152:154])[0])
         # Hard-coded correction_age
-        self.assertEqual(2.32, struct.unpack('<d', buff[87:95])[0])
+        self.assertEqual(2.32, struct.unpack('<d', buff[154:162])[0])
+
+        with self.assertRaises(IndexError):
+            buff[162]
 
     def test_generate_depth(self):
         state: State = State()
         # Simulate first time after initial time step
         state.update_ticks(300536)
         state.ref_time.update(state.curr_ticks)
-        gen: DataGenerator = DataGenerator()
+        gen: DataGenerator = DataGenerator(use_data_constructor=True)
 
-        bio = io.BytesIO()
-        writer = io.BufferedWriter(bio)
+        writer: Writer = MemoryWriter('Gulf Surveyor', 'WIBL-Simulator')
         gen.generate_depth(state, writer)
 
-        writer.flush()
-        buff: bytes = bio.getvalue()
+        buff: bytes = writer.getvalue()
         self.assertIsNotNone(buff)
-        # Message type is the 1st-4th bytes
-        self.assertEqual(PacketTypes.Depth.value, struct.unpack('<I', buff[0:4])[0])
-        # Message length is the 5th-9th bytes
-        self.assertEqual(38, struct.unpack('<I', buff[4:8])[0])
-        # Days since epoch from bytes 9 and 10
-        self.assertEqual(18262, struct.unpack('<H', buff[8:10])[0])
-        # Read timestamp from bytes 11-19
-        self.assertEqual(3.00536, struct.unpack('<d', buff[10:18])[0])
-        # Elapsed time should equal state.tick_count
-        self.assertEqual(state.tick_count, struct.unpack('<I', buff[18:22])[0])
+        self.__test_header_packets(buff)
+
+        # Message type in bytes 66-69
+        self.assertEqual(PacketTypes.Depth.value, struct.unpack('<I', buff[67:71])[0])
+        # Message length in bytes 70-73
+        self.assertEqual(38, struct.unpack('<I', buff[71:75])[0])
+        # Days since epoch from bytes 74-75
+        self.assertEqual(18262, struct.unpack('<H', buff[75:77])[0])
+        # Read timestamp from bytes 76-83
+        self.assertEqual(0.300536, struct.unpack('<d', buff[77:85])[0])
+        # Elapsed time should equal state.tick_count_to_milliseconds()
+        self.assertEqual(state.tick_count_to_milliseconds(), struct.unpack('<I', buff[85:89])[0])
+
         # Depth should equal state.current_depth
-        self.assertEqual(state.current_depth, struct.unpack('<d', buff[22:30])[0])
+        self.assertEqual(state.current_depth, struct.unpack('<d', buff[89:97])[0])
         # Hard-coded offset
-        self.assertEqual(0.0, struct.unpack('<d', buff[30:38])[0])
+        self.assertEqual(0.0, struct.unpack('<d', buff[97:105])[0])
         # Hard-coded range
-        self.assertEqual(200.0, struct.unpack('<d', buff[38:46])[0])
+        self.assertEqual(200.0, struct.unpack('<d', buff[105:113])[0])
+
+        with self.assertRaises(IndexError):
+            buff[113]
 
     def test_generate_zda(self):
         state: State = State()
@@ -329,75 +379,78 @@ class TestDataGenerator(unittest.TestCase):
         state.update_ticks(300536)
         state.ref_time.update(state.curr_ticks)
         state.sim_time.update(math.floor(state.curr_ticks / 2))
-        gen: DataGenerator = DataGenerator()
+        gen: DataGenerator = DataGenerator(use_data_constructor=True)
 
-        bio = io.BytesIO()
-        writer = io.BufferedWriter(bio)
+        writer: Writer = MemoryWriter('Gulf Surveyor', 'WIBL-Simulator')
         gen.generate_zda(state, writer)
 
-        writer.flush()
-        buff: bytes = bio.getvalue()
+        buff: bytes = writer.getvalue()
         self.assertIsNotNone(buff)
+        self.__test_header_packets(buff)
 
-        # Message type is the 1st-4th bytes
-        self.assertEqual(PacketTypes.SerialString.value, struct.unpack('<I', buff[0:4])[0])
-        # Message length is the 5th-9th bytes
-        self.assertEqual(43, struct.unpack('<I', buff[4:8])[0])
-        # Days since epoch from bytes 9 and 10
-        self.assertEqual(state.tick_count, struct.unpack('<I', buff[8:12])[0])
+        # Message type in bytes 66-69
+        self.assertEqual(PacketTypes.SerialString.value, struct.unpack('<I', buff[67:71])[0])
+        # Message length in bytes 70-73
+        self.assertEqual(43, struct.unpack('<I', buff[71:75])[0])
+        # Days since epoch from bytes 74-77
+        self.assertEqual(state.tick_count_to_milliseconds(), struct.unpack('<I', buff[75:79])[0])
 
         # First byte of message body is '$' = ASCII 36 (decimal)
-        self.assertEqual(36, buff[12])
+        self.assertEqual(36, buff[79])
         # Message descriptor: GPZDA
         # G = 71
-        self.assertEqual(71, buff[13])
+        self.assertEqual(71, buff[80])
         # P = 80
-        self.assertEqual(80, buff[14])
+        self.assertEqual(80, buff[81])
         # Z = 90
-        self.assertEqual(90, buff[15])
+        self.assertEqual(90, buff[82])
         # D = 68
-        self.assertEqual(68, buff[16])
+        self.assertEqual(68, buff[83])
         # A = 65
-        self.assertEqual(65, buff[17])
+        self.assertEqual(65, buff[84])
         # Component separator is , = 44
-        self.assertEqual(44, buff[18])
+        self.assertEqual(44, buff[85])
         # Hour, minute, and decimal seconds (all initially ASCII 0=48 decimal)
-        self.assertEqual(48, buff[19])
-        self.assertEqual(48, buff[20])
-        self.assertEqual(48, buff[21])
-        self.assertEqual(48, buff[22])
-        # Seconds '01.503'
-        self.assertEqual(48, buff[23])
-        # '1' = 49
-        self.assertEqual(49, buff[24])
+        self.assertEqual(48, buff[86])
+        self.assertEqual(48, buff[87])
+        self.assertEqual(48, buff[88])
+        self.assertEqual(48, buff[89])
+        # Seconds '00.150'
+        self.assertEqual(48, buff[90])
+        # '0' = 48
+        self.assertEqual(48, buff[91])
         # '.' = 46
-        self.assertEqual(46, buff[25])
+        self.assertEqual(46, buff[92])
         # Decimal part of seconds
+        # '1' = 49
+        self.assertEqual(49, buff[93])
         # '5' = 53
-        self.assertEqual(53, buff[26])
-        self.assertEqual(48, buff[27])
-        # '3' = 51
-        self.assertEqual(51, buff[28])
+        self.assertEqual(53, buff[94])
+        # '0' = 48
+        self.assertEqual(48, buff[95])
         # Component separator is , = 44
-        self.assertEqual(44, buff[29])
+        self.assertEqual(44, buff[96])
         # Month day is '01'
-        self.assertEqual(b'01', buff[30:32])
+        self.assertEqual(b'01', buff[97:99])
         # Component separator is , = 44
-        self.assertEqual(44, buff[32])
+        self.assertEqual(44, buff[99])
         # Month is '01'
-        self.assertEqual(b'01', buff[33:35])
+        self.assertEqual(b'01', buff[100:102])
         # Component separator is , = 44
-        self.assertEqual(44, buff[35])
+        self.assertEqual(44, buff[102])
         # Year is '2020'
-        self.assertEqual(b'2020', buff[36:40])
+        self.assertEqual(b'2020', buff[103:107])
         # Component separator is , = 44
-        self.assertEqual(44, buff[40])
+        self.assertEqual(44, buff[107])
         # End of message is hard-coded with '00,00*'
-        self.assertEqual(b'00,00*', buff[41:47])
-        # Checksum: '51'
-        self.assertEqual(b'51', buff[47:49])
+        self.assertEqual(b'00,00*', buff[108:114])
+        # Checksum: '52'
+        self.assertEqual(b'52', buff[114:116])
         # End of message: '\r\n'
-        self.assertEqual(b'\r\n', buff[49:51])
+        self.assertEqual(b'\r\n', buff[116:118])
+
+        with self.assertRaises(IndexError):
+            buff[118]
 
     def test_generate_dbt(self):
         state: State = State()
@@ -408,97 +461,99 @@ class TestDataGenerator(unittest.TestCase):
         state.update_ticks(300536)
         state.ref_time.update(state.curr_ticks)
         state.sim_time.update(math.floor(state.curr_ticks / 2))
-        gen: DataGenerator = DataGenerator()
+        gen: DataGenerator = DataGenerator(use_data_constructor=True)
 
-        bio = io.BytesIO()
-        writer = io.BufferedWriter(bio)
+        writer: Writer = MemoryWriter('Gulf Surveyor', 'WIBL-Simulator')
         gen.generate_dbt(state, writer)
 
-        writer.flush()
-        buff: bytes = bio.getvalue()
+        buff: bytes = writer.getvalue()
         self.assertIsNotNone(buff)
+        self.__test_header_packets(buff)
 
-        # Message type is the 1st-4th bytes
-        self.assertEqual(PacketTypes.SerialString.value, struct.unpack('<I', buff[0:4])[0])
-        # Message length is the 5th-9th bytes
+        # Message type in bytes 66-69
+        self.assertEqual(PacketTypes.SerialString.value, struct.unpack('<I', buff[67:71])[0])
+        # Message length in bytes 70-73
         # Length may vary a bit due to random depth values, so let's just make sure it's a valid int
         exc_raised = False
         try:
-            msg_len = int(struct.unpack('<I', buff[4:8])[0])
+            msg_len = int(struct.unpack('<I', buff[71:75])[0])
         except ValueError:
             exc_raised = True
         self.assertFalse(exc_raised)
-        # Days since epoch from bytes 9 and 10
-        self.assertEqual(state.tick_count, struct.unpack('<I', buff[8:12])[0])
+        # Days since epoch from bytes 74-77
+        self.assertEqual(state.tick_count_to_milliseconds(), struct.unpack('<I', buff[75:79])[0])
 
         # First byte of message body is '$' = ASCII 36 (decimal)
-        self.assertEqual(36, buff[12])
+        self.assertEqual(36, buff[79])
         # Message descriptor: SDDBT
         # S = 83
-        self.assertEqual(83, buff[13])
+        self.assertEqual(83, buff[80])
         # D = 68
-        self.assertEqual(68, buff[14])
+        self.assertEqual(68, buff[81])
         # D = 68
-        self.assertEqual(68, buff[15])
+        self.assertEqual(68, buff[82])
         # B = 66
-        self.assertEqual(66, buff[16])
+        self.assertEqual(66, buff[83])
         # T = 84
-        self.assertEqual(84, buff[17])
+        self.assertEqual(84, buff[84])
         # Component separator is , = 44
-        self.assertEqual(44, buff[18])
+        self.assertEqual(44, buff[85])
 
         # Depth in feet (random value so we just make sure it is a valid float)
         exc_raised = False
         try:
-            depth_feet = float(buff[19:23])
+            depth_feet = float(buff[86:90])
         except ValueError:
             exc_raised = True
         self.assertFalse(exc_raised)
         # Component separator is , = 44
-        self.assertEqual(44, buff[23])
+        self.assertEqual(44, buff[90])
         # Unit: 'f' = 102
-        self.assertEqual(102, buff[24])
+        self.assertEqual(102, buff[91])
         # Component separator is , = 44
-        self.assertEqual(44, buff[25])
+        self.assertEqual(44, buff[92])
 
         # Depth in metres (random value so we just make sure it is a valid float)
         exc_raised = False
         try:
             # TODO: This sometimes fails because the formatting for the message doesn't 0-pad the integer part
             #  of the depth values (metres, as well as feet and fathoms)
-            depth_metres = float(buff[26:30])
+            depth_metres = float(buff[93:97])
         except ValueError:
             exc_raised = True
         self.assertFalse(exc_raised)
         # Component separator is , = 44
-        self.assertEqual(44, buff[30])
+        self.assertEqual(44, buff[97])
         # Unit: 'M' = 77
-        self.assertEqual(77, buff[31])
+        self.assertEqual(77, buff[98])
         # Component separator is , = 44
-        self.assertEqual(44, buff[32])
+        self.assertEqual(44, buff[99])
 
         # Depth in fathoms (random value so we just make sure it is a valid float)
         exc_raised = False
         try:
-            depth_fathoms = float(buff[33:36])
+            depth_fathoms = float(buff[100:103])
         except ValueError:
             exc_raised = True
         self.assertFalse(exc_raised)
         # Component separator is , = 44
-        self.assertEqual(44, buff[36])
+        self.assertEqual(44, buff[103])
         # Unit and message end: 'F*'
-        self.assertEqual(b'F*', buff[37:39])
+        self.assertEqual(b'F*', buff[104:106])
 
         # Checksum may be different each time due to random elements above so just make sure
         # it is an integer in hexadecimal form.
         exc_raised = False
         try:
-            depth_fathoms = int(buff[39:41], 16)
+            depth_fathoms = int(buff[106:108], 16)
         except ValueError:
             exc_raised = True
         self.assertFalse(exc_raised)
         # End of message: '\r\n'
-        self.assertEqual(b'\r\n', buff[41:43])
+        self.assertEqual(b'\r\n', buff[108:110])
+
+        with self.assertRaises(IndexError):
+            buff[110]
 
 
 if __name__ == '__main__':

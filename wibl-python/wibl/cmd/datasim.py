@@ -3,7 +3,7 @@ import argparse
 import logging
 
 from wibl.simulator.data import DataGenerator, Engine, CLOCKS_PER_SEC
-from wibl.simulator.data.writer import Writer
+from wibl.simulator.data.writer import Writer, FileWriter
 
 
 logger = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ def datasim():
     gen: DataGenerator = DataGenerator(emit_nmea0183=args.emit_serial,
                                        emit_nmea2000=args.emit_binary,
                                        use_data_constructor=use_data_constructor)
-    writer: Writer = Writer(args.filename, 'Gulf Surveyor', 'WIBL-Simulator')
+    writer: Writer = FileWriter(args.filename, 'Gulf Surveyor', 'WIBL-Simulator')
     engine: Engine = Engine(gen)
 
     first_time: int
