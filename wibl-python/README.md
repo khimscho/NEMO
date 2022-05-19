@@ -7,13 +7,20 @@
 pip install .
 ```
 
+## Testing
+To run unit tests, including detailed verification of packet data output by the data simulator, run:
+```
+pip install -r requirements-build.txt
+pytest -n 4 --cov=wibl --cov-branch --cov-report=xml --junitxml=test-results.xml tests/unit/*.py
+```
+
 ## Usage
 ```
 ]$ wibl --help
 usage: wibl <command> [<arguments>]
 
     Commands include:
-        datasim     Generate test data using Python-native data simulator.
+        datasim    Generate test data using Python-native data simulator.
         editwibl   Edit WIBL logger files, e.g., add platform metadata.
 
 
@@ -30,13 +37,13 @@ optional arguments:
 ### Run WIBL data simulator
 Run data simulator to generate test data and store it in a binary WIBL file:
 ```
-$ wibl datasim -f test.bin -d 360
+$ wibl datasim -f test.bin -d 360 -s
 ```
 
 For more information on simulator, use the `-h` option:
 ```
 $ wibl datasim -h
-usage: wibl [-h] [-f FILENAME] [-d DURATION] [-s] [-b] [-v]
+usage: wibl [-h] [-f FILENAME] [-d DURATION] [-s] [-b] [--use_buffer_constructor] [-v]
 
 Command line user interface for the NMEA data simulator.
 
@@ -48,6 +55,8 @@ optional arguments:
                         Duration (seconds) of the simulated data
   -s, --emit_serial     Write NMEA0183 simulated strings
   -b, --emit_binary     Write NMEA2000 simulated data packets
+  --use_buffer_constructor
+                        Use buffer constructor, rather than data constructor, for data packets. If not specified, data constructor will be used.
   -v, --verbose         Produce verbose output.
 ```
 

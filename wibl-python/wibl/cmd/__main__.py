@@ -13,7 +13,7 @@ class WIBL:
             usage='''wibl <command> [<arguments>]
 
     Commands include:
-        datasim     Generate test data using Python-native data simulator.
+        datasim    Generate test data using Python-native data simulator.
         editwibl   Edit WIBL logger files, e.g., add platform metadata.
                 '''
         )
