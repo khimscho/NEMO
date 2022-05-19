@@ -3,6 +3,7 @@ import unittest
 import math
 import logging
 
+import xmlrunner
 import numpy as np
 
 from wibl.core.logger_file import PacketTypes
@@ -585,7 +586,7 @@ class TestDataGenerator(unittest.TestCase):
         gen: DataGenerator = DataGenerator(use_data_constructor=True)
 
         writer: Writer = MemoryWriter('Gulf Surveyor', 'WIBL-Simulator')
-        gen.generate_dbt(state, writer)
+        gen.generate_dbt(state, writer, override_depth=10.0)
 
         buff: bytes = writer.getvalue()
         self.assertIsNotNone(buff)
@@ -620,13 +621,8 @@ class TestDataGenerator(unittest.TestCase):
         # Component separator is , = 44
         self.assertEqual(44, buff[85])
 
-        # Depth in feet (random value so we just make sure it is a valid float)
-        exc_raised = False
-        try:
-            depth_feet = float(buff[86:90])
-        except ValueError:
-            exc_raised = True
-        self.assertFalse(exc_raised)
+        # Depth in feet
+        self.assertEqual(32.8, float(buff[86:90]))
         # Component separator is , = 44
         self.assertEqual(44, buff[90])
         # Unit: 'f' = 102
@@ -634,15 +630,9 @@ class TestDataGenerator(unittest.TestCase):
         # Component separator is , = 44
         self.assertEqual(44, buff[92])
 
-        # Depth in metres (random value so we just make sure it is a valid float)
+        # Depth in metres
         exc_raised = False
-        try:
-            # TODO: This sometimes fails because the formatting for the message doesn't 0-pad the integer part
-            #  of the depth values (metres, as well as feet and fathoms)
-            depth_metres = float(buff[93:97])
-        except ValueError:
-            exc_raised = True
-        self.assertFalse(exc_raised)
+        self.assertEqual(10.0, float(buff[93:97]))
         # Component separator is , = 44
         self.assertEqual(44, buff[97])
         # Unit: 'M' = 77
@@ -650,26 +640,15 @@ class TestDataGenerator(unittest.TestCase):
         # Component separator is , = 44
         self.assertEqual(44, buff[99])
 
-        # Depth in fathoms (random value so we just make sure it is a valid float)
-        exc_raised = False
-        try:
-            depth_fathoms = float(buff[100:103])
-        except ValueError:
-            exc_raised = True
-        self.assertFalse(exc_raised)
+        # Depth in fathoms
+        self.assertEqual(5.5, float(buff[100:103]))
         # Component separator is , = 44
         self.assertEqual(44, buff[103])
         # Unit and message end: 'F*'
         self.assertEqual(b'F*', buff[104:106])
 
-        # Checksum may be different each time due to random elements above so just make sure
-        # it is an integer in hexadecimal form.
-        exc_raised = False
-        try:
-            depth_fathoms = int(buff[106:108], 16)
-        except ValueError:
-            exc_raised = True
-        self.assertFalse(exc_raised)
+        # Checksum
+        self.assertEqual(14, int(buff[106:108], 16))
         # End of message: '\r\n'
         self.assertEqual(b'\r\n', buff[108:110])
 
@@ -704,4 +683,8 @@ class TestDataGenerator(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main()
+    unittest.main(
+        testRunner=xmlrunner.XMLTestRunner(output='test-reports'),
+        failfast=False, buffer=False, catchbreak=False
+    )
+
