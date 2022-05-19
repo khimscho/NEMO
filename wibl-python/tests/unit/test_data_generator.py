@@ -1,6 +1,5 @@
 import struct
 import unittest
-import io
 import math
 import logging
 
@@ -41,8 +40,8 @@ class TestDataGenerator(unittest.TestCase):
         logger.debug(f"Mean: {np.mean(test_unit_normal)}, min: {min(test_unit_normal)}, max: {max(test_unit_normal)}")
 
         self.assertAlmostEqual(0.0, np.mean(test_unit_normal), 2)
-        self.assertLess(-5.5, min(test_unit_normal))
-        self.assertGreater(5.5, max(test_unit_normal))
+        self.assertLess(-5.75, min(test_unit_normal))
+        self.assertGreater(5.75, max(test_unit_normal))
 
     def __test_header_packets(self, buff: bytes):
         # First packet is SerialiserVersion
@@ -104,7 +103,7 @@ class TestDataGenerator(unittest.TestCase):
         # Message length in bytes 70-73
         self.assertEqual(88, struct.unpack('<I', buff[71:75])[0])
         # Days since epoch from bytes 74-77
-        self.assertEqual(state.tick_count_to_milliseconds(), struct.unpack('<I', buff[75:79])[0])
+        self.assertEqual(state.sim_time.tick_count_to_milliseconds(), struct.unpack('<I', buff[75:79])[0])
 
         # First byte of message body is '$' = ASCII 36 (decimal)
         self.assertEqual(36, buff[79])
@@ -242,6 +241,32 @@ class TestDataGenerator(unittest.TestCase):
         with self.assertRaises(IndexError):
             buff[163]
 
+    def test_generate_gga_compare(self):
+        """
+        Compare results from buffer vs. data constructor for GGA SerialString packet
+        :return:
+        """
+        state: State = State()
+        # Simulate first position after initial position step
+        state.current_longitude = -74.999996729200006
+        state.current_latitude = 43.000003270800001
+        # Simulate first time after initial time step
+        state.update_ticks(300536)
+        state.ref_time.update(state.curr_ticks)
+        state.sim_time.update(math.floor(state.curr_ticks / 2))
+
+        gen_data_const: DataGenerator = DataGenerator(use_data_constructor=True)
+        writer_data_const: Writer = MemoryWriter('Gulf Surveyor', 'WIBL-Simulator')
+        gen_data_const.generate_gga(state, writer_data_const)
+        buff_data_const: bytes = writer_data_const.getvalue()
+
+        gen_buff_const: DataGenerator = DataGenerator(use_data_constructor=False)
+        writer_buff_const: Writer = MemoryWriter('Gulf Surveyor', 'WIBL-Simulator')
+        gen_buff_const.generate_gga(state, writer_buff_const)
+        buff_buff_const: bytes = writer_buff_const.getvalue()
+
+        self.assertEqual(buff_data_const, buff_buff_const)
+
     def test_generate_system_time(self):
         state: State = State()
         # Simulate first time after initial time step
@@ -272,6 +297,28 @@ class TestDataGenerator(unittest.TestCase):
         with self.assertRaises(IndexError):
             buff[90]
 
+    def test_generate_system_time_compare(self):
+        """
+        Compare results from buffer vs. data constructor for SystemTime packet
+        :return:
+        """
+        state: State = State()
+        # Simulate first time after initial time step
+        state.update_ticks(300536)
+        state.ref_time.update(state.curr_ticks)
+
+        gen_data_const: DataGenerator = DataGenerator(use_data_constructor=True)
+        writer_data_const: Writer = MemoryWriter('Gulf Surveyor', 'WIBL-Simulator')
+        gen_data_const.generate_system_time(state, writer_data_const)
+        buff_data_const: bytes = writer_data_const.getvalue()
+
+        gen_buffer_const: DataGenerator = DataGenerator(use_data_constructor=False)
+        writer_buffer_const: Writer = MemoryWriter('Gulf Surveyor', 'WIBL-Simulator')
+        gen_buffer_const.generate_system_time(state, writer_buffer_const)
+        buff_buffer_const: bytes = writer_buffer_const.getvalue()
+
+        self.assertEqual(buff_data_const, buff_buffer_const)
+
     def test_generate_gnss(self):
         state: State = State()
         # Simulate first time after initial time step
@@ -297,9 +344,9 @@ class TestDataGenerator(unittest.TestCase):
         # Days since epoch from bytes 74-75
         self.assertEqual(18262, struct.unpack('<H', buff[75:77])[0])
         # Read timestamp from bytes 76-83
-        self.assertEqual(0.300536, struct.unpack('<d', buff[77:85])[0])
+        self.assertEqual(0.150268, struct.unpack('<d', buff[77:85])[0])
         # Elapsed time should equal state.tick_count_to_milliseconds()
-        self.assertEqual(state.tick_count_to_milliseconds(), struct.unpack('<I', buff[85:89])[0])
+        self.assertEqual(state.sim_time.tick_count_to_milliseconds(), struct.unpack('<I', buff[85:89])[0])
 
         # Message date should equal state.sim_time.days_since_epoch()
         self.assertEqual(state.sim_time.days_since_epoch(), struct.unpack('<H', buff[89:91])[0])
@@ -335,6 +382,32 @@ class TestDataGenerator(unittest.TestCase):
         with self.assertRaises(IndexError):
             buff[162]
 
+    def test_generate_gnss_compare(self):
+        """
+        Compare results from buffer vs. data constructor for GNSS packet
+        :return:
+        """
+        state: State = State()
+        # Simulate first time after initial time step
+        state.update_ticks(300536)
+        state.ref_time.update(state.curr_ticks)
+        state.sim_time.update(math.floor(state.curr_ticks / 2))
+        # Simulate first position after initial position step
+        state.current_longitude = -74.999996729200006
+        state.current_latitude = 43.000003270800001
+
+        gen_data_const: DataGenerator = DataGenerator(use_data_constructor=True)
+        writer_data_const: Writer = MemoryWriter('Gulf Surveyor', 'WIBL-Simulator')
+        gen_data_const.generate_gnss(state, writer_data_const)
+        buff_data_const: bytes = writer_data_const.getvalue()
+
+        gen_buff_const: DataGenerator = DataGenerator(use_data_constructor=False)
+        writer_buff_const: Writer = MemoryWriter('Gulf Surveyor', 'WIBL-Simulator')
+        gen_buff_const.generate_gnss(state, writer_buff_const)
+        buff_buff_const: bytes = writer_buff_const.getvalue()
+
+        self.assertEqual(buff_data_const, buff_buff_const)
+
     def test_generate_depth(self):
         state: State = State()
         # Simulate first time after initial time step
@@ -356,9 +429,9 @@ class TestDataGenerator(unittest.TestCase):
         # Days since epoch from bytes 74-75
         self.assertEqual(18262, struct.unpack('<H', buff[75:77])[0])
         # Read timestamp from bytes 76-83
-        self.assertEqual(0.300536, struct.unpack('<d', buff[77:85])[0])
+        self.assertEqual(0.0, struct.unpack('<d', buff[77:85])[0])
         # Elapsed time should equal state.tick_count_to_milliseconds()
-        self.assertEqual(state.tick_count_to_milliseconds(), struct.unpack('<I', buff[85:89])[0])
+        self.assertEqual(state.sim_time.tick_count_to_milliseconds(), struct.unpack('<I', buff[85:89])[0])
 
         # Depth should equal state.current_depth
         self.assertEqual(state.current_depth, struct.unpack('<d', buff[89:97])[0])
@@ -369,6 +442,28 @@ class TestDataGenerator(unittest.TestCase):
 
         with self.assertRaises(IndexError):
             buff[113]
+
+    def test_generate_depth_compare(self):
+        """
+        Compare results from buffer vs. data constructor for Depth packet
+        :return:
+        """
+        state: State = State()
+        # Simulate first time after initial time step
+        state.update_ticks(300536)
+        state.ref_time.update(state.curr_ticks)
+
+        gen_data_const: DataGenerator = DataGenerator(use_data_constructor=True)
+        writer_data_const: Writer = MemoryWriter('Gulf Surveyor', 'WIBL-Simulator')
+        gen_data_const.generate_depth(state, writer_data_const)
+        buff_data_const: bytes = writer_data_const.getvalue()
+
+        gen_buff_const: DataGenerator = DataGenerator(use_data_constructor=False)
+        writer_buff_const: Writer = MemoryWriter('Gulf Surveyor', 'WIBL-Simulator')
+        gen_buff_const.generate_depth(state, writer_buff_const)
+        buff_buff_const: bytes = writer_data_const.getvalue()
+
+        self.assertEqual(buff_data_const, buff_buff_const)
 
     def test_generate_zda(self):
         state: State = State()
@@ -393,7 +488,7 @@ class TestDataGenerator(unittest.TestCase):
         # Message length in bytes 70-73
         self.assertEqual(43, struct.unpack('<I', buff[71:75])[0])
         # Days since epoch from bytes 74-77
-        self.assertEqual(state.tick_count_to_milliseconds(), struct.unpack('<I', buff[75:79])[0])
+        self.assertEqual(state.sim_time.tick_count_to_milliseconds(), struct.unpack('<I', buff[75:79])[0])
 
         # First byte of message body is '$' = ASCII 36 (decimal)
         self.assertEqual(36, buff[79])
@@ -452,6 +547,32 @@ class TestDataGenerator(unittest.TestCase):
         with self.assertRaises(IndexError):
             buff[118]
 
+    def test_generate_zda_compare(self):
+        """
+        Compare results from buffer vs. data constructor for ZDA SerialString packet
+        :return:
+        """
+        state: State = State()
+        # Simulate first position after initial position step
+        state.current_longitude = -74.999996729200006
+        state.current_latitude = 43.000003270800001
+        # Simulate first time after initial time step
+        state.update_ticks(300536)
+        state.ref_time.update(state.curr_ticks)
+        state.sim_time.update(math.floor(state.curr_ticks / 2))
+
+        gen_data_const: DataGenerator = DataGenerator(use_data_constructor=True)
+        writer_data_const: Writer = MemoryWriter('Gulf Surveyor', 'WIBL-Simulator')
+        gen_data_const.generate_zda(state, writer_data_const)
+        buff_data_const: bytes = writer_data_const.getvalue()
+
+        gen_buff_const: DataGenerator = DataGenerator(use_data_constructor=False)
+        writer_buff_const: Writer = MemoryWriter('Gulf Surveyor', 'WIBL-Simulator')
+        gen_buff_const.generate_zda(state, writer_buff_const)
+        buff_buff_const: bytes = writer_buff_const.getvalue()
+
+        self.assertEqual(buff_data_const, buff_buff_const)
+
     def test_generate_dbt(self):
         state: State = State()
         # Simulate first position after initial position step
@@ -481,7 +602,7 @@ class TestDataGenerator(unittest.TestCase):
             exc_raised = True
         self.assertFalse(exc_raised)
         # Days since epoch from bytes 74-77
-        self.assertEqual(state.tick_count_to_milliseconds(), struct.unpack('<I', buff[75:79])[0])
+        self.assertEqual(state.sim_time.tick_count_to_milliseconds(), struct.unpack('<I', buff[75:79])[0])
 
         # First byte of message body is '$' = ASCII 36 (decimal)
         self.assertEqual(36, buff[79])
@@ -554,6 +675,32 @@ class TestDataGenerator(unittest.TestCase):
 
         with self.assertRaises(IndexError):
             buff[110]
+
+    def test_generate_dbt_compare(self):
+        """
+        Compare results from buffer vs. data constructor for DBT SerialString packet
+        :return:
+        """
+        state: State = State()
+        # Simulate first position after initial position step
+        state.current_longitude = -74.999996729200006
+        state.current_latitude = 43.000003270800001
+        # Simulate first time after initial time step
+        state.update_ticks(300536)
+        state.ref_time.update(state.curr_ticks)
+        state.sim_time.update(math.floor(state.curr_ticks / 2))
+
+        gen_data_const: DataGenerator = DataGenerator(use_data_constructor=True)
+        writer_data_const: Writer = MemoryWriter('Gulf Surveyor', 'WIBL-Simulator')
+        gen_data_const.generate_dbt(state, writer_data_const, override_depth=10.0)
+        buff_data_const: bytes = writer_data_const.getvalue()
+
+        gen_buff_const: DataGenerator = DataGenerator(use_data_constructor=False)
+        writer_buff_const: Writer = MemoryWriter('Gulf Surveyor', 'WIBL-Simulator')
+        gen_buff_const.generate_dbt(state, writer_buff_const, override_depth=10.0)
+        buff_buff_const: bytes = writer_buff_const.getvalue()
+
+        self.assertEqual(buff_data_const, buff_buff_const)
 
 
 if __name__ == '__main__':

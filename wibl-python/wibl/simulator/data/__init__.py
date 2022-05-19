@@ -343,7 +343,7 @@ class DataGenerator:
             data = {
                 'date': state.ref_time.days_since_epoch(),
                 'timestamp': state.ref_time.seconds_in_day(),
-                'elapsed_time': state.tick_count_to_milliseconds(),
+                'elapsed_time': state.ref_time.tick_count_to_milliseconds(),
                 'data_source': 0
             }
             pkt: lf.DataPacket = lf.SystemTime(**data)
@@ -367,9 +367,9 @@ class DataGenerator:
         """
         if self._use_data_constructor:
             data = {
-                'date': state.ref_time.days_since_epoch(),
-                'timestamp': state.ref_time.seconds_in_day(),
-                'elapsed_time': state.tick_count_to_milliseconds(),
+                'date': state.sim_time.days_since_epoch(),
+                'timestamp': state.sim_time.seconds_in_day(),
+                'elapsed_time': state.sim_time.tick_count_to_milliseconds(),
                 'msg_date': state.sim_time.days_since_epoch(),
                 'msg_timestamp': state.sim_time.seconds_in_day(),
                 'latitude': state.current_latitude,
@@ -441,9 +441,9 @@ class DataGenerator:
         """
         if self._use_data_constructor:
             data = {
-                'date': state.ref_time.days_since_epoch(),
-                'timestamp': state.ref_time.seconds_in_day(),
-                'elapsed_time': state.tick_count_to_milliseconds(),
+                'date': state.sim_time.days_since_epoch(),
+                'timestamp': state.sim_time.seconds_in_day(),
+                'elapsed_time': state.sim_time.tick_count_to_milliseconds(),
                 'depth': state.current_depth,
                 'offset': 0.0,
                 'range': 200.0
@@ -490,7 +490,7 @@ class DataGenerator:
 
         if self._use_data_constructor:
             data = {'payload': bytes(msg, 'ascii'),
-                    'elapsed_time': state.tick_count_to_milliseconds()
+                    'elapsed_time': state.sim_time.tick_count_to_milliseconds()
                     }
 
             pkt: lf.DataPacket = lf.SerialString(**data)
@@ -539,7 +539,7 @@ class DataGenerator:
 
         if self._use_data_constructor:
             data = {'payload': bytes(msg, 'ascii'),
-                    'elapsed_time': state.tick_count_to_milliseconds()
+                    'elapsed_time': state.sim_time.tick_count_to_milliseconds()
                     }
 
             pkt: lf.DataPacket = lf.SerialString(**data)
@@ -551,14 +551,19 @@ class DataGenerator:
 
         output.record(pkt)
 
-    def generate_dbt(self, state: State, output: Writer) -> NoReturn:
+    def generate_dbt(self, state: State, output: Writer, *,
+                     override_depth: float = None) -> NoReturn:
         """
         Generate NMEA0183 depth (SDDBT) information
         :param state: Simulator state to use for generation
         :param output: Output writer to use for serialisation of the simulated DBT report
+        :param override_depth: Override depth with this value (used for unit testing so as to avoid stochastic depth)
         :return:
         """
-        depth_metres: float = state.current_depth + state.measurement_uncertainty * state.unit_normal()
+        if override_depth is not None:
+            depth_metres: float = override_depth
+        else:
+            depth_metres: float = state.current_depth + state.measurement_uncertainty * state.unit_normal()
         depth_feet: float = depth_metres * 3.2808
         depth_fathoms: float = depth_metres * 0.5468
 
@@ -572,7 +577,7 @@ class DataGenerator:
 
         if self._use_data_constructor:
             data = {'payload': bytes(msg, 'ascii'),
-                    'elapsed_time': state.tick_count_to_milliseconds()
+                    'elapsed_time': state.sim_time.tick_count_to_milliseconds()
                     }
 
             pkt: lf.DataPacket = lf.SerialString(**data)
