@@ -2,6 +2,7 @@ import sys
 import argparse
 import logging
 
+from wibl.cmd import get_subcommand_prog
 from wibl.simulator.data import DataGenerator, Engine, CLOCKS_PER_SEC
 from wibl.simulator.data.writer import Writer, FileWriter
 
@@ -16,7 +17,8 @@ def datasim():
     :return:
     """
     parser = argparse.ArgumentParser(
-        description='Command line user interface for the NMEA data simulator.'
+        description='Command line user interface for the NMEA data simulator.',
+        prog=get_subcommand_prog()
     )
     parser.add_argument('-f', '--filename', help='Simulated data output filename')
     parser.add_argument('-d', '--duration', help='Duration (seconds) of the simulated data',

@@ -28,23 +28,27 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
-import boto3
 import uuid
 import argparse as arg
-from sys import exit
+import sys
 
-def main():
-    parser = arg.ArgumentParser(description = 'Upload WIBL logger files (in a limited capacity)')
+import boto3
+
+from wibl.cmd import get_subcommand_prog
+
+
+def uploadwibl():
+    parser = arg.ArgumentParser(description='Upload WIBL logger files to an S3 bucket (in a limited capacity)',
+                                prog=get_subcommand_prog())
     parser.add_argument('-b', '--bucket', type=str, help = 'Set the upload bucket name (string)')
     parser.add_argument('-j', '--json', action='store_true', help = 'Add .json extension to UUID for upload key')
     parser.add_argument('-s', '--source', type=str, help='Set SourceID tag for the S3 object (string)')
     parser.add_argument('input', type=str, help = 'WIBL format input file')
 
-    optargs = parser.parse_args()
+    optargs = parser.parse_args(sys.argv[2:])
 
     if not optargs.input:
-        print('Error: must have an input file!')
-        exit(1)
+        sys.exit('Error: must have an input file!')
     else:
         filename = optargs.input
   
@@ -81,6 +85,3 @@ def main():
         print(f'Successfully uploaded {filename} to bucket {bucket} for object {obj_key}.')
     except:
         print(f"Failed to upload file to CSB ingest bucket")
-
-if __name__ == "__main__":
-    main()

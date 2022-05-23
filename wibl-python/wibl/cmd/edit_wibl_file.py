@@ -33,11 +33,13 @@ import argparse as arg
 import sys
 import json
 
+from wibl.cmd import get_subcommand_prog
 from wibl.core import logger_file as lf
 
 
 def editwibl():
-    parser = arg.ArgumentParser(description = 'Edit WIBL logger files (in a limited capacity)')
+    parser = arg.ArgumentParser(description = 'Edit WIBL logger files (in a limited capacity)',
+                                prog=get_subcommand_prog())
     parser.add_argument('-n', '--name', type=str, help = 'Set the logger name (string)')
     parser.add_argument('-u', '--uniq', type=str, help = 'Set the unique ID for the logger (string)')
     parser.add_argument('-m', '--meta', type=str, help = 'Specify a JSON file for additional metadata elements (filename)')
