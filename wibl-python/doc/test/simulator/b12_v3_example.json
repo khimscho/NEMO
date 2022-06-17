@@ -11,7 +11,7 @@
       "providerOrganizationName": "Sea-ID",
       "providerEmail": "support@sea-id.org",
       "uniqueVesselID": "SEAID-e8c469f8-df38-11e5-b86d-9a79f06e9478",
-      "convention": "GeoJSON CSB 2.0",
+      "convention": "GeoJSON CSB 3.0",
       "dataLicense": "CCO 1.0",
       "providerLogger": "Rose Point ECS",
       "providerLoggerVersion": "1.0",
