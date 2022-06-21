@@ -20,7 +20,7 @@ class WIBL:
                 '''
         )
         parser.add_argument('--version', help='print version and exit',
-                            action='version', version=f"wibl-python {version}")
+                            action='version', version=f"%(prog)s {version}")
         parser.add_argument('command', help='Subcommand to run')
 
         # Only consume the command argument here, let sub-commands consume the rest
