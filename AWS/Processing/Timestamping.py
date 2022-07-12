@@ -51,6 +51,10 @@ class NoData(Exception):
 class NewerDataFile(Exception):
     pass
 
+## Exception to indicate that no time source was foundß
+class NoTimeSource(Exception):
+    pass
+
 ## Construct an encoded integer representing a protocol version
 #
 # Create an encoded integer that represents a combined major/minor version
