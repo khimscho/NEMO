@@ -39,7 +39,7 @@ from typing import Dict, Any
 import datetime as dt
 import pynmea2 as nmea
 import LoggerFile
-from fileloader import TimeSource, load_file
+import fileloader
 from interpolation import InterpTable
 from statistics import PktStats, PktFaults
 
@@ -111,7 +111,13 @@ def time_interpolation(filename: str, elapsed_time_quantum: int, **kwargs) -> Di
         fault_limit = kwargs['fault_limit']
     
     # Pull all of the packets out of the file, and fix up any preliminary problems
-    stats, time_source, packets = load_file(filename, verbose, fault_limit)
+    try:
+        stats, time_source, packets = fileloader.load_file(filename, verbose, fault_limit)
+    except fileloader.NoTimeSource as e:
+        if verbose:
+            print(f'Failed to determine a valid time source from file: {e}')
+        raise NoTimeSource()
+    
     if verbose:
         print(stats)
 
@@ -172,14 +178,14 @@ def time_interpolation(filename: str, elapsed_time_quantum: int, **kwargs) -> Di
 
         if isinstance(pkt, LoggerFile.SystemTime):
             stats.Observed(pkt.name())
-            if time_source == TimeSource.Time_SysTime:
+            if time_source == fileloader.TimeSource.Time_SysTime:
                 time_table.add_point(pkt.elapsed + elapsed_offset, 'ref', pkt.date * seconds_per_day + pkt.timestamp)
         if isinstance(pkt, LoggerFile.Depth):
             stats.Observed(pkt.name())
             depth_table.add_point(pkt.elapsed + elapsed_offset, 'z', pkt.depth)
         if isinstance(pkt, LoggerFile.GNSS):
             stats.Observed(pkt.name())
-            if time_source == TimeSource.Time_GNSS:
+            if time_source == fileloader.TimeSource.Time_GNSS:
                 time_table.add_point(pkt.elapsed + elapsed_offset, 'ref', pkt.date * seconds_per_day + pkt.timestamp)
             position_table.add_points(pkt.elapsed + elapsed_offset, ('lat', 'lon'), (pkt.latitude, pkt.longitude))
         if isinstance(pkt, LoggerFile.SerialString):
@@ -192,11 +198,11 @@ def time_interpolation(filename: str, elapsed_time_quantum: int, **kwargs) -> Di
                 if len(data) > 11:
                     try:
                         msg = nmea.parse(data)
-                        if isinstance(msg, nmea.ZDA) and time_source == TimeSource.Time_ZDA:
+                        if isinstance(msg, nmea.ZDA) and time_source == fileloader.TimeSource.Time_ZDA:
                             if msg.datestamp is not None and msg.timestamp is not None:
                                 reftime = dt.datetime.combine(msg.datestamp, msg.timestamp)
                                 time_table.add_point(pkt.elapsed + elapsed_offset, 'ref', reftime.timestamp())
-                        if isinstance(msg, nmea.RMC) and time_source == TimeSource.Time_RMC:
+                        if isinstance(msg, nmea.RMC) and time_source == fileloader.TimeSource.Time_RMC:
                             if msg.datestamp is not None and msg.timestamp is not None:
                                 reftime = dt.datetime.combine(msg.datestamp, msg.timestamp)
                                 time_table.add_point(pkt.elapsed + elapsed_offset, 'ref', reftime.timestamp())
