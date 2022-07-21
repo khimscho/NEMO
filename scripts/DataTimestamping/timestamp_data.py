@@ -70,7 +70,7 @@ def main():
         out_filename = optargs.output
     
     try:
-        tsdata = ts.time_interpolation(in_filename, elapsed_time_quantum, False)
+        tsdata = ts.time_interpolation(in_filename, elapsed_time_quantum)
         
     except ts.NoTimeSource:
         print('Error: failed to find a time source to timestamp file.')

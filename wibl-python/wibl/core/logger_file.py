@@ -37,6 +37,9 @@ from enum import Enum
 class SpecificationError(Exception):
     pass
 
+## Exception used to report a bad translation of a packet (rather than passing up a raw struct exception)
+class PacketTranscriptionError(Exception):
+    pass
 
 ## Enumeration of the identification numbers associated with the various packets in a WIBL file
 class PacketTypes(Enum):
@@ -148,6 +151,7 @@ class DataPacket(ABC):
     def serialise(self, f: io.BufferedWriter) -> None:
         buffer = self.payload()
         id = self.id()
+        #print(f'Writing packet with ID {id} and buffer length {len(buffer)}.')
         f.write(id.to_bytes(4, 'little'))
         f.write(len(buffer).to_bytes(4, 'little'))
         f.write(buffer)
@@ -248,7 +252,7 @@ class Attitude(DataPacket):
         DataPacket.__init__(self, date, timestamp, elapsed_time)
 
     def payload(self) -> bytes:
-        buffer = struct.pack('HdIddd', self.date, self.timestamp, self.elapsed, self.yaw, self.pitch, self.roll)
+        buffer = struct.pack('<HdIddd', self.date, self.timestamp, self.elapsed, self.yaw, self.pitch, self.roll)
         return buffer
     
     def data_constructor(self, **kwargs) -> None:
@@ -1326,42 +1330,46 @@ class PacketFactory:
             return None
 
         (pkt_id, pkt_len) = struct.unpack("<II", buffer)
+        #print(f'Packet ID {pkt_id}, packet length {pkt_len}.')
         buffer = self.file.read(pkt_len)
-        if pkt_id == PacketTypes.SerialiserVersion.value:
-            rtn = SerialiserVersion(buffer=buffer)
-        elif pkt_id == PacketTypes.SystemTime.value:
-            rtn = SystemTime(buffer=buffer)
-        elif pkt_id == PacketTypes.Attitude.value:
-            rtn = Attitude(buffer=buffer)
-        elif pkt_id == PacketTypes.Depth.value:
-            rtn = Depth(buffer=buffer)
-        elif pkt_id == PacketTypes.COG.value:
-            rtn = COG(buffer=buffer)
-        elif pkt_id == PacketTypes.GNSS.value:
-            rtn = GNSS(buffer=buffer)
-        elif pkt_id == PacketTypes.Environment.value:
-            rtn = Environment(buffer=buffer)
-        elif pkt_id == PacketTypes.Temperature.value:
-            rtn = Temperature(buffer=buffer)
-        elif pkt_id == PacketTypes.Humidity.value:
-            rtn = Humidity(buffer=buffer)
-        elif pkt_id == PacketTypes.Pressure.value:
-            rtn = Pressure(buffer=buffer)
-        elif pkt_id == PacketTypes.SerialString.value:
-            rtn = SerialString(buffer=buffer)
-        elif pkt_id == PacketTypes.Motion.value:
-            rtn = Motion(buffer=buffer)
-        elif pkt_id == PacketTypes.Metadata.value:
-            rtn = Metadata(buffer=buffer)
-        elif pkt_id == PacketTypes.AlgorithmRequest.value:
-            rtn = AlgorithmRequest(buffer=buffer)
-        elif pkt_id == PacketTypes.JSONMetadata.value:
-            rtn = JSONMetadata(buffer=buffer)
-        elif pkt_id == PacketTypes.NMEA0183Filter.value:
-            rtn = NMEA0183Filter(buffer=buffer)
-        else:
-            print("Unknown packet with ID " + str(pkt_id) + " in input stream; ignored.")
-            rtn = None
+        try:
+            if pkt_id == PacketTypes.SerialiserVersion.value:
+                rtn = SerialiserVersion(buffer=buffer)
+            elif pkt_id == PacketTypes.SystemTime.value:
+                rtn = SystemTime(buffer=buffer)
+            elif pkt_id == PacketTypes.Attitude.value:
+                rtn = Attitude(buffer=buffer)
+            elif pkt_id == PacketTypes.Depth.value:
+                rtn = Depth(buffer=buffer)
+            elif pkt_id == PacketTypes.COG.value:
+                rtn = COG(buffer=buffer)
+            elif pkt_id == PacketTypes.GNSS.value:
+                rtn = GNSS(buffer=buffer)
+            elif pkt_id == PacketTypes.Environment.value:
+                rtn = Environment(buffer=buffer)
+            elif pkt_id == PacketTypes.Temperature.value:
+                rtn = Temperature(buffer=buffer)
+            elif pkt_id == PacketTypes.Humidity.value:
+                rtn = Humidity(buffer=buffer)
+            elif pkt_id == PacketTypes.Pressure.value:
+                rtn = Pressure(buffer=buffer)
+            elif pkt_id == PacketTypes.SerialString.value:
+                rtn = SerialString(buffer=buffer)
+            elif pkt_id == PacketTypes.Motion.value:
+                rtn = Motion(buffer=buffer)
+            elif pkt_id == PacketTypes.Metadata.value:
+                rtn = Metadata(buffer=buffer)
+            elif pkt_id == PacketTypes.AlgorithmRequest.value:
+                rtn = AlgorithmRequest(buffer=buffer)
+            elif pkt_id == PacketTypes.JSONMetadata.value:
+                rtn = JSONMetadata(buffer=buffer)
+            elif pkt_id == PacketTypes.NMEA0183Filter.value:
+                rtn = NMEA0183Filter(buffer=buffer)
+            else:
+                print("Unknown packet with ID " + str(pkt_id) + " in input stream; ignored.")
+                rtn = None
+        except struct.error:
+            raise PacketTranscriptionError
 
         return rtn
 
