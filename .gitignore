@@ -32,6 +32,9 @@ xcshareddata
 # Python IDE files
 .idea
 
+# VSCode IDE files
+.vscode
+
 # Build products
 build/
 *.o

@@ -31,9 +31,13 @@ file = open(sys.argv[1], 'rb')
 packet_count = 0
 source = LoggerFile.PacketFactory(file)
 while source.has_more():
-    pkt = source.next_packet()
-    if pkt is not None:
-        print(pkt)
-        packet_count += 1
+    try:
+        pkt = source.next_packet()
+        if pkt is not None:
+            print(pkt)
+            packet_count += 1
+    except LoggerFile.PacketTranscriptionError:
+        print(f'Failed to translate packet {packet_count}.')
+        sys.exit(1)
 
 print("Found " + str(packet_count) + " packets total")

@@ -134,7 +134,7 @@ def editwibl():
                 out_id = 'Unknown'
                 if unique_id:
                     out_id = unique_id
-                packet = lf.Metadta(logger = out_name, uniqid = out_id)
+                packet = lf.Metadata(logger = out_name, uniqid = out_id)
                 packet.serialise(op)
         if not json_metadata_out and metadata:
             packet = lf.JSONMetadata(meta = metadata)

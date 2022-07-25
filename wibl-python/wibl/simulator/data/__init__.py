@@ -288,7 +288,7 @@ class DataGenerator:
             logger.warning('User asked for neither NMEA0183 or NMEA2000; defaulting to generating NMEA2000')
             self._m_binary = True
 
-    def emit_time(self, state: State, output: Writer) -> NoReturn:
+    def emit_time(self, state: State, output: Writer) -> None:
         """
         Generate a timestamping message for the current state of the simulator
         :param state:
@@ -300,7 +300,7 @@ class DataGenerator:
         if self._m_serial:
             self.generate_zda(state, output)
 
-    def emit_position(self, state: State, output: Writer) -> NoReturn:
+    def emit_position(self, state: State, output: Writer) -> None:
         """
         Generate messages for the current configuration of the simulator
         :param state:
@@ -312,7 +312,7 @@ class DataGenerator:
         if self._m_serial:
             self.generate_gga(state, output)
 
-    def emit_depth(self, state: State, output: Writer) -> NoReturn:
+    def emit_depth(self, state: State, output: Writer) -> None:
         """
         Generate a depth message from the current state of the simulator
         :param state:
@@ -332,7 +332,7 @@ class DataGenerator:
         """
         self._m_verbose = verb
 
-    def generate_system_time(self, state: State, output: Writer) -> NoReturn:
+    def generate_system_time(self, state: State, output: Writer) -> None:
         """
         Generate NMEA2000 timestamp information
         :param state: Simulator state to use for generation
@@ -358,7 +358,7 @@ class DataGenerator:
 
         output.record(pkt)
 
-    def generate_gnss(self, state: State, output: Writer) -> NoReturn:
+    def generate_gnss(self, state: State, output: Writer) -> None:
         """
         Generate a GNSS packet using the current state information
         :param state: Simulator state to use for generation
@@ -432,7 +432,7 @@ class DataGenerator:
 
         output.record(pkt)
 
-    def generate_depth(self, state: State, output: Writer) -> NoReturn:
+    def generate_depth(self, state: State, output: Writer) -> None:
         """
         Construct a NMEA2000 depth packet using the current state information
         :param state: Simulator state to use for generation
@@ -470,7 +470,7 @@ class DataGenerator:
 
         output.record(pkt)
 
-    def generate_zda(self, state: State, output: Writer) -> NoReturn:
+    def generate_zda(self, state: State, output: Writer) -> None:
         """
         Generate NMEA0183 timestamp (ZDA) information
         :param state: Simulator state to use for generation
@@ -502,7 +502,7 @@ class DataGenerator:
 
         output.record(pkt)
 
-    def generate_gga(self, state: State, output: Writer) -> NoReturn:
+    def generate_gga(self, state: State, output: Writer) -> None:
         """
         Generate a simulated position (GGA) message.  This formats the current state for position as
         required for GGA messages, and then appends a standard trailer to meet the NMEA0183 requirements.
@@ -552,7 +552,7 @@ class DataGenerator:
         output.record(pkt)
 
     def generate_dbt(self, state: State, output: Writer, *,
-                     override_depth: float = None) -> NoReturn:
+                     override_depth: float = None) -> None:
         """
         Generate NMEA0183 depth (SDDBT) information
         :param state: Simulator state to use for generation

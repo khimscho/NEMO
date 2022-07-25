@@ -41,6 +41,7 @@ import pynmea2 as nmea
 
 import wibl.core.logger_file as LoggerFile
 from wibl.core.fileloader import TimeSource, load_file
+from wibl.core.fileloader import NoTimeSource as flNoTimeSource
 from wibl.core.interpolation import InterpTable
 from wibl.core.statistics import PktStats, PktFaults
 
@@ -51,6 +52,10 @@ class NoData(Exception):
 
 ## Exception to indicate that the WIBL file is newer than the latest version understood by the code
 class NewerDataFile(Exception):
+    pass
+
+## Exception to indicate that no time source was foundß
+class NoTimeSource(Exception):
     pass
 
 ## Construct an encoded integer representing a protocol version
@@ -109,7 +114,13 @@ def time_interpolation(filename: str, elapsed_time_quantum: int, **kwargs) -> Di
         fault_limit = kwargs['fault_limit']
     
     # Pull all of the packets out of the file, and fix up any preliminary problems
-    stats, time_source, packets = load_file(filename, verbose, fault_limit)
+    try:
+        stats, time_source, packets = load_file(filename, verbose, fault_limit)
+    except flNoTimeSource as e:
+        if verbose:
+            print(f'Failed to determine a valid time source from file: {e}')
+        raise NoTimeSource()
+    
     if verbose:
         print(stats)
 
