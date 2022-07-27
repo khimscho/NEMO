@@ -7,7 +7,7 @@ import xmlrunner
 import numpy as np
 
 from wibl.core.logger_file import PacketTypes
-from wibl.simulator.data import DataGenerator, State, FormattedAngle, format_angle
+from wibl.simulator.data import DataGenerator, State, FormattedAngle, format_angle, MAX_RAD
 from wibl.simulator.data.writer import Writer, MemoryWriter
 
 
@@ -319,6 +319,69 @@ class TestDataGenerator(unittest.TestCase):
         buff_buffer_const: bytes = writer_buffer_const.getvalue()
 
         self.assertEqual(buff_data_const, buff_buffer_const)
+
+    def test_generate_attitude(self):
+        state: State = State()
+        # Simulate first time after initial time step
+        state.update_ticks(300536)
+        state.ref_time.update(state.curr_ticks)
+        gen: DataGenerator = DataGenerator(use_data_constructor=True)
+
+        writer: Writer = MemoryWriter('Gulf Surveyor', 'WIBL-Simulator')
+        gen.generate_attitude(state, writer)
+
+        buff: bytes = writer.getvalue()
+        self.assertIsNotNone(buff)
+        self.__test_header_packets(buff)
+
+        # Message type in bytes 66-69
+        self.assertEqual(PacketTypes.Attitude.value, struct.unpack('<I', buff[67:71])[0])
+        # Message length in bytes 70-73
+        self.assertEqual(38, struct.unpack('<I', buff[71:75])[0])
+        # Days since epoch from bytes 74-75
+        self.assertEqual(18262, struct.unpack('<H', buff[75:77])[0])
+        # Read timestamp from bytes 76-83
+        self.assertEqual(0.300536, struct.unpack('<d', buff[77:85])[0])
+        # Elapsed time should equal state.tick_count_to_milliseconds()
+        self.assertEqual(state.tick_count_to_milliseconds(), struct.unpack('<I', buff[85:89])[0])
+        # Read yaw from bytes 88-95
+        yaw = struct.unpack('<d', buff[89:97])[0]
+        self.assertGreaterEqual(yaw, 0)
+        self.assertLessEqual(yaw, MAX_RAD)
+        # Read pitch from bytes 96-103
+        pitch = struct.unpack('<d', buff[97:105])[0]
+        self.assertGreaterEqual(pitch, 0)
+        self.assertLessEqual(pitch, MAX_RAD)
+        # Read roll from bytes 104-111
+        roll = struct.unpack('<d', buff[105:113])[0]
+        self.assertGreaterEqual(roll, 0)
+        self.assertLessEqual(roll, MAX_RAD)
+
+        with self.assertRaises(IndexError):
+            buff[114]
+
+    def test_generate_attitude_compare(self):
+        """
+        Compare results from buffer vs. data constructor for Attitude packet
+        :return:
+        """
+        state: State = State()
+        # Simulate first time after initial time step
+        state.update_ticks(300536)
+        state.ref_time.update(state.curr_ticks)
+
+        gen_data_const: DataGenerator = DataGenerator(use_data_constructor=True)
+        writer_data_const: Writer = MemoryWriter('Gulf Surveyor', 'WIBL-Simulator')
+        gen_data_const.generate_attitude(state, writer_data_const)
+        buff_data_const: bytes = writer_data_const.getvalue()
+
+        gen_buffer_const: DataGenerator = DataGenerator(use_data_constructor=False)
+        writer_buffer_const: Writer = MemoryWriter('Gulf Surveyor', 'WIBL-Simulator')
+        gen_buffer_const.generate_attitude(state, writer_buffer_const)
+        buff_buffer_const: bytes = writer_buffer_const.getvalue()
+
+        self.assertEqual(buff_data_const, buff_buffer_const)
+
 
     def test_generate_gnss(self):
         state: State = State()
@@ -687,4 +750,3 @@ if __name__ == '__main__':
         testRunner=xmlrunner.XMLTestRunner(output='test-reports'),
         failfast=False, buffer=False, catchbreak=False
     )
-

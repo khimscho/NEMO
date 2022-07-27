@@ -17,7 +17,10 @@ logger = logging.getLogger(__name__)
 CLOCKS_PER_SEC = 1_000_000
 EPOCH_START = datetime(1970, 1, 1)
 MAX_RAND = (1 << 31) - 1
-
+MAX_RAD = math.pi * 2
+DUMMY_YAW = random.random() * MAX_RAD
+DUMMY_PITCH = random.random() * MAX_RAD
+DUMMY_ROLL = random.random() * MAX_RAD
 
 def unit_uniform() -> float:
     return random.uniform(0, MAX_RAND) / MAX_RAND
@@ -355,6 +358,36 @@ class DataGenerator:
                                  state.ref_time.tick_count_to_milliseconds(),
                                  0)
             pkt: lf.DataPacket = lf.SystemTime(buffer=buffer)
+
+        output.record(pkt)
+
+    def generate_attitude(self, state: State, output: Writer) -> None:
+        """
+        Generate attitude message containing estimates of roll, pitch, and yaw of the ship
+        :param state: Simulator state to use for generation
+        :param output: Output writer to use for serialisation of the simulated system time report
+        :return:
+        """
+        if self._use_data_constructor:
+            data = {
+                'date': state.ref_time.days_since_epoch(),
+                'timestamp': state.ref_time.seconds_in_day(),
+                'elapsed_time': state.ref_time.tick_count_to_milliseconds(),
+                'yaw': DUMMY_YAW,
+                'pitch': DUMMY_PITCH,
+                'roll': DUMMY_ROLL
+            }
+            pkt: lf.DataPacket = lf.Attitude(**data)
+        else:
+            # Use buffer constructor
+            buffer = struct.pack('<HdIddd',
+                                 state.ref_time.days_since_epoch(),
+                                 state.ref_time.seconds_in_day(),
+                                 state.ref_time.tick_count_to_milliseconds(),
+                                 DUMMY_YAW,
+                                 DUMMY_PITCH,
+                                 DUMMY_ROLL)
+            pkt: lf.DataPacket = lf.Attitude(buffer=buffer)
 
         output.record(pkt)
 
