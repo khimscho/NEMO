@@ -15,6 +15,20 @@ logger = logging.getLogger(__name__)
 
 
 class TestDataGenerator(unittest.TestCase):
+    """
+    TODO: Add tests for the following packet types in `wibl.core.logger_file.py`:
+        - COG
+        - Environment
+        - Temperature
+        - Humidity
+        - Pressure
+        - SerialiserVersion
+        - Motion
+        - Metadata
+        - AlgorithmRequest
+        - JSONMetadata
+        - NMEA0183Filter
+    """
     def test_compute_checksum(self):
         self.assertEqual(86, DataGenerator.compute_checksum("$GPZDA,000000.000,01,01,2020,00,00*"))
 
