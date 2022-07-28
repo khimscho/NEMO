@@ -64,8 +64,6 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(dummy_config_file, str(sub_config))
 
 
-
-
 if __name__ == '__main__':
     unittest.main(
         testRunner=xmlrunner.XMLTestRunner(output='test-reports'),
