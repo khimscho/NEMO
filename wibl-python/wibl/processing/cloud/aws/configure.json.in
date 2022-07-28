@@ -1,9 +1,0 @@
-{
-	"provider_id":			"${PROVIDER_ID}",
-	"staging_bucket":		"${DCDB_STAGING_BUCKET}",
-	"verbose":				false,
-	"elapsed_time_width":	32,
-	"fault_limit":			10,
-	"upload_point":			"https://www.ngdc.noaa.gov/ingest-external/upload/csb/geojson/",
-	"local":				false
-}

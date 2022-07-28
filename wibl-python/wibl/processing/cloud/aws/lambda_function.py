@@ -41,6 +41,7 @@ import wibl.core.datasource as ds
 import wibl.core.timestamping as ts
 import wibl.core.geojson_convert as gj
 import wibl.processing.algorithms.deduplicate as dedup
+from wibl.processing.cloud.aws import get_config_file
 
 s3 = boto3.resource('s3')
 
@@ -113,7 +114,7 @@ def lambda_handler(event, context):
         # The configuration file for the algorithm should be in the same directory as the lambda function file,
         # and has a "well known" name.  We could attempt to something smarter here, but this is probably enough
         # for now.
-        config = conf.read_config('configure.json')
+        config = conf.read_config(get_config_file())
     except conf.BadConfiguration:
         return {
             'statusCode': 400,

@@ -34,8 +34,10 @@ import requests
 import boto3
 
 # Local modules
+from wibl.core import getenv
 import wibl.core.config as conf
 import wibl.core.datasource as ds
+from wibl.submission.cloud.aws import get_config_file
 
 s3 = boto3.resource('s3')
 
@@ -91,13 +93,14 @@ def transmit_geojson(source_uniqueID: str, provider_id: str, provider_auth: str,
         'file': (local_file, open(local_file, 'rb')),
         'metadataInput': (None, '{\n    "uniqueID": "' + dest_uniqueID + '"\n}')
     }
-    
+
+    upload_point = getenv('UPLOAD_POINT')
+
     if config['local']:
-        upload_point = config['upload_point']
         print(f'Local mode: Transmitting to {upload_point} for source ID {source_uniqueID} with destination ID {dest_uniqueID}.')
         rc = True
     else:
-        upload_url = config['upload_point']
+        upload_url = upload_point
         if config['verbose']:
             print(f'Transmitting for source ID {source_uniqueID} to {upload_url} as destination ID {dest_uniqueID}.')
         response = requests.post(upload_url, headers=headers, files=files)
@@ -112,9 +115,10 @@ def transmit_geojson(source_uniqueID: str, provider_id: str, provider_auth: str,
 
     return rc
 
+
 def lambda_handler(event, context):
     try:
-        config = conf.read_config('configure.json')
+        config = conf.read_config(get_config_file())
     except conf.BadConfiguration:
         return {
             'statusCode':   400,
@@ -145,7 +149,9 @@ def lambda_handler(event, context):
                 print(f'Failed to transfer item {item} because it has no SourceID specified.')
             failed.append(item)
         else:
-            rc = transmit_geojson(source_id, creds['provider_id'], creds['provider_auth'], local_file, config)
+            provider_id = getenv('PROVIDER_ID')
+            provider_auth = getenv('PROVIDER_AUTH')
+            rc = transmit_geojson(source_id, provider_id, provider_auth, local_file, config)
             if rc is None:
                 if config['verbose']:
                     print(f'Failed to transfer item {item}')

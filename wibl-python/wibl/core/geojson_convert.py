@@ -35,6 +35,9 @@ import json
 from datetime import datetime
 from typing import Dict, Any
 
+from wibl.core import getenv
+
+
 def translate(data: Dict[str,Any], config: Dict[str,Any]) -> Dict[str,Any]:
     # Original comment was:
     # geojson formatting - Taylor Roy
@@ -105,8 +108,9 @@ def translate(data: Dict[str,Any], config: Dict[str,Any]) -> Dict[str,Any]:
     # The database requires that the unique ID contains the provider's ID, presumably to avoid
     # namespace clashes.  We therefore check now (after the platform metadata is finalised) to make
     # sure that this is the case.
-    if config['provider_id'] not in final_json_dict['properties']['platform']['uniqueID']:
-        final_json_dict['properties']['platform']['uniqueID'] = config['provider_id'] + '-' + final_json_dict['properties']['platform']['uniqueID']
+    provider_id = getenv('PROVIDER_ID')
+    if provider_id not in final_json_dict['properties']['platform']['uniqueID']:
+        final_json_dict['properties']['platform']['uniqueID'] = provider_id + '-' + final_json_dict['properties']['platform']['uniqueID']
 
     if len(data['algorithms']) > 0:
         final_json_dict['properties']['algorithms'] = data['algorithms']

@@ -42,7 +42,6 @@
 # WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
 # OR OTHER DEALINGS IN THE SOFTWARE.
-
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Tuple
@@ -51,6 +50,8 @@ from shutil import copyfile
 import json
 
 import boto3
+
+from wibl.core import getenv
 
 s3 = boto3.resource('s3')
 
@@ -108,7 +109,7 @@ class AWSSource(DataSource):
             source_bucket = record['s3']['bucket']['name']
             source_object = unquote_plus(record['s3']['object']['key'])
             local_file = f'/tmp/{source_object}'
-            dest_bucket = config['staging_bucket']
+            dest_bucket = getenv('STAGING_BUCKET')
             if '.json' not in source_object:
                 dest_object = source_object + '.json'
             else:
@@ -188,7 +189,7 @@ class AWSController(CloudController):
     # \param config Configuration dictionary for the algorithm
     def __init__(self, config: Dict[str,Any]):
         self.local_mode = config['local']
-        self.destination = config['staging_bucket']
+        self.destination = getenv('STAGING_BUCKET')
         self.verbose = config['verbose']
     
     ## Get an S3 object from a specified bucket
