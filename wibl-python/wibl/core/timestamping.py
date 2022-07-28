@@ -1,4 +1,4 @@
-## \file Timestamping.py
+##\file Timestamping.py
 # \brief Read a binary data file from the SB2030 data logger, and generate timestamped data
 #
 # The SB2030 data logger reports, for each packet received, the elapsed time with respect

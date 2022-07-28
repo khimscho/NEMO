@@ -1,4 +1,4 @@
-## \file statistics.py
+##\file statistics.py
 # \brief Track packet statistics for the loader/processor
 #
 # As packets are loaded from the WIBL file, it is often important to keep track of which

@@ -1,5 +1,5 @@
-## @file LoggerFile.py
-# @brief Library objects for reading Seabed 2030 data logger files
+##\file LoggerFile.py
+# \brief Library objects for reading Seabed 2030 data logger files
 #
 # The Seabed 2030 low-cost logger generates files from NMEA2000 onto the SD card in
 # fairly efficient binary format, with a timestamp from the local machine.  The code
