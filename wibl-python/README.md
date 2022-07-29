@@ -118,10 +118,35 @@ $ aws iam attach-role-policy --role-name wibl-dcdb-submission-lambda --policy-ar
 Since all WIBL AWS lambdas are part of the same Python package called `wibl`, we'll only need to create a single
 package. We can specify different lambda handler functions when creating the individual lambdas below.
 
-First, install WIBL and its dependencies into a target directory called `package` located in the current directory:
+First (and optionally), run a shell within the Amazon Linux Python 3.9 lambda runtime:
 ```bash
-$ pip install --target ./package .
+$ docker run --mount type=bind,source="$(pwd)/.",target=/build \
+-it --entrypoint /bin/bash \
+public.ecr.aws/lambda/python:3.9-x86_64
 ```
+
+> Note: replace `-x86_64` with `-arm64` if your lambda will use ARM64 architecture instead of x86_64 (i.e., AMD64).
+
+The reason you might want to package lambdas within Amazon Linux Python 3.9 lambda runtime is that it should be nearly
+identical to the environment where the lambda will run. This way, you can reduce the risk of introducing any platform-
+or architecture-specific dependencies. That said, since we are using AWS layers to configure some of the dependencies
+for our lambdas (e.g., including platform- and architecture-specific dependencies such as numpy), and since the
+dependencies we *are* bundlying in our lambda zipfile (as specified by
+[requirements-lambda.txt](requirements-lambda.txt)) *should* be pure Python, it *should* be okay to create this
+package on either non-Amazon versions of Linux, or under recent versions of macOS. However, it is probably a good idea
+to use Amazon Linux Python 3.9 lambda runtime to package these lambdas.
+
+Second, install WIBL and its dependencies into a target directory called `package` located in the current directory:
+```bash
+$ pip install --target ./package -r requirements-lambda.txt
+$ pip install --target ./package --no-deps .
+```
+
+> Note: if building in Amazon Linux Python 3.9 lambda runtime, make sure to run these in the shell you started in
+> Docker above rather than in a shell on your host OS.
+
+> Note: we break out the install into two steps so that we package *only* the subset of `wibl` dependencies that will
+> not be provided by AWS lambda layers used when we create the lambda below.
 
 Next, make a zipfile of the `package` directory:
 ```bash
@@ -131,6 +156,9 @@ $ zip -r ../wibl-package.zip .
 $ popd
 ```
 
+> Note: if building in Amazon Linux Python 3.9 lambda runtime, you'll have to run this from your host since `zip` is not
+> installed by default.
+
 ### Create the processing lambda
 ```bash
 $ aws lambda create-function --function-name wibl-dcdb-processing \
@@ -138,15 +166,22 @@ $ aws lambda create-function --function-name wibl-dcdb-processing \
 --runtime python3.9 --timeout 15 --memory-size 128 \
 --handler wibl.processing.cloud.aws.lambda_function.lambda_handler \
 --zip-file fileb://wibl-package.zip \
+--architectures x86_64 \
+--layers LAYER1 ... LAYERN \
 --environment "Variables={PROVIDER_ID=MY_PROVIDER_ID,STAGING_BUCKET=MY_STAGING_BUCKET,UPLOAD_POINT=https://www.ngdc.noaa.gov/ingest-external/upload/csb/geojson/}"
 ```
 
-where `arn:aws:iam::?????:role/wibl-dcdb-processing-lambda` is replaced by the lambda role ARN created above.
+where `arn:aws:iam::?????:role/wibl-dcdb-processing-lambda` is replaced by the lambda role ARN created above,
+and where `LAYER1 ... LAYERN` are replaced by the names of the AWS lambda layers we would like to deploy this lambda
+on top of (to avoid repackaging dependencies).
 
 > Note: by default, the lambda will use the configuration file installed as part of the `wibl` Python package. You can
 > find this default file in [here](wibl/defaults/processing/cloud/aws/configure.json). If you want to use another file,
 > make sure to add it to the `package` directory created above and set an environment variable named `WIBL_CONFIG_FILE`
 > (value is the path within the package to the desired configuration file) when creating the lambda function.
+
+> Note: if you want to use ARM64 instead of x86_64 architecture, change `--architectures x86_64` to
+> `--architectures arm64`.
 
 ### Create the submission lambda
 ```bash
@@ -160,7 +195,7 @@ $ aws lambda create-function --function-name wibl-dcdb-submission \
 
 where `arn:aws:iam::?????:role/wibl-dcdb-submission-lambda` is replaced by the lambda role ARN created above.
 
-> Note: The submission lambda takes an additional environment variable `PROVIDER_AUTH`, which is an authentication key
+> Note: the submission lambda takes an additional environment variable `PROVIDER_AUTH`, which is an authentication key
 > used for making submissions to the HTTP service denoted by `UPLOAD_POINT`.
 
 > Note: by default, the lambda will use the configuration file installed as part of the `wibl` Python package. You can
