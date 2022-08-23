@@ -40,6 +40,9 @@
 namespace nmea {
 namespace simulator {
 
+    double unit_uniform(void);
+    double unit_normal(void);
+
 /// \class Timestamp
 /// \brief Generate a timestamp for an instant based on elapsed time to last known time
 ///
