@@ -39,11 +39,7 @@ import sys
 import argparse as arg
 from datetime import datetime
 
-# You may or may not have to do this, depending on whether you fix the path externally, or move
-# the data file parser library into the current directory.
-sys.path.append(r'../AWS/Processing')
-
-import Timestamping as ts
+import wibl.core.timestamping as ts
 
 def main():
     parser = arg.ArgumentParser(description = 'Convert WIBL logger data to timestamped ASCII')
