@@ -1,0 +1,3 @@
+setuptools
+requests==2.27.1
+pynmea2==1.18.0

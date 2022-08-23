@@ -97,10 +97,14 @@ int main(int argc, char **argv)
     
     current_time = first_time = engine.StepEngine(writer);
     std::cout << "First generation time step: " << current_time << "\n";
+    size_t num_itr = 0;
     while (current_time - first_time < duration) {
         current_time = engine.StepEngine(writer);
         std::cout << "Step to time: " << current_time << "\n";
+        num_itr++;
     }
+
+    std::cout << "Total iterations: " << num_itr << "\n";
     
     return 0;
 }

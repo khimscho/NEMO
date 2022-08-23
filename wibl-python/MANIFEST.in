@@ -1,0 +1,2 @@
+include wibl/defaults/processing/cloud/aws/configure.json
+include wibl/defaults/submission/cloud/aws/configure.json
