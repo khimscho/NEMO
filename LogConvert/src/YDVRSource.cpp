@@ -129,7 +129,7 @@ bool YDVRSource::NextPacket(tN2kMsg& msg)
         msg.DataLen = 8;
     }
     
-    if (msg.DataLen >= msg.MaxDataLen) {
+    if (msg.DataLen > msg.MaxDataLen) {
         throw DataPacketTooLarge();
     }
     
