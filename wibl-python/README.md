@@ -20,16 +20,17 @@ pytest -n 4 --cov=wibl --cov-branch --cov-report=xml --junitxml=test-results.xml
 usage: wibl <command> [<arguments>]
 
     Commands include:
-        datasim    Generate test data using Python-native data simulator.
-        editwibl   Edit WIBL logger files, e.g., add platform metadata.
-
+        datasim     Generate test data using Python-native data simulator.
+        editwibl    Edit WIBL logger files, e.g., add platform metadata.
+        uploadwibl  Upload WIBL logger files to an S3 bucket.
+                
 
 Python tools for WIBL low-cost data logger system
 
 positional arguments:
   command     Subcommand to run
 
-optional arguments:
+options:
   -h, --help  show this help message and exit
   --version   print version and exit
 ```
@@ -127,6 +128,8 @@ public.ecr.aws/lambda/python:3.9-x86_64
 
 > Note: replace `-x86_64` with `-arm64` if your lambda will use ARM64 architecture instead of x86_64 (i.e., AMD64).
 
+> Note: the Python 3.9 runtime might not have all of the layers required for the processing lambda (use 3.8 if this occurs).
+
 The reason you might want to package lambdas within Amazon Linux Python 3.9 lambda runtime is that it should be nearly
 identical to the environment where the lambda will run. This way, you can reduce the risk of introducing any platform-
 or architecture-specific dependencies. That said, since we are using AWS layers to configure some of the dependencies
@@ -173,7 +176,7 @@ $ aws lambda create-function --function-name wibl-dcdb-processing \
 
 where `arn:aws:iam::?????:role/wibl-dcdb-processing-lambda` is replaced by the lambda role ARN created above,
 and where `LAYER1 ... LAYERN` are replaced by the names of the AWS lambda layers we would like to deploy this lambda
-on top of (to avoid repackaging dependencies).
+on top of (to avoid repackaging dependencies).  See the example configuration file for definitions of the environment variables.
 
 > Note: by default, the lambda will use the configuration file installed as part of the `wibl` Python package. You can
 > find this default file in [here](wibl/defaults/processing/cloud/aws/configure.json). If you want to use another file,
@@ -183,6 +186,9 @@ on top of (to avoid repackaging dependencies).
 > Note: if you want to use ARM64 instead of x86_64 architecture, change `--architectures x86_64` to
 > `--architectures arm64`.
 
+> Note: the layer name is the full ARN for the layer required.  You will need at least the SciPy layer for a default build of the code; this is likely arn:aws:lambda:us-east-2:259788987135:layer:AWSLambda-Python38-SciPy1x:107 (or the equivalent for your AWS region).
+
+
 ### Create the submission lambda
 ```bash
 $ aws lambda create-function --function-name wibl-dcdb-submission \
@@ -190,6 +196,7 @@ $ aws lambda create-function --function-name wibl-dcdb-submission \
 --runtime python3.9 --timeout 15 --memory-size 128 \
 --handler wibl.submission.cloud.aws.lambda_function.lambda_handler \
 --zip-file fileb://wibl-package.zip \
+--architectures x86_64 \
 --environment "Variables={PROVIDER_ID=MY_PROVIDER_ID,PROVIDER_AUTH=MY_PROVIDER_AUTH_KEY,STAGING_BUCKET=MY_STAGING_BUCKET,UPLOAD_POINT=https://www.ngdc.noaa.gov/ingest-external/upload/csb/geojson/}"
 ```
 
