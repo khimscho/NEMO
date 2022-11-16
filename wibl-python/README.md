@@ -188,6 +188,90 @@ on top of (to avoid repackaging dependencies).  See the example configuration fi
 
 > Note: the layer name is the full ARN for the layer required.  You will need at least the SciPy layer for a default build of the code; this is likely arn:aws:lambda:us-east-2:259788987135:layer:AWSLambda-Python38-SciPy1x:107 (or the equivalent for your AWS region).
 
+### Configure the processing lambda to trigger from S3
+To have the processing lambda triggered by the upload of a file into an S3 bucket, you need to configure the lambda to be triggerable, configure the bucket to generate notifications (and send them to the lambda), and then configure the lambda to allow for access to the S3 bucket.  In order:
+
+```bash
+$ aws lambda add-permission --function-name wibl-dcdb-processing \
+  --action lambda:InvokeFunction \
+  --statement-id s3invoke \
+  --principal s3.amazonaws.com \
+  --source-arn arn:aws:s3:::INCOMING_BUCKET \
+  --source-account ACCOUNT_NUMBER
+```
+where `INCOMING_BUCKET` is the name of the S3 bucket that you'll upload data into from the outside world, and `ACCOUNT_NUMBER` is the AWS account number for your installation.
+
+> Note: Some services can invoke functions in other accounts. If you specify a source
+> ARN that has your account ID in it, that isn't an issue. For Amazon S3, however, the
+> source is a bucket whose ARN doesn't have an account ID in it. It's possible that you
+> could delete the bucket and another account could create a bucket with the same name.
+> Using the source-account option with your account ID ensures that only resources in
+> your account can invoke the function.
+
+Generate a configuration file for the bucket to notify the lambda:
+```bash
+$ cat > bucket-notification-cfg.json
+{
+    "LambdaFunctionConfigurations": [
+        {
+            "Id": "IDENTIFIER",
+            "LambdaFunctionArn": "arn:aws:lambda:REGION:ACCOUNT_NUMBER:function:wibl-dcdb-processing",
+            "Events": [
+                "s3:ObjectCreated:Put"
+            ]
+        }
+    ]
+}
+```
+where `IDENTIFIER` is a unique identifier (e.g., a UUID), `REGION` is your AWS region, and `ACCOUNT_NUMBER` is as above.  You can obtain the ARN for your bucket directly from the AWS console if necessary.  Then apply the notification to the bucket:
+
+```bash
+$ aws s3api put-bucket-notification-configuration \
+  --bucket INCOMING_BUCKET \
+  --notification-configuration file://bucket-notification-cfg.json
+```
+where `INCOMING_BUCKET` is the short form name of the bucket you're using for incoming files, as above.
+
+Finally, generate a configuration file to allow the lambda access to the S3 bucket:
+```bash
+$ cat > lambda-s3-access.json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "LambdaAllowS3Access",
+            "Effect": "Allow",
+            "Action": [
+                "s3:*"
+            ],
+            "Resource": [
+                "arn:aws:s3:::INCOMING_BUCKET",
+                "arn:aws:s3:::INCOMING_BUCKET/*"
+            ]
+        }
+    ]
+}
+```
+and apply it to the lambda:
+```bash
+$ aws iam put-role-policy --role-name wibl-dcdb-processing-lambda \
+  --policy-name lambda-s3-access \
+  --policy-document file://lambda-s3-access.json
+```
+and then convince yourself that it has been applied:
+```bash
+$ aws iam list-role-policies --role-name wibl-dcdb-process-lambda
+```
+which should report something like:
+```
+{
+    "PolicyNames": [
+        "lambda-s3-access"
+    ]
+}
+```
+
+At this stage, submitting a WIBL file to the `INCOMING_BUCKET` should result in the file being processed and written into the `STAGING_BUCKET` that was specified in the environment variables of the WIBL package.
 
 ### Create the submission lambda
 ```bash
