@@ -30,7 +30,7 @@ from wibl import __version__ as version
 from wibl.cmd.edit_wibl_file import editwibl
 from wibl.cmd.datasim import datasim
 from wibl.cmd.upload_wibl_file import uploadwibl
-
+from wibl.cmd.parse_wibl_file import parsewibl
 
 class WIBL:
     def __init__(self):
@@ -42,7 +42,8 @@ class WIBL:
         datasim     Generate test data using Python-native data simulator.
         editwibl    Edit WIBL logger files, e.g., add platform metadata.
         uploadwibl  Upload WIBL logger files to an S3 bucket.
-                '''
+        parsewibl   Read and report contents of a WIBL file
+        '''
         )
         parser.add_argument('--version', help='print version and exit',
                             action='version', version=f"%(prog)s {version}")
@@ -67,6 +68,8 @@ class WIBL:
     def uploadwibl(self):
         uploadwibl()
 
+    def parsewibl(self):
+        parsewibl()
 
 def main():
     WIBL()

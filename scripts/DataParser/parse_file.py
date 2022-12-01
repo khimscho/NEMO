@@ -24,7 +24,7 @@
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
 import sys
-import LoggerFile
+import wibl.core.logger_file as LoggerFile
 
 file = open(sys.argv[1], 'rb')
 
