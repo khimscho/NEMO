@@ -143,7 +143,7 @@ class InterpTable:
     def var(self, name: str) -> np.ndarray:
         if name not in self.vars:
             raise NoSuchVariable()
-        return self.vars[name]
+        return np.array(self.vars[name])
     
     ## Accessor for the array of points for the independent variable
     #
@@ -152,4 +152,4 @@ class InterpTable:
     #
     # \return NumPy array for the independent variable
     def ind(self) -> np.ndarray:
-        return self.vars['ind']
+        return np.array(self.vars['ind'])
