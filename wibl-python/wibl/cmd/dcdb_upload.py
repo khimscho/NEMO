@@ -6,7 +6,7 @@
 # are available).  This duplicates the functionality of the cloud-based processing
 # but allows CLI interface (for testing, etc.)
 #
-# Copyright 2021 Center for Coastal and Ocean Mapping & NOAA-UNH Joint
+# Copyright 2023 Center for Coastal and Ocean Mapping & NOAA-UNH Joint
 # Hydrographic Center, University of New Hampshire.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
