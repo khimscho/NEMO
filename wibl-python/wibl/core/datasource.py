@@ -135,6 +135,44 @@ class AWSSource(DataSource):
             rc = None
         return rc
 
+## \class Concrete implementation for the \a DataSource model for a single local file
+#
+# This provides a simple model for a local file conversion from WIBL to GeoJSON, typically for
+# debugging purposes (but also providing a local conversion if cloud services are not available).
+
+class LocalSource(DataSource):
+    ## Default constructor for local file conversion
+    #
+    # This simply stores the provided in and out filenames so that they can be converted to a DataTtem
+    # when required.  Only a single filename is allowed currently.
+    #
+    # \param input  Local filename for the WIBL file to convert
+    # \param output Local filename to write converted GeoJSON into
+    # \param config Configuration dictionary for the algorithm
+
+    def __init__(self, input: str, output: str, config: Dict[str,Any]):
+        self.inname = input
+        self.outname = output
+        if config['verbose']:
+            print(f'Configured for input file {self.inname} converting to {self.outname}.')
+    
+    ## Concrete implementation of local object specification
+    #
+    # Since we only have a single filename for local conversion, the code here simply converts
+    # to a DataItem and then invalidates the local name so that we don't attempt to return it
+    # more than once.
+    #
+    # \return Specification for the next local file to process
+    def nextSource(self) -> DataItem:
+        if self.inname is None:
+            rc = None
+        else:
+            rc: DataItem = DataItem(None, self.inname, self.inname, None, self.outname)
+            self.inname = None
+            self.outname = None
+        return rc
+
+
 ## Abstract base class for an encapsulation of how to interact with a specific cloud provider
 #
 # Each cloud provider acts a little differently with respect to how you extract objects from their
@@ -188,7 +226,6 @@ class AWSController(CloudController):
     #
     # \param config Configuration dictionary for the algorithm
     def __init__(self, config: Dict[str,Any]):
-        self.local_mode = config['local']
         self.destination = getenv('STAGING_BUCKET')
         self.verbose = config['verbose']
     
@@ -204,18 +241,13 @@ class AWSController(CloudController):
     # \return Tuple[str,str]: local filename, uniqueID
     def obtain(self, meta: DataItem) -> Tuple[str, str]:
         sourceID = None
-        if self.local_mode:
-            print(f'Local mode: from bucket {meta.source_store} object {meta.source_key} to local file {meta.localname}')
-            copyfile(meta.source_key, meta.localname)
-            sourceID = 'UNHJHC-local-test-logger'
-        else:
-            if self.verbose:
-                print(f'Downloading from bucket {meta.source_store} object {meta.source_key} to local file {meta.localname}')
-            s3.Bucket(meta.source_store).download_file(meta.source_key, meta.localname)
-            tags = boto3.client('s3').get_object_tagging(Bucket=meta.source_store, Key=meta.source_key)
-            for tag in tags['TagSet']:
-                if tag['Key'] == 'SourceID':
-                    sourceID = tag['Value']
+        if self.verbose:
+            print(f'Downloading from bucket {meta.source_store} object {meta.source_key} to local file {meta.localname}')
+        s3.Bucket(meta.source_store).download_file(meta.source_key, meta.localname)
+        tags = boto3.client('s3').get_object_tagging(Bucket=meta.source_store, Key=meta.source_key)
+        for tag in tags['TagSet']:
+            if tag['Key'] == 'SourceID':
+                sourceID = tag['Value']
 
         return meta.localname, sourceID
     
@@ -231,15 +263,52 @@ class AWSController(CloudController):
     # \param sourceID   UniqueID associated with the data (for key-value metadata tag)
     # \param data       Data to transfer into the cloud store
     def transmit(self, meta: DataItem, sourceID: str, data: str) -> None:
-        if self.local_mode:
+        if self.verbose:
+            print(f'Transmitting {meta.localname} to bucket {self.destination}, key {meta.dest_key}, source ID {sourceID}')
+        s3.Bucket(self.destination).put_object(Key=meta.dest_key, Body=data, Tagging=f'SourceID={sourceID}')
+
+## \class LocalController
+#
+# This provides a concrete implementation for a pseudo-controller than works with local
+# files (i.e., doing direct conversion on the local machine).
+
+class LocalController(CloudController):
+    ## Configure the local controller
+    #
+    # Since the local controller just operates on files in the local system, the
+    # only configuration is whether to report what's going on (verbose mode)
+    #
+    # \param config Dictionary of algorithm configuration parameters
+    def __init__(self, config: Dict[str, Any]):
+        self.verbose = config['verbose']
+    
+    ## Concrete implementation of the code to provide a local file
+    #
+    # Since the file is in the local filesystem and can be opened directly, there's
+    # no need to copy it to a given location; the code therefore simply returns the
+    # local filename of the input file.
+    #
+    # \param meta   Specification for the object being transferred into the local environment
+    # \return Tuple[str,str]: local filename, uniqueID
+    def obtain(self, meta: DataItem) -> Tuple[str, str]:
+        sourceID: str = "Unset"
+        return (meta.localname, sourceID)
+
+    ## Concrete implementation of code to save converted GeoJSON data
+    #
+    # Since the file output is in the local filesystem, the code here just formats
+    # the GeoJSON and writes it to the indicated file.
+    #
+    # \param meta       Specification for the object being transferred into the cloud environment
+    # \param sourceID   UniqueID associated with the data (for key-value metadata tag)
+    # \param data       Data to transfer into the cloud store
+    def transmit(self, meta: DataItem, sourceID: str, data: str) -> None:
+        if self.verbose:
             if len(data) > 1000:
                 prdata = str(data[0:1000]) + '...'
             else:
                 prdata = str(data)
-            print(f'Local mode: Transmitting to {meta.dest_store} for sourceID {sourceID}, output object key {meta.dest_key} with data {prdata}')
-            with open(meta.dest_key, 'w') as f:
-                json.dump(json.loads(data.decode('utf-8')), f, indent=4)
-        else:
-            if self.verbose:
-                print(f'Transmitting {meta.localname} to bucket {self.destination}, key {meta.dest_key}, source ID {sourceID}')
-            s3.Bucket(self.destination).put_object(Key=meta.dest_key, Body=data, Tagging=f'SourceID={sourceID}')
+            print(f'Local conversion: saving to {meta.dest_key} with data {prdata}.')
+        with open(meta.dest_key, 'w') as f:
+            json.dump(json.loads(data.decode('utf-8')), f, indent=4)
+
