@@ -43,21 +43,14 @@ def wibl_proc():
     parser = arg.ArgumentParser(description="Process WIBL files into GeoJSON locally.",
                 prog=get_subcommand_prog())
     parser.add_argument('-c', '--config', type=str, help='Specify configuration file for installation')
-    parser.add_argument('input', type=str, help='WIBL format file to convert to GeoJSON.')
-    parser.add_argument('output', type=str, help='Specify output GeoJSON file location')
+    parser.add_argument('input', help='WIBL format file to convert to GeoJSON.')
+    parser.add_argument('output', help='Specify output GeoJSON file location')
 
     optargs = parser.parse_args(sys.argv[2:])
 
-    if hasattr(optargs, 'input'):
-        infilename = optargs.input
-    else:
-        sys.exit('Error: must have an input file!')
-  
-    if hasattr(optargs, 'output'):
-        outfilename = optargs.output
-    else:
-        sys.exit('Error: must have an output file!')
-    
+    infilename = optargs.input
+    outfilename = optargs.output
+
     try:
         if hasattr(optargs, 'config'):
             config_filename = optargs.config
