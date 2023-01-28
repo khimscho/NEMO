@@ -113,6 +113,33 @@ private:
     String  m_backingStore; ///< Location of the file into which the metadata is stored
 };
 
+/// \class ScalesStore
+/// \brief Specialisation of NVMFile for sensor scale factors
+///
+/// The logger can have multiple sensors that store their data in binary (or binary-coded) form,
+/// needing scale factors applied before they become either usable floating-point data, or converted
+/// into the right units.  This store allows the code to provide one or more JSON fragments of
+/// scale factors to be stored for transmission into the output data files whenever a file is
+/// started.
+
+class ScalesStore {
+public:
+    /// \brief Default constructor.
+    ScalesStore(void);
+
+    /// \brief Store the specified scale factors as a SensorScales element
+    void AddScalesGroup(String const& group, String const& scales);
+    /// \brief Clear all scales groups from memory
+    void ClearScales(void);
+    /// \brief Return the whole scales JSON component
+    String GetScales(void);
+    /// \brief Serialise the scales JSON into the output file associated with the \a Serialiser provided
+    void SerialiseScales(Serialiser *ser);
+
+private:
+    String m_backingStore; ///< Location of the file into which the scales are stored
+};
+
 /// \class AlgoRequestStore
 /// \brief Specialisation of NVMFile for algorithm request storage
 ///

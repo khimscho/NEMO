@@ -155,6 +155,8 @@ private:
     void ReportNMEAFilter(CommandSource src);
     /// \brief Add/reset the NMEA0183 messages accepted for logging
     void AddNMEAFilter(String const& command, CommandSource src);
+    /// \brief Dump out the scales element stored in the flash memory
+    void ReportScalesElement(CommandSource src);
     /// \brief Report the number of log files available on the SD card
     void ReportFileCount(CommandSource src);
     /// \brief Check for commands, and execute them if found

@@ -91,6 +91,18 @@ void Serialisable::operator+=(uint16_t h)
     m_buffer[m_nData++] = data[1];
 }
 
+/// Serialise a signed half-word to the buffer.
+///
+/// \param h    Half-word (16-bit signed) to be added to the buffer.
+
+void Serialisable::operator+=(int16_t h)
+{
+    EnsureSpace(sizeof(int16_t));
+    uint8_t *data = (uint8_t*)&h;
+    m_buffer[m_nData++] = data[0];
+    m_buffer[m_nData++] = data[1];
+}
+
 /// Serialise a word (32-bit) to the buffer.
 ///
 /// \param w    Word (32-bit unsigned) to be added to the buffer

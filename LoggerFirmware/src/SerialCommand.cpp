@@ -851,6 +851,31 @@ void SerialCommand::AddNMEAFilter(String const& params, CommandSource src)
     }
 }
 
+/// Report the set of scales set for any on-board sensors that record binary data that needs to be
+/// scaled to useful units and/or into a float in the first place.  This reports the sensor elements
+/// specified in the store as JSON fragments, which should be convertable as usual in any language
+/// supporting JSON objects.
+///
+/// \param src      Channel on which to report the results of the command (Serial, WiFi, BLE)
+
+void SerialCommand::ReportScalesElement(CommandSource src)
+{
+    logger::ScalesStore scales;
+    EmitMessage("Sensor scales for on-board sensors:\n", src);
+    switch(src) {
+        case CommandSource::SerialPort:
+        case CommandSource::WirelessPort:
+            EmitMessage(scales.GetScales() + "\n", src);
+            break;
+        case CommandSource::BluetoothPort:
+            m_ble->WriteString("ERR: Cannot report sensor scales on BLE.\n");
+            break;
+        default:
+            EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
+            break;
+    }
+}
+
 /// Report the number of files that are available on the SD card for transfer.
 ///
 /// \param src      Channel on which to report the results of the command (Serial, WiFi, BLE)
@@ -886,6 +911,7 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  password [wifi-password]            Set the WiFi password.\n", src);
     EmitMessage("  radio ble|wifi                      Set the radio to boot on initialisation.\n", src);
     EmitMessage("  restart                             Restart the logger module hardware.\n", src);
+    EmitMessage("  scales                              Report any registered sensor-specific scale factors.\n", src);
     EmitMessage("  sizes                               Output list of the extant log files, and their sizes in bytes.\n", src);
     EmitMessage("  speed 1|2 baud-rate                 Set the baud rate for the RS-422 input channels.\n", src);
     EmitMessage("  ssid [wifi-ssid]                    Set the WiFi SSID.\n", src);
@@ -995,6 +1021,8 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         } else {
             AddNMEAFilter(cmd.substring(7), src);
         }
+    } else if (cmd == "scales") {
+        ReportScalesElement(src);
     } else if (cmd == "filecount") {
         ReportFileCount(src);
     } else if (cmd == "help" || cmd == "syntax") {

@@ -237,6 +237,83 @@ void MetadataStore::SerialiseMetadata(Serialiser *s)
     s->Process(logger::Manager::PacketIDs::Pkt_JSON, packet);
 }
 
+ScalesStore::ScalesStore(void)
+{
+    m_backingStore = String("/scales.txt");
+}
+
+void ScalesStore::AddScalesGroup(String const& group, String const& scales)
+{
+    String  recog("\"" + group + "\"");
+    String  temp_file("/scaletemp.txt");
+
+    if (SPIFFS.exists(m_backingStore)) {
+        NVMFileReader   in(m_backingStore);
+        NVMFileWriter   temp(temp_file);
+        String          entry;
+        bool            group_out = false;
+
+        while (in.HasMore()) {
+            entry = in.NextEntry();
+            if (entry.startsWith(recog)) {
+                temp.AddEntry(recog + ":" + scales);
+                group_out = true;
+            } else {
+                temp.AddEntry(entry);
+            }
+        }
+        if (!group_out) {
+            temp.AddEntry(recog + ":" + scales);
+        }
+    } else {
+        NVMFileWriter   f(temp_file);
+        f.AddEntry(recog + ":" + scales);
+    }
+    SPIFFS.remove(m_backingStore);
+    SPIFFS.rename(temp_file, m_backingStore);
+}
+
+void ScalesStore::ClearScales(void)
+{
+    SPIFFS.remove(m_backingStore);
+}
+
+String ScalesStore::GetScales(void)
+{
+    NVMFileReader f(m_backingStore);
+    String rtn = "{";
+    String entry;
+    bool first_out = false;
+
+    while (f.HasMore()) {
+        entry = f.NextEntry();
+        if (first_out) {
+            rtn += "," + entry;
+        } else {
+            first_out = true;
+            rtn += entry;
+        }
+    }
+    rtn += "}";
+    return rtn;
+}
+
+/// Output the serial scales metadata to the provided binary output stream using the provided
+/// \a Serialiser object.  This allows the scales packet to be added to any binary file being
+/// created.
+///
+/// \param s    Pointer to the \a Serialiser object to use to put the data into the output file
+
+void ScalesStore::SerialiseScales(Serialiser *s)
+{
+    String scales = GetScales();
+    Serialisable packet(scales.length() + 4);
+
+    packet += scales.length();
+    packet += scales.c_str();
+    s->Process(logger::Manager::PacketIDs::Pkt_SensorScales, packet);
+}
+
 /// Start a new interface to the list of algorithm requests stored with the logger.  These are algorithms
 /// that the logger would recommend be run on the data at the post-processing stage, although there is
 /// no guarantee that this will occur.
