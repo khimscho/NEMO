@@ -1,7 +1,9 @@
-# Magic numbers for services and status codes
+# Application global variables needed to bring up the whole app, and the database
 #
-# Encapsulate (as Enums) special codes for the REST API to return, and for other
-# code to indicate processing and upload status.
+# In the Flask environment, it is expected that the app variable is a global, and the
+# SQLAlchemy instance variable has to be constructed before the data models can be
+# specified (since they need an embedded type from the instance of the database).  This
+# file provides these two variables so that they can be imported into other modules.
 #
 # Copyright 2023 Center for Coastal and Ocean Mapping & NOAA-UNH Joint
 # Hydrographic Center, University of New Hampshire.
@@ -24,22 +26,9 @@
 # WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
 # OR OTHER DEALINGS IN THE SOFTWARE.
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
 
-from enum import Enum
-
-class ReturnCodes(Enum):
-    OK = 200
-    RECORD_CREATED = 201
-    RECORD_DELETED = 204
-    FILE_NOT_FOUND = 404
-    RECORD_CONFLICT = 409
-
-class ProcessingStatus(Enum):
-    PROCESSING_STARTED = 0
-    PROCESSING_SUCCESSFUL = 1
-    PROCESSING_FAILED = 2
-
-class UploadStatus(Enum):
-    UPLOAD_STARTED = 0
-    UPLOAD_SUCCESSFUL = 1
-    UPLOAD_FAILED = 2
+app = Flask('WIBL-Manager')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
+db = SQLAlchemy(app)

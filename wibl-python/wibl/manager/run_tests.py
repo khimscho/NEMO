@@ -85,7 +85,7 @@ print(response.json())
 response = requests.delete(BASE_URI + 'geojson/' + filename)
 print(response.json())
 
-generate_random_entries()
+#generate_random_entries()
 
 response = requests.get(BASE_URI + 'wibl/all')
 print(response.json())

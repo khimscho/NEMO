@@ -1,5 +1,4 @@
-##\file __init__.py
-# \brief Marker to allow the code to be an importable module
+# Marker to allow the code to be an importable module
 #
 # Marker to allow the code to be an importable module
 #
