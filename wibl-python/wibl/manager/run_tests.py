@@ -67,6 +67,13 @@ def generate_random_entries():
         
     print(f'Generated {n_raw_added} random entries into database for WIBL files, and {n_geo_added} for GeoJSON equivalents.')
 
+# Check first if the service is there
+response = requests.get(BASE_URI + 'heartbeat')
+print('Service heartbeat response is: ' + str(response.json()))
+if response.status_code != ReturnCodes.OK.value:
+    print(f'Failed to get heartbeat response from service.')
+    exit(1)
+
 response = requests.delete(BASE_URI + 'wibl/' + filename)
 print(response.json())
 response = requests.post(BASE_URI + 'wibl/' + filename, json={ 'size': 10.4 })
@@ -88,7 +95,15 @@ print(response.json())
 #generate_random_entries()
 
 response = requests.get(BASE_URI + 'wibl/all')
-print(response.json())
+data = response.json()
+target = min(len(data), 10)
+print(f'\nWIBL file database contains {len(data)} entries (showing {target}).')
+for i in range(target):
+    print(data[i])
 
 response = requests.get(BASE_URI + 'geojson/all')
-print(response.json())
+data = response.json()
+target = min(len(data), 10)
+print(f'\nGeoJSON file database contains {len(data)} entries (showing {target}).')
+for i in range(target):
+    print(data[i])

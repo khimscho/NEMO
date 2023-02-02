@@ -36,6 +36,7 @@ from typing import NoReturn
 from app_globals import app, db
 from wibl_data import WIBLData
 from geojson_data import GeoJSONData
+from heartbeat import Heartbeat
 
 #with app.app_context():
 #    db.create_all()
@@ -43,6 +44,7 @@ from geojson_data import GeoJSONData
 api = Api(app)
 api.add_resource(WIBLData, '/wibl/<string:fileid>')
 api.add_resource(GeoJSONData, '/geojson/<string:fileid>')
+api.add_resource(Heartbeat, '/heartbeat')
 
 def main() -> NoReturn:
     app.run(debug=True)
