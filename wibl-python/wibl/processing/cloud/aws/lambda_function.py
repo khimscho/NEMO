@@ -99,7 +99,7 @@ def process_item(item: ds.DataItem, controller: ds.CloudController, config: Dict
     if config['verbose']:
         print('Converting remaining data to GeoJSON format ...')
     submit_data = gj.translate(source_data, config)
-    source_id = submit_data['properties']['platform']['uniqueID']
+    source_id = submit_data['properties']['trustedNode']['uniqueVesselID']
     if config['verbose']:
         print('Converting GeoJSON to byte stream for transmission ...')
     encoded_data = json.dumps(submit_data).encode('utf-8')

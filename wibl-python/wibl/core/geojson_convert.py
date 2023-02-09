@@ -61,7 +61,7 @@ def translate(data: Dict[str,Any], config: Dict[str,Any]) -> Dict[str,Any]:
     feature_lst = []
     
     for i in range(len(data['depth']['z'])):
-        timestamp = datetime.fromtimestamp(data['depth']['t'][i]).isoformat()
+        timestamp = datetime.fromtimestamp(data['depth']['t'][i]).isoformat() + 'Z'
         
         feature_dict = {
         "type": "Feature",
@@ -82,54 +82,59 @@ def translate(data: Dict[str,Any], config: Dict[str,Any]) -> Dict[str,Any]:
 
     final_json_dict = {
         "type": "FeatureCollection",
-        "crs": {
+        "crs":  {
             "type": "name",
             "properties": {
                 "name": "EPSG:4326"
             }
         },
         "properties": {
-            "convention": "CSB 2.0",
+            "trustedNode": {
+                "providerOrganizationName":     "CCOM/JHC, UNH",
+                "providerEmail":                "wibl@ccom.unh.edu",
+                "uniqueVesselID":               data['loggername'],
+                "convention":                   "GeoJSON CSB 3.0",
+                "dataLicense":                  "CC0 1.0",
+                "providerLogger":               "WIBL",
+                "providerLoggerVersion":        data['loggerversion'],
+                "navigationCRS":                "EPSG:4326",
+                "verticalReferenceOfDepth":     "Transducer",
+                "vesselPositionReferencePoint": "GNSS"
+            },
             "platform": {
-                "uniqueID": data['loggername'],
-                "type": "Ship",
-                "name": data['platform'],
-                "IDType": "LoggerName",
-                "IDNumber": data['loggername']
+                "type":                         "Ship",
+                "name":                         data['platform'],
+                "IDType":                       "LoggerName",
+                "IDNumber":                     data['loggername'],
+                "soundSpeedDocumented":         False,
+                "positionOffsetsDocumented":    False,
+                "dataProcessed":                False
             },
-            "providerContactPoint": {
-                "orgName": "CCOM/JHC, UNH",
-                "email": "wibl@ccom.unh.edu",
-                "logger": "WIBL",
-                "loggerVersion": data['loggerversion']
-            },
-            "depthUnits": "meters",
-            "timeUnits": "ISO 8601"
+            "processing": []
         },
-        "lineage":  [],
         "features": feature_lst
     }
+
     if data['metadata'] is not None:
         meta = json.loads(data['metadata'])
         if 'platform' in meta:
-            final_json_dict['properties']['platform'] = meta['platform']
-        if 'providerContactPoint' in meta:
-            final_json_dict['properties']['providerContactPoint'] = meta['providerContactPoint']
-        if 'depthUnits' in meta:
-            final_json_dict['properties']['depthUnits'] = meta['depthUnits']
-        if 'timeUnits' in meta:
-            final_json_dict['properties']['timeUnits'] = meta['timeUnits']
+            for k,v in meta['platform'].items():
+                final_json_dict['properties']['platform'][k] = v
+        if 'trustedNode' in meta:
+            for k,v in meta['trustedNode'].items():
+                final_json_dict['properties']['trustedNode'][k] = v
+        if 'processing' in meta:
+            for event in meta['processing']:
+                final_json_dict['properties']['processing'].append(event)
     
     # The database requires that the unique ID contains the provider's ID, presumably to avoid
     # namespace clashes.  We therefore check now (after the platform metadata is finalised) to make
     # sure that this is the case.
     provider_id = getenv('PROVIDER_ID')
-    if provider_id not in final_json_dict['properties']['platform']['uniqueID']:
-        final_json_dict['properties']['platform']['uniqueID'] = provider_id + '-' + final_json_dict['properties']['platform']['uniqueID']
+    if provider_id not in final_json_dict['properties']['trustedNode']['uniqueVesselID']:
+        final_json_dict['properties']['trustedNode']['uniqueVesselID'] = provider_id + '-' + final_json_dict['properties']['trustedNode']['uniqueVesselID']
 
-    if len(data['algorithms']) > 0:
-        final_json_dict['properties']['algorithms'] = data['algorithms']
     if 'lineage' in data:
-        final_json_dict['lineage'] = data['lineage']
+        final_json_dict['properties']['processing'] += data['lineage']
 
     return final_json_dict
