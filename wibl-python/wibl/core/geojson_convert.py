@@ -39,6 +39,21 @@ from wibl.core import getenv
 
 
 def translate(data: Dict[str,Any], config: Dict[str,Any]) -> Dict[str,Any]:
+    """
+    Translate from the internal working data dictionary to the GeoJSON structure required by
+    DCDB for upload.  This forms the structure for the metadata in addition to re-structuring the
+    core data, and fills in any metadata that was stored in the logger, any algorithm information
+    and any lineage data.  The current output metadata format is based on IHO Crowd-sourced
+    Bathymetry Working Group document B.12 v 3.0.0 (2022-10-01) available at
+    https://iho.int/uploads/user/pubs/bathy/B_12_CSB-Guidance_Document-Edition_3.0.0_Final.pdf
+
+    :param data:    Data dictionary from time-interpolation and clean-up
+    :type data:     Dict[str,Any] with at least 'depth', 'loggername', 'platform', and 'loggerversion'
+    :param config:  Configuration parameters from defaults file for instasll
+    :type config:   Dict[str,Any] (see config.py for details)
+    :return:        Data dictionary with tags required for conversion to GeoJSON for DCDB
+    :rtype:         Dict[str,Any]
+    """
     # Original comment was:
     # geojson formatting - Taylor Roy
     # based on https://ngdc.noaa.gov/ingest-external/#_testing_csb_data_submissions example geojson
