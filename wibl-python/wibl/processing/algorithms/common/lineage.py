@@ -37,18 +37,15 @@ class Lineage:
         else:
             self.lineage = []
     
-    def add_algorithm(self, name: str, params: str, **kwargs) -> None:
-        timestamp = datetime.utcnow().isoformat()
+    def add_algorithm(self, name: str, **kwargs) -> None:
+        timestamp = datetime.utcnow().isoformat() + 'Z'
         element = {
-            "type":         "algorithm",
+            "type":         "Algorithm",
             "timestamp":    timestamp,
-            "detail":       {
-                "name":         name,
-                "parameters":   params
-            }
+            "name":         name
         }
-        if 'comment' in kwargs:
-            element['detail']['comment'] = kwargs['comment']
+        for key in kwargs:
+            element[key] = kwargs[key]
         self.lineage.append(element)
     
     def export(self) -> List[Dict]:
