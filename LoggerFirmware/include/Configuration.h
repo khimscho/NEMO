@@ -60,11 +60,10 @@ class Config {
             CONFIG_MOTION_B,        /* Binary: Motion sensor logging configured on */
             CONFIG_POWMON_B,        /* Binary: Power monitoring configured on */
             CONFIG_SDMMC_B,         /* Binary: SD-MMC (SDIO) interface for log files */
-            CONFIG_BOOT_BLE_B,      /* Binary: Boot the BLE interface on start, or WiFi */
             CONFIG_BRIDGE_B,        /* Binary: Bridge UDP broadcast packets to NMEA0183 */
             CONFIG_WEBSERVER_B,     /* Binary: Use web server interface to configure system */
             CONFIG_MODULEID_S,      /* String: User-specified unique identifier for the module */
-            CONFIG_BLENAME_S,       /* String: BLE advertising name for the module */
+            CONFIG_SHIPNAME_S,      /* String: User-specific name for the ship hosting the WIBL */
             CONFIG_WIFISSID_S,      /* String: WiFi SSID to use for AP/Station */
             CONFIG_WIFIPSWD_S,      /* String: WiFi password to use */
             CONFIG_WIFIIP_S,        /* String: WiFi IP address assigned */

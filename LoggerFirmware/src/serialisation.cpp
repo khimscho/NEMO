@@ -210,7 +210,7 @@ Serialiser::Serialiser(File& file)
 
     Serialisable meta(255);
     String name, identifier;
-    logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_WIFISSID_S, name);
+    logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_SHIPNAME_S, name);
     logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_MODULEID_S, identifier);
     meta += name.length();
     meta += name.c_str();

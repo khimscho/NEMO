@@ -41,11 +41,10 @@ const String lookup[] = {
     "IMUEnable",        ///< Control logging of motion sensor data (binary)
     "PowMon",           ///< Control whether power monitoring and emergency shutdown is done (binary)
     "MemModule",        ///< Control whether SD/MMC or SPI is used to access the SD card (binary)
-    "BootBLE",          ///< Control whether to start BLE or WiFi on boot (binary)
     "Bridge",           ///< Control whether to start the UDP->RS-422 bridge on WiFi startup (binary)
     "WebServer",        ///< Control whether to use the web server interface to configure the system
     "modid",            ///< Set the module's Unique ID (string)
-    "modname",          ///< Set the ship's name (string)
+    "shipname",         ///< Set the ship's name (string)
     "ssid",             ///< Set the WiFi SSID (string)
     "password",         ///< Set the WiFi password (string)
     "ipaddress",        ///< Set the IP address assigned to the WiFI module (string)

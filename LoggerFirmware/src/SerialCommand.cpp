@@ -25,7 +25,6 @@
  */
 
 #include <Arduino.h>
-#include "BluetoothAdapter.h"
 #include "WiFiAdapter.h"
 #include "SerialCommand.h"
 #include "IncrementalBuffer.h"
@@ -52,23 +51,10 @@ SerialCommand::SerialCommand(nmea::N2000::Logger *CANLogger, nmea::N0183::Logger
 : m_CANLogger(CANLogger), m_serialLogger(serialLogger), m_logManager(logManager), m_led(led), m_echoOn(true), m_passThrough(false)
 {
     logger::HeapMonitor heap;
-    bool boot_ble;
-
-    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_BOOT_BLE_B, boot_ble);
 
     Serial.printf("DBG: Before SerialCommand setup, heap free = %d B\n", heap.CurrentSize());
 
     m_serialBuffer.ResetLength(1024);
-
-    if (boot_ble) {
-        m_ble = BluetoothFactory::Create();
-        m_ble->Startup();
-        
-        Serial.printf("DBG: After BLE start, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
-    } else {
-        // If we're not booting it at the start, then we're not even going to make the device controller.
-        m_ble = nullptr;
-    }
 
     // WiFi always gets created, since we'll need it eventually to get data off.  The only question is
     // whether it gets started when the system first somes up or not.
@@ -76,22 +62,20 @@ SerialCommand::SerialCommand(nmea::N2000::Logger *CANLogger, nmea::N0183::Logger
 
     Serial.printf("DBG: After WiFi interface create, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
 
-    if (!boot_ble) {
-        if (m_wifi->Startup()) {
-            Serial.printf("DBG: After WiFi interface start, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+    if (m_wifi->Startup()) {
+        Serial.printf("DBG: After WiFi interface start, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
 
-            bool start_bridge;
-            logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_BRIDGE_B, start_bridge);
-            if (start_bridge) {
-                m_bridge = new nmea::N0183::PointBridge();
+        bool start_bridge;
+        logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_BRIDGE_B, start_bridge);
+        if (start_bridge) {
+            m_bridge = new nmea::N0183::PointBridge();
 
-                Serial.printf("DBG: After UDP bridge start, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
-            } else {
-                m_bridge = nullptr;
-            }
+            Serial.printf("DBG: After UDP bridge start, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
         } else {
-            Serial.printf("ERR: Failed to start WiFi interface.\n");
+            m_bridge = nullptr;
         }
+    } else {
+        Serial.printf("ERR: Failed to start WiFi interface.\n");
     }
 }
 
@@ -103,7 +87,6 @@ SerialCommand::~SerialCommand()
 {
     delete m_bridge;
     delete m_wifi;
-    delete m_ble;
 }
 
 /// Generate a copy of the console log (/console.log in the root directory of the attached SD card)
@@ -120,9 +103,6 @@ void SerialCommand::ReportConsoleLog(CommandSource src)
             Serial.println("*** Current console log start.");
             m_logManager->DumpConsoleLog(Serial);
             Serial.println("*** Current console log end.");
-            break;
-        case CommandSource::BluetoothPort:
-            Serial.println("ERR: cannot output console log on BLE.");
             break;
         case CommandSource::WirelessPort:
             m_logManager->DumpConsoleLog(m_wifi->Client());
@@ -255,40 +235,23 @@ void SerialCommand::SetIdentificationString(String const& identifier)
             Serial.println("ERR: module identification string file failed to write.");
             return;
     }
-    //m_ble->IdentifyAs(identifier);
 }
 
-/// Set the advertising name for the Bluetooth LE UART service established by the module on
-/// start.  This is persisted in non-volatile memory on the logger so that it comes up the same
-/// on every start.
-///
-/// \param name String to use for the advertising name of the logger's BLE interface
-
-void SerialCommand::SetBluetoothName(String const& name)
+void SerialCommand::ReportShipname(CommandSource src)
 {
-    if (!logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_BLENAME_S, name)) {
-        Serial.println("ERR: module advertising name file failed to write.");
-        return;
-    }
-    //m_ble->AdvertiseAs(name);
-}
-
-/// Report the advertising name for the Bluetooth LE UART service established by the module when
-/// configured.  This is persisted in non-volatile memory on the logger so that it comes up the
-/// same on every start
-///
-/// \param src  Channel on which to report information
-
-void SerialCommand::ReportBluetoothName(CommandSource src)
-{
-    String name;
-    if (src == CommandSource::SerialPort) {
-        EmitMessage("BLE Advertising Name: ", src);
-    }
-    if (logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_BLENAME_S, name)) {
-        EmitMessage(name + "\n", src);
+    if (src == CommandSource::SerialPort) EmitMessage("Shipname: ", src);
+    String id;
+    if (logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_SHIPNAME_S, id)) {
+        EmitMessage(id + "\n", src);
     } else {
-        EmitMessage("UNSET\n", src);
+        EmitMessage("UNKNOWN\n", src);
+    }
+}
+
+void SerialCommand::SetShipname(String const& name, CommandSource src)
+{
+    if (!logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_SHIPNAME_S, name)) {
+        EmitMessage("ERR: shipname string failed to write.", src);
     }
 }
 
@@ -346,8 +309,7 @@ void SerialCommand::SetWiFiSSID(String const& ssid)
 void SerialCommand::GetWiFiSSID(CommandSource src)
 {
     String ssid = m_wifi->GetSSID();
-    if (src != CommandSource::BluetoothPort) EmitMessage("WiFi SSID: ", src);
-    EmitMessage(ssid + "\n", src);
+    EmitMessage("WiFi SSID: " + ssid + "\n", src);
 }
 
 /// Specify the password to use for clients attempting to connect to the WiFi access
@@ -367,8 +329,7 @@ void SerialCommand::SetWiFiPassword(String const& password)
 void SerialCommand::GetWiFiPassword(CommandSource src)
 {
     String password = m_wifi->GetPassword();
-    if (src != CommandSource::BluetoothPort) EmitMessage("WiFi Password: ", src);
-    EmitMessage(password + "\n", src);
+    EmitMessage("WiFi Password: " + password + "\n", src);
 }
 
 /// Turn the WiFi interface on and off, as required by the user
@@ -381,13 +342,8 @@ void SerialCommand::ManageWireless(String const& command, CommandSource src)
     if (command == "on") {
         logger::HeapMonitor heap;
         Serial.printf("DBG: Before starting WiFi, heap free = %d B\n", heap.CurrentSize());
-        if (m_ble != nullptr) {
-            m_ble->Shutdown();
-            Serial.printf("DBG: After BLE shutdown, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
-        }
         if (m_wifi->Startup()) {
-            if (src != CommandSource::BluetoothPort)
-                EmitMessage("WiFi started on ", src);
+            EmitMessage("WiFi started on ", src);
             EmitMessage(m_wifi->GetServerAddress() + "\n", src);
             Serial.printf("DBG: After WiFi startup, heap fee = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
             
@@ -402,10 +358,6 @@ void SerialCommand::ManageWireless(String const& command, CommandSource src)
             }
         } else {
             EmitMessage("ERR: WiFi startup failed.\n", src);
-            if (m_ble != nullptr) {
-                m_ble->Startup();
-                Serial.printf("DBG: After BLE re-enabled, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
-            }
         }
     } else if (command == "off") {
         logger::HeapMonitor heap;
@@ -418,10 +370,6 @@ void SerialCommand::ManageWireless(String const& command, CommandSource src)
             delete m_bridge;
             m_bridge = nullptr;
             Serial.printf("DBG: After UDP bridge stopped, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
-        }
-        if (m_ble != nullptr) {
-            m_ble->Startup();
-            Serial.printf("DBG: After BLE re-started, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
         }
     } else if (command == "accesspoint") {
         m_wifi->SetWirelessMode(WiFiAdapter::WirelessMode::ADAPTER_SOFTAP);
@@ -449,9 +397,6 @@ void SerialCommand::TransferLogFile(String const& filenum, CommandSource src)
     switch (src) {
         case CommandSource::SerialPort:
             m_logManager->TransferLogFile(file_number, Serial);
-            break;
-        case CommandSource::BluetoothPort:
-            EmitMessage("ERR: not available.\n", src);
             break;
         case CommandSource::WirelessPort:
             Serial.printf("Transfering \"%s\", total %d bytes.\n", filename.c_str(), filesize);
@@ -663,9 +608,6 @@ void SerialCommand::ReportConfiguration(CommandSource src)
     EmitMessage("  SDIO-MMC Interface: ", src);
     logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_SDMMC_B, bin_param);
     EmitMessage(bin_param ? "on\n" : "off\n", src);
-    EmitMessage("  Boot Radio: ", src);
-    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_BOOT_BLE_B, bin_param);
-    EmitMessage(bin_param ? "ble\n" : "wifi\n", src);
     EmitMessage("  Bridge UDP: ", src);
     logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_BRIDGE_B, bin_param);
     EmitMessage(bin_param ? "on\n" : "off\n", src);
@@ -678,8 +620,8 @@ void SerialCommand::ReportConfiguration(CommandSource src)
     EmitMessage(" " + string_param + "\n", src);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_MODULEID_S, string_param);
     EmitMessage("  Module ID String: " + string_param + "\n", src);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_BLENAME_S, string_param);
-    EmitMessage("  BLE Advertising String: " + string_param + "\n", src);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_SHIPNAME_S, string_param);
+    EmitMessage("  Shipname String: " + string_param + "\n", src);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFISSID_S, string_param);
     EmitMessage("  WiFi SSID String: " + string_param + "\n", src);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIPSWD_S, string_param);
@@ -710,28 +652,6 @@ void SerialCommand::ReportHeapSize(CommandSource src)
     EmitMessage(msg, src);
 }
 
-/// Configure which radio engine is brought up on boot.  The ESP32 can do both WiFi and Bluetooth (optionally
-/// Low Energy), and can actually do both simultaneously.  However, the heap usage to set up both systems can
-/// be sufficiently high that you end up with so little free memory left that all sorts of bad things happen
-/// (particuarly that send/receive can quietly fail, potentially with reboots).  In order to ensure that we
-/// don't have that happen, the user can choose to bring up one or the other by default when the logger starts
-/// (although the WiFi can also be brought up separately later if required).
-///
-/// \param params   Parameters for the command: ble | wifi
-/// \param src      Channel on which to report command results (Serial, WiFi, BLE)
-
-void SerialCommand::ConfigureBootRadio(String const& params, CommandSource src)
-{
-    if (params.startsWith("ble")) {
-        logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_BOOT_BLE_B, true);
-    } else if (params.startsWith("wifi")) {
-        logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_BOOT_BLE_B, false);
-    } else {
-        EmitMessage("ERR: radio can only be 'ble' or 'wifi'.\n", src);
-        return;
-    }
-}
-
 /// Report the list of algorithms that the logger would request that the post-processing applies to the data
 /// from this system (e.g., de-duplication of depth, reputation computation, etc.).  There is no obligation
 /// for the post-processing to do this, but knowing which to do, and in which order, is useful.  The algorithms
@@ -746,9 +666,6 @@ void SerialCommand::ReportAlgRequests(CommandSource src)
     switch (src) {
         case CommandSource::SerialPort:
             algstore.ListAlgorithms(Serial);
-            break;
-        case CommandSource::BluetoothPort:
-            m_ble->WriteString("ERR: Cannot report algorithm requests on BLE.\n");
             break;
         case CommandSource::WirelessPort:
             algstore.ListAlgorithms(m_wifi->Client());
@@ -825,9 +742,6 @@ void SerialCommand::ReportNMEAFilter(CommandSource src)
         case CommandSource::SerialPort:
             filter.ListIDs(Serial);
             break;
-        case CommandSource::BluetoothPort:
-            m_ble->WriteString("ERR: Cannot report NMEA0183 filter specification on BLE.\n");
-            break;
         case CommandSource::WirelessPort:
             filter.ListIDs(m_wifi->Client());
             break;
@@ -873,9 +787,6 @@ void SerialCommand::ReportScalesElement(CommandSource src)
         case CommandSource::SerialPort:
         case CommandSource::WirelessPort:
             EmitMessage(scales.GetScales() + "\n", src);
-            break;
-        case CommandSource::BluetoothPort:
-            m_ble->WriteString("ERR: Cannot report sensor scales on BLE.\n");
             break;
         default:
             EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
@@ -937,7 +848,6 @@ void SerialCommand::Syntax(CommandSource src)
 {
     EmitMessage(String("Command Syntax (V") + CommandMajorVersion + "." + CommandMinorVersion + "." + CommandPatchVersion + "):\n", src);
     EmitMessage("  accept [NMEA0183-ID | all]          Configure which NMEA0183 messages to accept.\n", src);
-    EmitMessage("  advertise [bt-name]                 Set BLE advertising name.\n", src);
     EmitMessage("  algorithm [name params | none]      Add (or report) an algorithm request to the cloud processing.\n", src);
     EmitMessage("  configure [on|off logger-name]      Configure individual loggers on/off (or report config).\n", src);
     EmitMessage("  echo on|off                         Control character echo on serial line.\n", src);
@@ -952,9 +862,9 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  metadata [platform-specific]        Store or report a platform-specific metadata JSON element.\n", src);
     EmitMessage("  ota                                 Start Over-the-Air update sequence for the logger.\n", src);
     EmitMessage("  password [wifi-password]            Set the WiFi password.\n", src);
-    EmitMessage("  radio ble|wifi                      Set the radio to boot on initialisation.\n", src);
     EmitMessage("  restart                             Restart the logger module hardware.\n", src);
     EmitMessage("  scales                              Report any registered sensor-specific scale factors.\n", src);
+    EmitMessage("  shipname name                       Set the name of the host ship carrying the logger.\n", src);
     EmitMessage("  sizes                               Output list of the extant log files, and their sizes in bytes.\n", src);
     EmitMessage("  speed 1|2 baud-rate                 Set the baud rate for the RS-422 input channels.\n", src);
     EmitMessage("  ssid [wifi-ssid]                    Set the WiFi SSID.\n", src);
@@ -994,12 +904,6 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         m_logManager->StartNewLog();
     } else if (cmd.startsWith("led")) {
         ModifyLEDState(cmd.substring(4));
-    } else if (cmd.startsWith("advertise")) {
-        if (cmd.length() == 9) {
-            ReportBluetoothName(src);
-        } else {
-            SetBluetoothName(cmd.substring(10));
-        }
     } else if (cmd.startsWith("uniqueid")) {
         if (cmd.length() == 8) {
             ReportIdentificationString(src);
@@ -1041,8 +945,6 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         ReportHeapSize(src);
     } else if (cmd.startsWith("speed")) {
         ConfigureSerialPortSpeed(cmd.substring(6), src);
-    } else if (cmd.startsWith("radio")) {
-        ConfigureBootRadio(cmd.substring(6), src);
     } else if (cmd == "passthrough") {
         // Note that this is intentionally not defined in the syntax list, or elsewhere: it
         // really is just for debugging.
@@ -1074,6 +976,12 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
             ReportWebserverConfig(src);
         } else {
             ConfigureWebserver(cmd.substring(10), src);
+        }
+    } else if (cmd.startsWith("shipname")) {
+        if (cmd.length() == 8) {
+            ReportShipname(src);
+        } else {
+            SetShipname(cmd.substring(9), src);
         }
     } else if (cmd == "help" || cmd == "syntax") {
         Syntax(src);
@@ -1119,14 +1027,6 @@ void SerialCommand::ProcessCommand(void)
             }
         }
     }
-    if (m_ble != nullptr && m_ble->IsConnected() && m_ble->DataAvailable()) {
-        String cmd = m_ble->ReceivedString();
-        cmd.trim();
-
-        Serial.printf("Found BLE command: \"%s\"\n", cmd.c_str());
-
-        Execute(cmd, CommandSource::BluetoothPort);
-    }
     if (m_wifi->IsConnected() && m_wifi->DataAvailable()) {
         String cmd = m_wifi->ReceivedString();
         cmd.trim();
@@ -1157,10 +1057,6 @@ void SerialCommand::EmitMessage(String const& msg, CommandSource src)
     switch (src) {
         case CommandSource::SerialPort:
             Serial.print(msg);
-            break;
-        case CommandSource::BluetoothPort:
-            if (m_ble != nullptr && m_ble->IsConnected())
-                m_ble->WriteString(msg);
             break;
         case CommandSource::WirelessPort:
             m_wifi->Client().print(msg);

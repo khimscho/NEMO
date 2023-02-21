@@ -33,7 +33,6 @@
 #include "PointBridge.h"
 #include "LogManager.h"
 #include "StatusLED.h"
-#include "BluetoothAdapter.h"
 #include "WiFiAdapter.h"
 #include "IncrementalBuffer.h"
 
@@ -70,7 +69,6 @@ public:
     
     enum CommandSource {
         SerialPort,     ///< The USB serial connection to a monitoring computer
-        BluetoothPort,  ///< Bluetooth LE connection from a mobile client
         WirelessPort    ///< WiFi socket from a client
     };
 
@@ -85,7 +83,6 @@ private:
     nmea::N0183::PointBridge *m_bridge; ///< Pointer for the WiFi/UDP -> NEMA0183 bridge
     logger::Manager     *m_logManager;  ///< Object to write to SD files and console log
     StatusLED           *m_led;         ///< Pointer for the status LED controller
-    BluetoothAdapter    *m_ble;         ///< Pointer for the BLE interface
     WiFiAdapter         *m_wifi;        ///< Pointer for the WiFi interface, once it comes up
     logger::IncBuffer   m_serialBuffer; ///< Space to assemble serial commands that doesn't block runtime
     bool                m_echoOn;       ///< Flag: indicate that characters from serial should be echoed back
@@ -105,10 +102,10 @@ private:
     void ReportIdentificationString(CommandSource src);
     /// \brief Set the logger's user-specified identification string
     void SetIdentificationString(String const& identifier);
-    /// \brief Set the advertising name for the BLE service
-    void SetBluetoothName(String const& name);
-    /// \brief Report the advertising name for the BLE service
-    void ReportBluetoothName(CommandSource src);
+    /// \brief Report the host ship's name
+    void ReportShipname(CommandSource src);
+    /// \brief Set the host ship's name
+    void SetShipname(String const& name, CommandSource src);
     /// \brief Turn on/off verbose information on messages received
     void SetVerboseMode(String const& mode);
     /// \brief Shut down logging for safe power removal
@@ -135,8 +132,6 @@ private:
     void ConfigureEcho(String const& command, CommandSource src);
     /// \brief Configure whether to pass through characters on Serial to NMEA0183
     void ConfigurePassthrough(String const& command, CommandSource src);
-    /// \brief Set which radio gets booted at power on
-    void ConfigureBootRadio(String const& command, CommandSource src);
     /// \brief Set up algorithm requests for later post-processing
     void ConfigureAlgRequest(String const& command, CommandSource src);
     /// \brief Report configuration parameters for the logger
