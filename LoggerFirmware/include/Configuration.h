@@ -62,6 +62,7 @@ class Config {
             CONFIG_SDMMC_B,         /* Binary: SD-MMC (SDIO) interface for log files */
             CONFIG_BOOT_BLE_B,      /* Binary: Boot the BLE interface on start, or WiFi */
             CONFIG_BRIDGE_B,        /* Binary: Bridge UDP broadcast packets to NMEA0183 */
+            CONFIG_WEBSERVER_B,     /* Binary: Use web server interface to configure system */
             CONFIG_MODULEID_S,      /* String: User-specified unique identifier for the module */
             CONFIG_BLENAME_S,       /* String: BLE advertising name for the module */
             CONFIG_WIFISSID_S,      /* String: WiFi SSID to use for AP/Station */
