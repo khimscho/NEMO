@@ -159,6 +159,10 @@ private:
     void ReportScalesElement(CommandSource src);
     /// \brief Report the number of log files available on the SD card
     void ReportFileCount(CommandSource src);
+    /// \brief Report the configuration of the web-server
+    void ReportWebserverConfig(CommandSource src);
+    /// \brief Configure the web-server for system config/management
+    void ConfigureWebserver(String const& command, CommandSource src);
     /// \brief Check for commands, and execute them if found
     void Execute(String const& command, CommandSource src);
     

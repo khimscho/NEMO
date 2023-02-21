@@ -71,7 +71,9 @@ class Config {
             CONFIG_WIFIMODE_S,      /* String: WiFi mode (Station, SoftAP) */
             CONFIG_BAUDRATE_1_S,    /* String: baud rate for NMEA0183 input channel 1 */
             CONFIG_BAUDRATE_2_S,    /* String: baud rate for NMEA0183 input channel 2 */
-            CONFIG_BRIDGE_PORT_S    /* String: UDP broadcast port to bridge to NMEA0183 */
+            CONFIG_BRIDGE_PORT_S,   /* String: UDP broadcast port to bridge to NMEA0183 */
+            CONFIG_WS_TIMEOUT_S,    /* String: timeout (seconds) before web-server attempts to joint a client network */
+            CONFIG_WS_REBOOTS_S     /* String: reboots (int) before web-server reverts to "safe-mode". */
         };
 
         /// \brief Extract a configuration string for the specified parameter

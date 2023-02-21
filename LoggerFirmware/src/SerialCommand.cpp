@@ -669,6 +669,13 @@ void SerialCommand::ReportConfiguration(CommandSource src)
     EmitMessage("  Bridge UDP: ", src);
     logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_BRIDGE_B, bin_param);
     EmitMessage(bin_param ? "on\n" : "off\n", src);
+    EmitMessage("  Webserver: ", src);
+    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_WEBSERVER_B, bin_param);
+    EmitMessage(bin_param ? "on" : "off", src);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WS_TIMEOUT_S, string_param);
+    EmitMessage(" " + string_param, src);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WS_REBOOTS_S, string_param);
+    EmitMessage(" " + string_param + "\n", src);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_MODULEID_S, string_param);
     EmitMessage("  Module ID String: " + string_param + "\n", src);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_BLENAME_S, string_param);
@@ -887,6 +894,42 @@ void SerialCommand::ReportFileCount(CommandSource src)
     EmitMessage(String(file_count) + "\n", src);
 }
 
+void SerialCommand::ReportWebserverConfig(CommandSource src)
+{
+    bool enable;
+    String timeout, reboots;
+    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_WEBSERVER_B, enable);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WS_TIMEOUT_S, timeout);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WS_REBOOTS_S, reboots);
+    if (src == CommandSource::SerialPort || src == CommandSource::WirelessPort) {
+        EmitMessage(String("Webserver is ") + (enable ? "on" : "off") + " with timeout " + timeout + " and " + reboots + " reboots.\n", src);
+    } else {
+        EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
+    }
+}
+
+void SerialCommand::ConfigureWebserver(String const& params, CommandSource src)
+{
+    bool state;
+
+    if (params.startsWith("on")) {
+        state = true;
+        int timeout_position = params.indexOf(' ') + 1;
+        int reboot_position = params.indexOf(' ', timeout_position) + 1;
+        String timeout = params.substring(timeout_position, reboot_position-1);
+        String reboots = params.substring(reboot_position);
+        logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_TIMEOUT_S, timeout);
+        logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_REBOOTS_S, reboots);
+    } else if (params.startsWith("off")) {
+        state = false;
+    } else {
+        EmitMessage("ERR: webserver can be configured 'on' or 'off' only.\n", src);
+        return;
+    }
+
+    logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_WEBSERVER_B, state);
+}
+
 /// Output a list of known commands, since there are now enough of them to make remembering them
 /// all a little difficult.
 
@@ -920,6 +963,7 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  transfer file-number                Transfer log file [file-number] (WiFi and serial only).\n", src);
     EmitMessage("  verbose on|off                      Control verbosity of reporting for serial input strings.\n", src);
     EmitMessage("  version                             Report NMEA0183 and NMEA2000 logger version numbers.\n", src);
+    EmitMessage("  webserver on timeout reboots | off  Configure web-server interface with given timeout (seconds) and reboots (int).\n", src);
     EmitMessage("  wireless on|off|accesspoint|station Control WiFi activity [on|off] and mode [accesspoint|station].\n", src);
 }
 
@@ -1025,6 +1069,12 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         ReportScalesElement(src);
     } else if (cmd == "filecount") {
         ReportFileCount(src);
+    } else if (cmd.startsWith("webserver")) {
+        if (cmd.length() == 9) {
+            ReportWebserverConfig(src);
+        } else {
+            ConfigureWebserver(cmd.substring(10), src);
+        }
     } else if (cmd == "help" || cmd == "syntax") {
         Syntax(src);
     } else {

@@ -52,7 +52,9 @@ const String lookup[] = {
     "wifimode",         ///< Set the WiFi mode (access point, station) to start in (string)
     "baud1",            ///< Set the baud rate of NMEA0183 input channel 1
     "baud2",            ///< Set the baud rate of NMEA0183 input channel 2
-    "BridgePort"        ///< Set the UDP port for broadcast packets to bridge to RS-422 (string)
+    "BridgePort",       ///< Set the UDP port for broadcast packets to bridge to RS-422 (string)
+    "WSTimeout",        ///< Set the timeout between attempts of the webserver joining a client network
+    "WSReboots"         ///< Set number of join attempts before the webserver reverts to safe mode
 };
 
 /// Default constructor.  This sets up for a dummy parameter store, which is configured
