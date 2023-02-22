@@ -65,9 +65,15 @@ private:
     std::queue<String>  m_commands; ///< Queue to handle commands sent by the user
     String              m_messages; ///< Accumulating message content to be send to the client
 
+    /// @brief Handle HTTP requests to the /command endpoint
+    ///
+    /// HTTP POST endpoint handler for commands being sent to the logger through the web-server
+    /// interface.  This simple captures any "command" arguments and queues them for the system
+    /// to execute later.
+    ///
+    /// @return N/A
     void handleCommand(void)
     {
-        Serial.printf("DBG: received HTTP request %d for %d arguments.\n", (int)m_server->method(), m_server->args());
         for (uint32_t i = 0; i < m_server->args(); ++i) {
             if (m_server->argName(i) == "command") {
                 m_commands.push(m_server->arg(i));
@@ -75,6 +81,14 @@ private:
         }
     }
 
+    /// @brief Provide a simple endpoint for HTTP GET to indicate presence
+    ///
+    /// It's not always possible to tell whether you have a web-server available on a known IP
+    /// address.  This endpoint handle (typically for GET but it should work for anything) returns
+    /// a simple text message with the serial number of the logger board and 200OK so that you
+    /// know that the server is on and running.
+    ///
+    /// @return N/A
     void heartbeat(void)
     {
         m_server->send(200, "text/plain", GetSerialNumberString());
