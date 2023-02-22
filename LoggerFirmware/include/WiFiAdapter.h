@@ -50,6 +50,12 @@ public:
     
     /// \brief Manage the transfer of a log file to the client, given the filename.
     bool TransferFile(String const& filename, uint32_t filesize);
+
+    /// \brief Accumulate messages to be returned to the client for the current transaction
+    void AddMessage(String const& message);
+
+    /// \brief Transmit the current set of accumulated messages to the client
+    bool TransmitMessages(char const *data_type);
     
     enum WirelessMode {
         ADAPTER_STATION,    ///< Join the configured network when activated
@@ -59,6 +65,8 @@ public:
     void SetWirelessMode(WirelessMode mode);
     /// \brief Determine the wireless mode currently configures
     WirelessMode GetWirelessMode(void);
+
+    void RunLoop(void);
     
 private:
     /// \brief Sub-class implementation of code to start the interface.
@@ -72,10 +80,18 @@ private:
     /// \brief Sub-class implementation of code to send a log file to the client.
     virtual bool sendLogFile(String const& filename, uint32_t filesize) = 0;
 
+    /// \brief Sub-class implementation of code to accumulate messages for transmission
+    virtual void accumulateMessage(String const& message) = 0;
+
+    /// \brief Sub-class implementation of code to transmit messages (and complete transaction)
+    virtual bool transmitMessages(char const *data_type) = 0;
+
     /// \brief Sub-class implementation to set the adapter access mode
     virtual void set_wireless_mode(WirelessMode mode) = 0;
     /// \brief Sub-class implementation to get the adapter access mode
     virtual WirelessMode get_wireless_mode(void) = 0;
+
+    virtual void runLoop(void) = 0;
 };
 
 /// \class WiFiAdapterFactory

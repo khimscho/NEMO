@@ -33,6 +33,7 @@
 #include "WiFiAdapter.h"
 #include "Configuration.h"
 #include "MemController.h"
+#include "serial_number.h"
 
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
 
@@ -62,14 +63,21 @@ private:
     mem::MemController  *m_storage; ///< Pointer to the storage object to use
     WebServer           *m_server;  ///< Pointer to the server object, if started.
     std::queue<String>  m_commands; ///< Queue to handle commands sent by the user
+    String              m_messages; ///< Accumulating message content to be send to the client
 
     void handleCommand(void)
     {
+        Serial.printf("DBG: received HTTP request %d for %d arguments.\n", (int)m_server->method(), m_server->args());
         for (uint32_t i = 0; i < m_server->args(); ++i) {
             if (m_server->argName(i) == "command") {
                 m_commands.push(m_server->arg(i));
             }
         }
+    }
+
+    void heartbeat(void)
+    {
+        m_server->send(200, "text/plain", GetSerialNumberString());
     }
 
     /// Bring up the WiFi adapter, which in this case includes bring up the soft access point.  This
@@ -88,6 +96,7 @@ private:
         } else {
             // Configure the endpoints served by the server
             using namespace std::placeholders;
+            m_server->on("/heartbeat", HTTPMethod::HTTP_GET, std::bind(&ESP32WiFiAdapter::heartbeat, this));
             m_server->on("/command", HTTPMethod::HTTP_POST, std::bind(&ESP32WiFiAdapter::handleCommand, this));
         }
         if (get_wireless_mode() == WirelessMode::ADAPTER_SOFTAP) {
@@ -174,6 +183,18 @@ private:
         return true;
     }
 
+    void accumulateMessage(String const& message)
+    {
+        m_messages += message;
+    }
+
+    bool transmitMessages(char const* data_type)
+    {
+        m_server->send(200, data_type, m_messages);
+        m_messages = "";
+        return true;
+    }
+
     /// Sets the mode in which to bring up the interface.  Most WiFi embedded solutions can come up either
     /// as a client on some other WiFi network, or as an access point ("Soft AP"), making its own network.  The
     /// default condition is to come up as an AP, but for debug, and in some other applications, it might make
@@ -218,6 +239,12 @@ private:
             rc = WirelessMode::ADAPTER_SOFTAP;
         return rc;
     }
+
+    void runLoop(void)
+    {
+        if (m_server != nullptr)
+            m_server->handleClient();
+    }
 };
 
 #endif
@@ -242,6 +269,18 @@ String WiFiAdapter::ReceivedString(void) { return readBuffer(); }
 bool WiFiAdapter::TransferFile(String const& filename, uint32_t filesize)
     { return sendLogFile(filename, filesize); }
 
+/// Pass-through implementation to the sub-class code to accumulate messages
+///
+/// \param message  String for the message to send
+/// \return N/A
+void WiFiAdapter::AddMessage(String const& message) { accumulateMessage(message); }
+
+/// Pass-through implementation to the sub-class code to transmit all available messages.
+/// This should also complete the transaction from the client's request.
+///
+/// \return True if the messages were transmitted successfully
+bool WiFiAdapter::TransmitMessages(char const* data_type) { return transmitMessages(data_type); }
+
 /// Pass-through implementation to the sub-class code to set the wireless adapter mode.
 ///
 /// \param mode WirelessMode for the adapter on startup
@@ -251,6 +290,8 @@ void WiFiAdapter::SetWirelessMode(WirelessMode mode) { return set_wireless_mode(
 ///
 /// \return WirelessMode enum value, using AP as the default
 WiFiAdapter::WirelessMode WiFiAdapter::GetWirelessMode(void) { return get_wireless_mode(); }
+
+void WiFiAdapter::RunLoop(void) { runLoop(); }
 
 /// Create an implementation of the WiFiAdapter interface that's appropriate for the hardware in use
 /// in the current logger module.

@@ -856,19 +856,19 @@ void SerialCommand::ConfigureWebserver(String const& params, CommandSource src)
 
     if (params.startsWith("on")) {
         state = true;
-        int timeout_position = params.indexOf(' ') + 1;
-        int reboot_position = params.indexOf(' ', timeout_position) + 1;
-        String timeout = params.substring(timeout_position, reboot_position-1);
-        String reboots = params.substring(reboot_position);
-        logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_TIMEOUT_S, timeout);
-        logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_REBOOTS_S, reboots);
     } else if (params.startsWith("off")) {
         state = false;
     } else {
-        EmitMessage("ERR: webserver can be configured 'on' or 'off' only.\n", src);
+        EmitMessage("ERR: webserver can be configured 'on' or 'off' on boot only.\n", src);
         return;
     }
-
+    int timeout_position = params.indexOf(' ') + 1;
+    int reboot_position = params.indexOf(' ', timeout_position) + 1;
+    String timeout = params.substring(timeout_position, reboot_position-1);
+    String reboots = params.substring(reboot_position);
+    // TODO: Do some range checking on these parameters before accepting them.
+    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_TIMEOUT_S, timeout);
+    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_REBOOTS_S, reboots);
     logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_WEBSERVER_B, state);
 }
 
@@ -904,7 +904,7 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  transfer file-number                Transfer log file [file-number] (WiFi and serial only).\n", src);
     EmitMessage("  verbose on|off                      Control verbosity of reporting for serial input strings.\n", src);
     EmitMessage("  version                             Report NMEA0183 and NMEA2000 logger version numbers.\n", src);
-    EmitMessage("  webserver on timeout reboots | off  Configure web-server interface with given timeout (seconds) and reboots (int).\n", src);
+    EmitMessage("  webserver on|off timeout retries    Configure web-server interface with given timeout (seconds) and reboots (int).\n", src);
     EmitMessage("  wireless on|off|accesspoint|station Control WiFi activity [on|off] and mode [accesspoint|station].\n", src);
 }
 
@@ -1059,11 +1059,13 @@ void SerialCommand::ProcessCommand(void)
         }
     }
     if (m_wifi != nullptr) {
+        m_wifi->RunLoop();
         String cmd = m_wifi->ReceivedString();
         if (cmd.length() != 0) {
             cmd.trim();
             Serial.printf("Found WiFi command: \"%s\"\n", cmd.c_str());
             Execute(cmd, CommandSource::WirelessPort);
+            m_wifi->TransmitMessages("text/plain");
         }
     }
 }
@@ -1090,8 +1092,7 @@ void SerialCommand::EmitMessage(String const& msg, CommandSource src)
             Serial.print(msg);
             break;
         case CommandSource::WirelessPort:
-            // TODO: How do we return information on commands running?
-            // m_wifi->Client().print(msg);
+            m_wifi->AddMessage(msg);
             break;
         default:
             Serial.println("ERR: command source not recognised.");
