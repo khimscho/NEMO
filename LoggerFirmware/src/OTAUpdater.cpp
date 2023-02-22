@@ -36,6 +36,7 @@
 #include "WiFiAdapter.h"
 #include "SerialCommand.h"
 #include "LogManager.h"
+#include "Configuration.h"
 
 extern nmea::N2000::Logger *N2000Logger;        ///< Pointer to the NMEA2000 logger object (for shutdown)
 extern nmea::N0183::Logger *N0183Logger;        ///< Pointer to the NMEA0183 logger object (for shutdown)
@@ -62,7 +63,9 @@ OTAUpdater::OTAUpdater(void)
     WiFiAdapter *wifi = WiFiAdapterFactory::Create();
     Serial.println("Starting WiFi interface ...");
     if (wifi->Startup()) {
-        Serial.printf("WiFi started up on IP %s\n", wifi->GetServerAddress().c_str());
+        String ip_address;
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, ip_address);
+        Serial.printf("WiFi started up on IP %s\n", ip_address.c_str());
     } else {
         Serial.printf("WiFi startup failed, rebooting.\n");
         ESP.restart();

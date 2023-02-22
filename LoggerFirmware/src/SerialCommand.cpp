@@ -105,7 +105,7 @@ void SerialCommand::ReportConsoleLog(CommandSource src)
             Serial.println("*** Current console log end.");
             break;
         case CommandSource::WirelessPort:
-            m_logManager->DumpConsoleLog(m_wifi->Client());
+            Serial.println("ERR: cannot stream console log to WiFi web server.");
             break;
         default:
             Serial.println("ERR: command source not recognised.");
@@ -297,9 +297,17 @@ void SerialCommand::Shutdown(void)
 ///
 /// \param ssid SSID to use for the WiFi, when activated
 
-void SerialCommand::SetWiFiSSID(String const& ssid)
+void SerialCommand::SetWiFiSSID(String const& params, CommandSource src)
 {
-    m_wifi->SetSSID(ssid);
+    int position = params.indexOf(" ") + 1;
+    String ssid = params.substring(position);
+    if (params.startsWith("ap")) {
+        logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_AP_SSID_S, ssid);
+    } else if (params.startsWith("client")) {
+        logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_CLIENT_SSID_S, ssid);
+    } else {
+        EmitMessage("ERR: WiFi SSID must specify 'ap' or 'client' as first parameter.\n", src);
+    }
 }
 
 /// Report the SSID for the WiFi on the output channel(s)
@@ -308,8 +316,11 @@ void SerialCommand::SetWiFiSSID(String const& ssid)
 
 void SerialCommand::GetWiFiSSID(CommandSource src)
 {
-    String ssid = m_wifi->GetSSID();
-    EmitMessage("WiFi SSID: " + ssid + "\n", src);
+    String ap_ssid, client_ssid;
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_AP_SSID_S, ap_ssid);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_CLIENT_SSID_S, client_ssid);
+    EmitMessage("WiFi AP SSID: " + ap_ssid + "\n", src);
+    EmitMessage("WiFi Client SSID: " + client_ssid + "\n", src);
 }
 
 /// Specify the password to use for clients attempting to connect to the WiFi access
@@ -317,9 +328,17 @@ void SerialCommand::GetWiFiSSID(CommandSource src)
 ///
 /// \param password Pre-shared password to expect from the client
 
-void SerialCommand::SetWiFiPassword(String const& password)
+void SerialCommand::SetWiFiPassword(String const& params, CommandSource src)
 {
-    m_wifi->SetPassword(password);
+    int position = params.indexOf(" ") + 1;
+    String password = params.substring(position);
+    if (params.startsWith("ap")) {
+        logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_AP_PASSWD_S, password);
+    } else if (params.startsWith("client")) {
+        logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_CLIENT_PASSWD_S, password);
+    } else {
+        EmitMessage("ERR: WiFi password must specify 'ap' or 'client' as first parameter.\n", src);
+    }
 }
 
 /// Report the pre-shared password for the WiFi access point.
@@ -328,8 +347,11 @@ void SerialCommand::SetWiFiPassword(String const& password)
 
 void SerialCommand::GetWiFiPassword(CommandSource src)
 {
-    String password = m_wifi->GetPassword();
-    EmitMessage("WiFi Password: " + password + "\n", src);
+    String ap_password, client_password;
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_AP_PASSWD_S, ap_password);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_CLIENT_PASSWD_S, client_password);
+    EmitMessage("WiFi AP Password: " + ap_password + "\n", src);
+    EmitMessage("WiFi Client Password: " + client_password + "\n", src);
 }
 
 /// Turn the WiFi interface on and off, as required by the user
@@ -344,7 +366,9 @@ void SerialCommand::ManageWireless(String const& command, CommandSource src)
         Serial.printf("DBG: Before starting WiFi, heap free = %d B\n", heap.CurrentSize());
         if (m_wifi->Startup()) {
             EmitMessage("WiFi started on ", src);
-            EmitMessage(m_wifi->GetServerAddress() + "\n", src);
+            String ip_address;
+            logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, ip_address);
+            EmitMessage(ip_address + "\n", src);
             Serial.printf("DBG: After WiFi startup, heap fee = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
             
             bool start_bridge;
@@ -622,10 +646,14 @@ void SerialCommand::ReportConfiguration(CommandSource src)
     EmitMessage("  Module ID String: " + string_param + "\n", src);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_SHIPNAME_S, string_param);
     EmitMessage("  Shipname String: " + string_param + "\n", src);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFISSID_S, string_param);
-    EmitMessage("  WiFi SSID String: " + string_param + "\n", src);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIPSWD_S, string_param);
-    EmitMessage("  WiFi Password String: " + string_param + "\n", src);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_AP_SSID_S, string_param);
+    EmitMessage("  WiFi AP SSID String: " + string_param + "\n", src);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_AP_PASSWD_S, string_param);
+    EmitMessage("  WiFi AP Password String: " + string_param + "\n", src);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_CLIENT_SSID_S, string_param);
+    EmitMessage("  WiFi Client SSID String: " + string_param + "\n", src);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_CLIENT_PASSWD_S, string_param);
+    EmitMessage("  WiFi Client Password String: " + string_param + "\n", src);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, string_param);
     EmitMessage("  WiFi IP Address String: " + string_param + "\n", src);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIMODE_S, string_param);
@@ -668,7 +696,7 @@ void SerialCommand::ReportAlgRequests(CommandSource src)
             algstore.ListAlgorithms(Serial);
             break;
         case CommandSource::WirelessPort:
-            algstore.ListAlgorithms(m_wifi->Client());
+            Serial.println("ERR: cannot stream algorithm requests to WiFi web server.");
             break;
         default:
             EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
@@ -743,7 +771,7 @@ void SerialCommand::ReportNMEAFilter(CommandSource src)
             filter.ListIDs(Serial);
             break;
         case CommandSource::WirelessPort:
-            filter.ListIDs(m_wifi->Client());
+            Serial.println("ERR: cannot stream NMEA filter settings to WiFi web server.");
             break;
         default:
             EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
@@ -916,12 +944,12 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         if (cmd.length() == 4)
             GetWiFiSSID(src);
         else
-            SetWiFiSSID(cmd.substring(5));
+            SetWiFiSSID(cmd.substring(5), src);
     } else if (cmd.startsWith("password")) {
         if (cmd.length() == 8)
             GetWiFiPassword(src);
         else
-            SetWiFiPassword(cmd.substring(9));
+            SetWiFiPassword(cmd.substring(9), src);
     } else if (cmd.startsWith("wireless")) {
         ManageWireless(cmd.substring(9), src);
     } else if (cmd.startsWith("transfer")) {
@@ -1027,13 +1055,13 @@ void SerialCommand::ProcessCommand(void)
             }
         }
     }
-    if (m_wifi->IsConnected() && m_wifi->DataAvailable()) {
+    if (m_wifi != nullptr) {
         String cmd = m_wifi->ReceivedString();
-        cmd.trim();
-        
-        Serial.printf("Found WiFi command: \"%s\"\n", cmd.c_str());
-        
-        Execute(cmd, CommandSource::WirelessPort);
+        if (cmd.length() != 0) {
+            cmd.trim();
+            Serial.printf("Found WiFi command: \"%s\"\n", cmd.c_str());
+            Execute(cmd, CommandSource::WirelessPort);
+        }
     }
 }
 
@@ -1059,7 +1087,8 @@ void SerialCommand::EmitMessage(String const& msg, CommandSource src)
             Serial.print(msg);
             break;
         case CommandSource::WirelessPort:
-            m_wifi->Client().print(msg);
+            // TODO: How do we return information on commands running?
+            // m_wifi->Client().print(msg);
             break;
         default:
             Serial.println("ERR: command source not recognised.");

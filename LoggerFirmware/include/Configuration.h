@@ -64,15 +64,18 @@ class Config {
             CONFIG_WEBSERVER_B,     /* Binary: Use web server interface to configure system */
             CONFIG_MODULEID_S,      /* String: User-specified unique identifier for the module */
             CONFIG_SHIPNAME_S,      /* String: User-specific name for the ship hosting the WIBL */
-            CONFIG_WIFISSID_S,      /* String: WiFi SSID to use for AP/Station */
-            CONFIG_WIFIPSWD_S,      /* String: WiFi password to use */
+            CONFIG_AP_SSID_S,       /* String: WiFi SSID for AP */
+            CONFIG_AP_PASSWD_S,     /* String: WiFi password to use for AP */
+            CONFIG_CLIENT_SSID_S,   /* String: WiFi SSID for client network */
+            CONFIG_CLIENT_PASSWD_S, /* String: WiFi password for client network */
             CONFIG_WIFIIP_S,        /* String: WiFi IP address assigned */
             CONFIG_WIFIMODE_S,      /* String: WiFi mode (Station, SoftAP) */
             CONFIG_BAUDRATE_1_S,    /* String: baud rate for NMEA0183 input channel 1 */
             CONFIG_BAUDRATE_2_S,    /* String: baud rate for NMEA0183 input channel 2 */
             CONFIG_BRIDGE_PORT_S,   /* String: UDP broadcast port to bridge to NMEA0183 */
             CONFIG_WS_TIMEOUT_S,    /* String: timeout (seconds) before web-server attempts to joint a client network */
-            CONFIG_WS_REBOOTS_S     /* String: reboots (int) before web-server reverts to "safe-mode". */
+            CONFIG_WS_REBOOTS_S,    /* String: reboots (int) before web-server reverts to "safe-mode". */
+            CONFIG_WS_STATUS_S      /* String: status of the configuration web server */
         };
 
         /// \brief Extract a configuration string for the specified parameter

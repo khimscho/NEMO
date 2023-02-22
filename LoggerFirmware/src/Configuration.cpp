@@ -45,15 +45,18 @@ const String lookup[] = {
     "WebServer",        ///< Control whether to use the web server interface to configure the system
     "modid",            ///< Set the module's Unique ID (string)
     "shipname",         ///< Set the ship's name (string)
-    "ssid",             ///< Set the WiFi SSID (string)
-    "password",         ///< Set the WiFi password (string)
+    "ap_ssid",          ///< Set the WiFi SSID (string)
+    "ap_password",      ///< Set the WiFi password (string)
+    "client_ssid",      ///< Set the WiFi SSID (string)
+    "client_password",  ///< Set the WiFi password (string)
     "ipaddress",        ///< Set the IP address assigned to the WiFI module (string)
     "wifimode",         ///< Set the WiFi mode (access point, station) to start in (string)
     "baud1",            ///< Set the baud rate of NMEA0183 input channel 1
     "baud2",            ///< Set the baud rate of NMEA0183 input channel 2
     "BridgePort",       ///< Set the UDP port for broadcast packets to bridge to RS-422 (string)
     "WSTimeout",        ///< Set the timeout between attempts of the webserver joining a client network
-    "WSReboots"         ///< Set number of join attempts before the webserver reverts to safe mode
+    "WSReboots",        ///< Set number of join attempts before the webserver reverts to safe mode
+    "WSStatus"          ///< The current status of the configuration webserver
 };
 
 /// Default constructor.  This sets up for a dummy parameter store, which is configured

@@ -111,11 +111,11 @@ private:
     /// \brief Shut down logging for safe power removal
     void Shutdown(void);
     /// \brief Set the WiFi SSID string
-    void SetWiFiSSID(String const& ssid);
+    void SetWiFiSSID(String const& params, CommandSource src);
     /// \brief Get the WiFi SSID string
     void GetWiFiSSID(CommandSource src);
     /// \brief Set the WiFi password string
-    void SetWiFiPassword(String const& password);
+    void SetWiFiPassword(String const& params, CommandSource src);
     /// \brief Get the WiFi password string
     void GetWiFiPassword(CommandSource src);
     /// \brief Turn the WiFi interface either on or off
