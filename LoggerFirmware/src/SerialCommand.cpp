@@ -61,21 +61,24 @@ SerialCommand::SerialCommand(nmea::N2000::Logger *CANLogger, nmea::N0183::Logger
     m_wifi = WiFiAdapterFactory::Create();
 
     Serial.printf("DBG: After WiFi interface create, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+    bool start_wifi;
+    if (logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_WEBSERVER_B, start_wifi)
+        && start_wifi) {
+        if (m_wifi->Startup()) {
+            Serial.printf("DBG: After WiFi interface start, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
 
-    if (m_wifi->Startup()) {
-        Serial.printf("DBG: After WiFi interface start, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+            bool start_bridge;
+            logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_BRIDGE_B, start_bridge);
+            if (start_bridge) {
+                m_bridge = new nmea::N0183::PointBridge();
 
-        bool start_bridge;
-        logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_BRIDGE_B, start_bridge);
-        if (start_bridge) {
-            m_bridge = new nmea::N0183::PointBridge();
-
-            Serial.printf("DBG: After UDP bridge start, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+                Serial.printf("DBG: After UDP bridge start, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+            } else {
+                m_bridge = nullptr;
+            }
         } else {
-            m_bridge = nullptr;
+            Serial.printf("ERR: Failed to start WiFi interface.\n");
         }
-    } else {
-        Serial.printf("ERR: Failed to start WiFi interface.\n");
     }
 }
 
