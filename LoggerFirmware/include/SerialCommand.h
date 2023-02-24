@@ -88,6 +88,9 @@ private:
     bool                m_echoOn;       ///< Flag: indicate that characters from serial should be echoed back
     bool                m_passThrough;  ///< Flag: indicate that strings should be passed through to NMEA0183 transmit
     
+    /// \brief Provide a string representation of the command processor version
+    String CommandProcVersion(void);
+
     /// \brief Print the console log on the output stream(s)
     void ReportConsoleLog(CommandSource src);
     /// \brief Walk the log file directory and report the files and their sizes
@@ -134,8 +137,12 @@ private:
     void ConfigurePassthrough(String const& command, CommandSource src);
     /// \brief Set up algorithm requests for later post-processing
     void ConfigureAlgRequest(String const& command, CommandSource src);
+    /// \brief Report configuration parameters as a JSON structure
+    void ReportConfigurationJSON(CommandSource src);
     /// \brief Report configuration parameters for the logger
     void ReportConfiguration(CommandSource src);
+    /// \brief Set up all configuration parameters from a JSON string
+    void SetupLogger(String const& spec, CommandSource src);
     /// \brief Report algorithms that the logger requests be run on the data
     void ReportAlgRequests(CommandSource src);
     /// \brief Report heap size during run-time

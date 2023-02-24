@@ -122,15 +122,15 @@ private:
             logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, server_address.toString());
         } else {
             String ssid, password;
-            logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_CLIENT_SSID_S, ssid);
-            logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_CLIENT_PASSWD_S, password);
+            logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_SSID_S, ssid);
+            logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_PASSWD_S, password);
             Serial.print(String("Connecting to ") + ssid + ": ");
             wl_status_t status = WiFi.begin(ssid.c_str(), password.c_str());
             Serial.print(String("(status: ") + static_cast<int>(status) + ")");
             uint32_t wait_loops = 0;
             uint32_t retry_maximum;
             String retries;
-            logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WS_REBOOTS_S, retries);
+            logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_RETRIES_S, retries);
             retry_maximum = retries.toInt();
             // TODO: Make this loop something that can be done in the background while we log
             while (WiFi.status() != WL_CONNECTED) {

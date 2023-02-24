@@ -25,6 +25,7 @@
  */
 
 #include <Arduino.h>
+#include "ArduinoJson.h"
 #include "WiFiAdapter.h"
 #include "SerialCommand.h"
 #include "IncrementalBuffer.h"
@@ -90,6 +91,18 @@ SerialCommand::~SerialCommand()
 {
     delete m_bridge;
     delete m_wifi;
+}
+
+/// Generate a string representation of the version information for the
+/// command processor.
+///
+/// \return String for the version information
+
+String SerialCommand::CommandProcVersion(void)
+{
+    char buffer[32];
+    snprintf(buffer, 32, "%d.%d.%d", CommandMajorVersion, CommandMinorVersion, CommandPatchVersion);
+    return String(buffer);
 }
 
 /// Generate a copy of the console log (/console.log in the root directory of the attached SD card)
@@ -306,10 +319,10 @@ void SerialCommand::SetWiFiSSID(String const& params, CommandSource src)
     String ssid = params.substring(position);
     if (params.startsWith("ap")) {
         logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_AP_SSID_S, ssid);
-    } else if (params.startsWith("client")) {
-        logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_CLIENT_SSID_S, ssid);
+    } else if (params.startsWith("station")) {
+        logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_SSID_S, ssid);
     } else {
-        EmitMessage("ERR: WiFi SSID must specify 'ap' or 'client' as first parameter.\n", src);
+        EmitMessage("ERR: WiFi SSID must specify 'ap' or 'station' as first parameter.\n", src);
     }
 }
 
@@ -319,11 +332,11 @@ void SerialCommand::SetWiFiSSID(String const& params, CommandSource src)
 
 void SerialCommand::GetWiFiSSID(CommandSource src)
 {
-    String ap_ssid, client_ssid;
+    String ap_ssid, station_ssid;
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_AP_SSID_S, ap_ssid);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_CLIENT_SSID_S, client_ssid);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_SSID_S, station_ssid);
     EmitMessage("WiFi AP SSID: " + ap_ssid + "\n", src);
-    EmitMessage("WiFi Client SSID: " + client_ssid + "\n", src);
+    EmitMessage("WiFi Station SSID: " + station_ssid + "\n", src);
 }
 
 /// Specify the password to use for clients attempting to connect to the WiFi access
@@ -337,10 +350,10 @@ void SerialCommand::SetWiFiPassword(String const& params, CommandSource src)
     String password = params.substring(position);
     if (params.startsWith("ap")) {
         logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_AP_PASSWD_S, password);
-    } else if (params.startsWith("client")) {
-        logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_CLIENT_PASSWD_S, password);
+    } else if (params.startsWith("station")) {
+        logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_PASSWD_S, password);
     } else {
-        EmitMessage("ERR: WiFi password must specify 'ap' or 'client' as first parameter.\n", src);
+        EmitMessage("ERR: WiFi password must specify 'ap' or 'station' as first parameter.\n", src);
     }
 }
 
@@ -350,11 +363,11 @@ void SerialCommand::SetWiFiPassword(String const& params, CommandSource src)
 
 void SerialCommand::GetWiFiPassword(CommandSource src)
 {
-    String ap_password, client_password;
+    String ap_password, station_password;
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_AP_PASSWD_S, ap_password);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_CLIENT_PASSWD_S, client_password);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_PASSWD_S, station_password);
     EmitMessage("WiFi AP Password: " + ap_password + "\n", src);
-    EmitMessage("WiFi Client Password: " + client_password + "\n", src);
+    EmitMessage("WiFi Station Password: " + station_password + "\n", src);
 }
 
 /// Turn the WiFi interface on and off, as required by the user
@@ -607,6 +620,81 @@ void SerialCommand::ConfigurePassthrough(String const& params, CommandSource src
     EmitMessage("INF: passthrough mode set to: " + params + "\n", src);
 }
 
+/// Report the current configuration of the logger using JSON formatting.  This can
+/// be much more efficient if you want to grab a configuration and transfer to
+/// another system.  For output on the serial channel (where there's a human behind
+/// the wheel), the JSON if formatted; for output on the WiFi channel (where there's
+/// a computer behind the terminal), it's unformatted.
+///
+/// \param src  Command channel that provided the command (and therefore gets the result)
+/// \return N/A
+
+void SerialCommand::ReportConfigurationJSON(CommandSource src)
+{
+    using namespace ARDUINOJSON_NAMESPACE;
+    StaticJsonDocument<1024> params;
+    params["version"]["commandproc"] = CommandProcVersion();
+    params["version"]["nmea0183"] = m_serialLogger->SoftwareVersion();
+    params["version"]["nmea2000"] = m_CANLogger->SoftwareVersion();
+
+    // Enable/disable for the various loggers and features
+    bool nmea0183_enable, nmea2000_enable, imu_enable, powmon_enable, sdmmc_enable, udp_bridge_enable, webserver_on_boot;
+    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_NMEA0183_B, nmea0183_enable);
+    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_NMEA2000_B, nmea2000_enable);
+    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_MOTION_B, imu_enable);
+    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_POWMON_B, powmon_enable);
+    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_SDMMC_B, sdmmc_enable);
+    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_BRIDGE_B, udp_bridge_enable);
+    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_WEBSERVER_B, webserver_on_boot);
+    params["enable"]["nmea0183"] = nmea0183_enable;
+    params["enable"]["nmea2000"] = nmea2000_enable;
+    params["enable"]["imu"] = imu_enable;
+    params["enable"]["powermonitor"] = powmon_enable;
+    params["enable"]["sdmmc"] = sdmmc_enable;
+    params["enable"]["udpbridge"] = udp_bridge_enable;
+    params["enable"]["webserver"] = webserver_on_boot;
+
+    // String configurations for the various parameters in configuration
+    String wifi_station_delay, wifi_station_retries, wifi_ip_address, wifi_mode;
+    String wifi_ap_ssid, wifi_ap_password, wifi_station_ssid, wifi_station_password;
+    String moduleid, shipname, baudrate_port1, baudrate_port2, udp_bridge_port;
+
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_DELAY_S, wifi_station_delay);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_RETRIES_S, wifi_station_retries);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_MODULEID_S, moduleid);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_SHIPNAME_S, shipname);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_AP_SSID_S, wifi_ap_ssid);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_AP_PASSWD_S, wifi_ap_password);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_SSID_S, wifi_station_ssid);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_PASSWD_S, wifi_station_password);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, wifi_ip_address);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIMODE_S, wifi_mode);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_BAUDRATE_1_S, baudrate_port1);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_BAUDRATE_2_S, baudrate_port2);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_BRIDGE_PORT_S, udp_bridge_port);
+    params["wifi"]["mode"] = wifi_mode;
+    params["wifi"]["address"] = wifi_ip_address;
+    params["wifi"]["station"]["delay"] = wifi_station_delay.toInt();
+    params["wifi"]["station"]["retries"] = wifi_station_retries.toInt();
+    params["wifi"]["ssids"]["ap"] = wifi_ap_ssid;
+    params["wifi"]["ssids"]["station"] = wifi_station_ssid;
+    params["wifi"]["passwords"]["ap"] = wifi_ap_password;
+    params["wifi"]["passwords"]["station"] = wifi_station_password;
+    params["uniqueID"] = moduleid;
+    params["shipname"] = shipname;
+    params["baudrate"]["port1"] = baudrate_port1.toInt();
+    params["baudrate"]["port2"] = baudrate_port2.toInt();
+    params["udpbridge"] = udp_bridge_port.toInt();
+
+    String json;
+    if (src == CommandSource::SerialPort) {
+        serializeJsonPretty(params, json);
+    } else {
+        serializeJson(params, json);
+    }
+    EmitMessage(json + "\n", src);
+}
+
 /// Provide summary report of all of the configuration parameters being managed by the Confgiuration
 /// module.  Some of this information can be determined from other locations, but this might be simpler
 /// for some purposes (e.g., getting a synoptic list of all of the configuration parameters to set up
@@ -641,9 +729,9 @@ void SerialCommand::ReportConfiguration(CommandSource src)
     EmitMessage("  Webserver: ", src);
     logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_WEBSERVER_B, bin_param);
     EmitMessage(bin_param ? "on" : "off", src);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WS_TIMEOUT_S, string_param);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_DELAY_S, string_param);
     EmitMessage(" " + string_param, src);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WS_REBOOTS_S, string_param);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_RETRIES_S, string_param);
     EmitMessage(" " + string_param + "\n", src);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_MODULEID_S, string_param);
     EmitMessage("  Module ID String: " + string_param + "\n", src);
@@ -653,9 +741,9 @@ void SerialCommand::ReportConfiguration(CommandSource src)
     EmitMessage("  WiFi AP SSID String: " + string_param + "\n", src);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_AP_PASSWD_S, string_param);
     EmitMessage("  WiFi AP Password String: " + string_param + "\n", src);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_CLIENT_SSID_S, string_param);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_SSID_S, string_param);
     EmitMessage("  WiFi Client SSID String: " + string_param + "\n", src);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_CLIENT_PASSWD_S, string_param);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_PASSWD_S, string_param);
     EmitMessage("  WiFi Client Password String: " + string_param + "\n", src);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, string_param);
     EmitMessage("  WiFi IP Address String: " + string_param + "\n", src);
@@ -667,6 +755,81 @@ void SerialCommand::ReportConfiguration(CommandSource src)
     EmitMessage("  Serial Channel 2 Speed: " + string_param + " baud\n", src);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_BRIDGE_PORT_S, string_param);
     EmitMessage("  Bridge UDP Port: " + string_param + "\n", src);
+}
+
+/// This pulls from a JSON-format specification all of the parameters required to
+/// configure the logger.  This is generally used to do initial configuration through
+/// the web server interface.
+///
+/// \param spec String containing the JSON-format specification to work from
+/// \param src  Command interface that provided the specification
+/// \return N/A
+
+void SerialCommand::SetupLogger(String const& spec, CommandSource src)
+{
+    DynamicJsonDocument params(1024);
+    deserializeJson(params, spec);
+
+    if (!params.containsKey("version") || !params["version"].containsKey("commandproc")) {
+        EmitMessage("ERR: JSON format invalid (no version information).\n", src);
+        return;
+    }
+    if (params["version"]["commandproc"].as<String>() == CommandProcVersion()) {
+        if (params.containsKey("enable")) {
+            if (params["enable"].containsKey("nmea0183"))
+                logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_NMEA0183_B, params["enable"]["nmea0183"]);
+            if (params["enable"].containsKey("nmea2000"))
+                logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_NMEA2000_B, params["enable"]["nmea2000"]);
+            if (params["enable"].containsKey("imu"))
+                logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_MOTION_B, params["enable"]["imu"]);
+            if (params["enable"].containsKey("powermonitor"))
+                logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_POWMON_B, params["enable"]["powermonitor"]);
+            if (params["enable"].containsKey("sdmmc"))
+                logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_SDMMC_B, params["enable"]["sdmmc"]);
+            if (params["enable"].containsKey("udpbridge"))
+                logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_BRIDGE_B, params["enable"]["udpbridge"]);
+            if (params["enable"].containsKey("webserver"))
+                logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_WEBSERVER_B, params["enable"]["webserver"]);
+        }
+        if (params.containsKey("wifi")) {
+            if (params["wifi"].containsKey("mode"))
+                logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFIMODE_S, params["wifi"]["mode"]);
+            if (params["wifi"].containsKey("station")) {
+                if (params["wifi"]["station"].containsKey("delay"))
+                    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_DELAY_S, params["wifi"]["station"]["delay"]);
+                if (params["wifi"]["station"].containsKey("retries"))
+                    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_RETRIES_S, params["wifi"]["station"]["retries"]);
+            }
+            if (params["wifi"].containsKey("ssids")) {
+                if (params["wifi"]["ssids"].containsKey("ap"))
+                    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_AP_SSID_S, params["wifi"]["ssids"]["ap"]);
+                if (params["wifi"]["ssids"].containsKey("station"))
+                    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_SSID_S, params["wifi"]["ssids"]["station"]);
+            }
+            if (params["wifi"].containsKey("passwords")) {
+                if (params["wifi"]["passwords"].containsKey("ap"))
+                    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_AP_PASSWD_S, params["wifi"]["passwords"]["ap"]);
+                if (params["wifi"]["passwords"].containsKey("station"))
+                    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_PASSWD_S, params["wifi"]["passwords"]["station"]);
+            }
+        }
+        if (params.containsKey("baudrate")) {
+            if (params["baudrate"].containsKey("port1"))
+                logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_BAUDRATE_1_S, params["baudrate"]["port1"]);
+            if (params["baudrate"].containsKey("port2"))
+                logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_BAUDRATE_2_S, params["baudrate"]["port2"]);
+        }
+        if (params.containsKey("uniqueID"))
+            logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_MODULEID_S, params["uniqueID"]);
+        if (params.containsKey("shipname"))
+            logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_SHIPNAME_S, params["shipname"]);
+        if (params.containsKey("udpbridge"))
+            logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_BRIDGE_PORT_S, params["udpbridge"]);
+    } else {
+        EmitMessage(String("ERR: JSON input is for version \"") +
+                    params["version"]["commandproc"].as<String>() +
+                    "\" and current is " + CommandProcVersion() + "\n", src);
+    }
 }
 
 /// Report the current state of heap usage in the system.  This reports the maximmum size of the heap,
@@ -839,12 +1002,12 @@ void SerialCommand::ReportFileCount(CommandSource src)
 void SerialCommand::ReportWebserverConfig(CommandSource src)
 {
     bool enable;
-    String timeout, reboots;
+    String station_delay, station_retries;
     logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_WEBSERVER_B, enable);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WS_TIMEOUT_S, timeout);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WS_REBOOTS_S, reboots);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_DELAY_S, station_delay);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_RETRIES_S, station_retries);
     if (src == CommandSource::SerialPort || src == CommandSource::WirelessPort) {
-        EmitMessage(String("Webserver is ") + (enable ? "on" : "off") + " with timeout " + timeout + " and " + reboots + " reboots.\n", src);
+        EmitMessage(String("Webserver is ") + (enable ? "on" : "off") + " with delay " + station_delay + " and " + station_retries + " retries.\n", src);
     } else {
         EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
     }
@@ -862,13 +1025,13 @@ void SerialCommand::ConfigureWebserver(String const& params, CommandSource src)
         EmitMessage("ERR: webserver can be configured 'on' or 'off' on boot only.\n", src);
         return;
     }
-    int timeout_position = params.indexOf(' ') + 1;
-    int reboot_position = params.indexOf(' ', timeout_position) + 1;
-    String timeout = params.substring(timeout_position, reboot_position-1);
-    String reboots = params.substring(reboot_position);
+    int delay_position = params.indexOf(' ') + 1;
+    int retries_position = params.indexOf(' ', delay_position) + 1;
+    String station_delay = params.substring(delay_position, retries_position-1);
+    String station_retries = params.substring(retries_position);
     // TODO: Do some range checking on these parameters before accepting them.
-    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_TIMEOUT_S, timeout);
-    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_REBOOTS_S, reboots);
+    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_DELAY_S, station_delay);
+    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_RETRIES_S, station_retries);
     logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_WEBSERVER_B, state);
 }
 
@@ -877,7 +1040,7 @@ void SerialCommand::ConfigureWebserver(String const& params, CommandSource src)
 
 void SerialCommand::Syntax(CommandSource src)
 {
-    EmitMessage(String("Command Syntax (V") + CommandMajorVersion + "." + CommandMinorVersion + "." + CommandPatchVersion + "):\n", src);
+    EmitMessage(String("Command Syntax (V") + CommandProcVersion() + "):\n", src);
     EmitMessage("  accept [NMEA0183-ID | all]          Configure which NMEA0183 messages to accept.\n", src);
     EmitMessage("  algorithm [name params | none]      Add (or report) an algorithm request to the cloud processing.\n", src);
     EmitMessage("  configure [on|off logger-name]      Configure individual loggers on/off (or report config).\n", src);
@@ -895,6 +1058,7 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  password [wifi-password]            Set the WiFi password.\n", src);
     EmitMessage("  restart                             Restart the logger module hardware.\n", src);
     EmitMessage("  scales                              Report any registered sensor-specific scale factors.\n", src);
+    EmitMessage("  setup [json-specification]          Report the configuration of the logger, or set it, using JSON specifications.\n", src);
     EmitMessage("  shipname name                       Set the name of the host ship carrying the logger.\n", src);
     EmitMessage("  sizes                               Output list of the extant log files, and their sizes in bytes.\n", src);
     EmitMessage("  speed 1|2 baud-rate                 Set the baud rate for the RS-422 input channels.\n", src);
@@ -1013,6 +1177,12 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
             ReportShipname(src);
         } else {
             SetShipname(cmd.substring(9), src);
+        }
+    } else if (cmd.startsWith("setup")) {
+        if (cmd.length() == 5) {
+            ReportConfigurationJSON(src);
+        } else {
+            SetupLogger(cmd.substring(6), src);
         }
     } else if (cmd == "help" || cmd == "syntax") {
         Syntax(src);
