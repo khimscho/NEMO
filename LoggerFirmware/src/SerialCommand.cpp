@@ -215,6 +215,8 @@ void SerialCommand::ModifyLEDState(String const& command)
         m_led->SetStatus(StatusLED::Status::sCARD_FULL);
     } else if (command == "data") {
         m_led->TriggerDataIndication();
+    } else if (command == "stopped") {
+        m_led->SetStatus(StatusLED::Status::sSTOPPED);
     } else {
         Serial.println("ERR: LED status command not recognised.");
     }
@@ -302,6 +304,7 @@ void SerialCommand::Shutdown(void)
     Serial.println("info: Stopping under control for powerdown");
     m_logManager->Console().println("info: Stopping under control for powerdown.");
     m_logManager->CloseConsole();
+    m_led->SetStatus(StatusLED::Status::sSTOPPED);
     while (true) {
         delay(1000);
     }
@@ -1051,7 +1054,8 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  help|syntax                         Generate this list.\n", src);
     EmitMessage("  uniqueid [logger-name]              Set or report the logger's unique identification string.\n", src);
     EmitMessage("  invert 1|2                          Invert polarity of RS-422 input on port 1|2.\n", src);
-    EmitMessage("  led normal|error|initialising|full  [Debug] Set the indicator LED status.\n", src);
+    EmitMessage("  led normal|error|initialising|full|data|stopped\n", src);
+    EmitMessage("                                      [Debug] Set the indicator LED status.\n", src);
     EmitMessage("  log                                 Output the contents of the console log.\n", src);
     EmitMessage("  metadata [platform-specific]        Store or report a platform-specific metadata JSON element.\n", src);
     EmitMessage("  ota                                 Start Over-the-Air update sequence for the logger.\n", src);

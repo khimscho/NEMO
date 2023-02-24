@@ -83,6 +83,8 @@ void StatusLED::SetColour(Colour colour, boolean flash)
         case Colour::cALARM:
             led_state[0] = ON; led_state[1] = OFF; led_state[2] = OFF; /* Red (Or Yellow, depending on build) */
             break;
+        case Colour::cSTOPPED:
+            led_state[0] = OFF; led_state[1] = OFF; led_state[2] = ON; /* Blue, typically */
     }
     led_flasher = ON;
     if (flash) {
@@ -111,6 +113,9 @@ void StatusLED::SetStatus(Status status)
             break;
         case Status::sFATAL_ERROR:
             SetColour(Colour::cALARM, true);
+            break;
+        case Status::sSTOPPED:
+            SetColour(Colour::cSTOPPED);
             break;
     }
     ProcessFlash();

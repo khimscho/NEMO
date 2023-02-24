@@ -101,7 +101,8 @@ public:
         sINITIALISING,  ///< The logger is initialising (probably very brief)
         sNORMAL,        ///< Normal operations
         sCARD_FULL,     ///< The SD card for data is full and needs service
-        sFATAL_ERROR    ///< A fatal error has occurred, and the logger needs service
+        sFATAL_ERROR,   ///< A fatal error has occurred, and the logger needs service
+        sSTOPPED        ///< Logger is stopped for shutdown
     };
     
     /// \brief Set the status for the LED
@@ -134,7 +135,8 @@ private:
         cINITIALISING,  ///< Colours for initialisation
         cNORMAL,        ///< Colours for normal behaviour
         cCARD_FULL,     ///< Colours for full SD card
-        cALARM          ///< Colours for an alarm condition
+        cALARM,         ///< Colours for an alarm condition
+        cSTOPPED        ///< Colours for a stopped logger
     };
     
     /// \brief Set the specific colours used for each state, and the flash status
