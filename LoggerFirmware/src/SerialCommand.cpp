@@ -416,8 +416,10 @@ void SerialCommand::ManageWireless(String const& command, CommandSource src)
         }
     } else if (command == "accesspoint") {
         m_wifi->SetWirelessMode(WiFiAdapter::WirelessMode::ADAPTER_SOFTAP);
+        logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_STATUS_S, "AP-Enabled");
     } else if (command == "station") {
         m_wifi->SetWirelessMode(WiFiAdapter::WirelessMode::ADAPTER_STATION);
+        logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_STATUS_S, "Station-Enabled");
     } else {
         Serial.println("ERR: wireless management command not recognised.");
     }
@@ -1016,6 +1018,13 @@ void SerialCommand::ReportWebserverConfig(CommandSource src)
     }
 }
 
+/// Set up the configuration for the webserver started by the logger, including timeouts
+/// for station bring-up and retries for joining an existing network before reverting to
+/// "safe" mode, bringing up a soft access point.
+///
+/// \param params String containing the delay between join tries (seconds) and retries (int)
+/// \return N/A
+
 void SerialCommand::ConfigureWebserver(String const& params, CommandSource src)
 {
     bool state;
@@ -1036,6 +1045,47 @@ void SerialCommand::ConfigureWebserver(String const& params, CommandSource src)
     logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_DELAY_S, station_delay);
     logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_RETRIES_S, station_retries);
     logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_WEBSERVER_B, state);
+}
+
+/// Report on the current status of the logger, including the WiFi status, the number of files available,
+/// and their sizes.  Reporting is done in JSON format, pretty-printed if on the serial stream, as compact
+/// as possible if on the WiFi.
+///
+/// \param src  CommandSource for the stream that generated the request
+/// \return N/A
+
+void SerialCommand::ReportCurrentStatus(CommandSource src)
+{
+    DynamicJsonDocument status(10240);
+
+    status["version"]["commandproc"] = CommandProcVersion();
+    status["version"]["nmea0183"] = m_serialLogger->SoftwareVersion();
+    status["version"]["nmea2000"] = m_CANLogger->SoftwareVersion();
+
+    int now = millis();
+    status["elapsed"] = now;
+
+    String server_status;
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WS_STATUS_S, server_status);
+    status["webserver"] = server_status;
+
+    int filenumbers[logger::MaxLogFiles];
+    int n_files = m_logManager->CountLogFiles(filenumbers);
+    status["files"]["count"] = n_files;
+    for (int n = 0; n < n_files; ++n) {
+        String filename;
+        int filesize;
+        m_logManager->EnumerateLogFile(filenumbers[n], filename, filesize);
+        status["files"]["detail"][n]["id"] = filenumbers[n];
+        status["files"]["detail"][n]["len"] = filesize;
+    }
+    String json;
+    if (src == CommandSource::SerialPort) {
+        serializeJsonPretty(status, json);
+    } else {
+        serializeJson(status, json);
+    }
+    EmitMessage(json+"\n", src);
 }
 
 /// Output a list of known commands, since there are now enough of them to make remembering them
@@ -1067,6 +1117,7 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  sizes                               Output list of the extant log files, and their sizes in bytes.\n", src);
     EmitMessage("  speed 1|2 baud-rate                 Set the baud rate for the RS-422 input channels.\n", src);
     EmitMessage("  ssid [wifi-ssid]                    Set the WiFi SSID.\n", src);
+    EmitMessage("  status                              Generate JSON-format status message for current dynamic configuration\n", src);
     EmitMessage("  steplog                             Close current log file, and move to the next in sequence.\n", src);
     EmitMessage("  stop                                Close files and go into self-loop for power-down.\n", src);
     EmitMessage("  transfer file-number                Transfer log file [file-number] (WiFi and serial only).\n", src);
@@ -1188,6 +1239,8 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         } else {
             SetupLogger(cmd.substring(6), src);
         }
+    } else if (cmd == "status") {
+        ReportCurrentStatus(src);
     } else if (cmd == "help" || cmd == "syntax") {
         Syntax(src);
     } else {

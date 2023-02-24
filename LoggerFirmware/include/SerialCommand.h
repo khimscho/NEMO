@@ -165,6 +165,8 @@ private:
     void ReportWebserverConfig(CommandSource src);
     /// \brief Configure the web-server for system config/management
     void ConfigureWebserver(String const& command, CommandSource src);
+    /// \brief Report on the current status of the logger
+    void ReportCurrentStatus(CommandSource src);
     /// \brief Check for commands, and execute them if found
     void Execute(String const& command, CommandSource src);
     
