@@ -62,9 +62,9 @@ public:
         ADAPTER_SOFTAP      ///< Create the configured network when activated
     };
     /// \brief Set up wireless mode for the adapter (i.e., AP or STA)
-    void SetWirelessMode(WirelessMode mode);
+    static void SetWirelessMode(WirelessMode mode);
     /// \brief Determine the wireless mode currently configures
-    WirelessMode GetWirelessMode(void);
+    static WirelessMode GetWirelessMode(void);
 
     void RunLoop(void);
     
@@ -85,11 +85,6 @@ private:
 
     /// \brief Sub-class implementation of code to transmit messages (and complete transaction)
     virtual bool transmitMessages(char const *data_type) = 0;
-
-    /// \brief Sub-class implementation to set the adapter access mode
-    virtual void set_wireless_mode(WirelessMode mode) = 0;
-    /// \brief Sub-class implementation to get the adapter access mode
-    virtual WirelessMode get_wireless_mode(void) = 0;
 
     virtual void runLoop(void) = 0;
 };

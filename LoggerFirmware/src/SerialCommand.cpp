@@ -660,12 +660,13 @@ void SerialCommand::ReportConfigurationJSON(CommandSource src)
     params["enable"]["webserver"] = webserver_on_boot;
 
     // String configurations for the various parameters in configuration
-    String wifi_station_delay, wifi_station_retries, wifi_ip_address, wifi_mode;
+    String wifi_station_delay, wifi_station_retries, wifi_station_timeout, wifi_ip_address, wifi_mode;
     String wifi_ap_ssid, wifi_ap_password, wifi_station_ssid, wifi_station_password;
     String moduleid, shipname, baudrate_port1, baudrate_port2, udp_bridge_port;
 
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_DELAY_S, wifi_station_delay);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_RETRIES_S, wifi_station_retries);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_TIMEOUT_S, wifi_station_timeout);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_MODULEID_S, moduleid);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_SHIPNAME_S, shipname);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_AP_SSID_S, wifi_ap_ssid);
@@ -681,6 +682,7 @@ void SerialCommand::ReportConfigurationJSON(CommandSource src)
     params["wifi"]["address"] = wifi_ip_address;
     params["wifi"]["station"]["delay"] = wifi_station_delay.toInt();
     params["wifi"]["station"]["retries"] = wifi_station_retries.toInt();
+    params["wifi"]["station"]["timeout"] = wifi_station_timeout.toInt();
     params["wifi"]["ssids"]["ap"] = wifi_ap_ssid;
     params["wifi"]["ssids"]["station"] = wifi_station_ssid;
     params["wifi"]["passwords"]["ap"] = wifi_ap_password;
@@ -737,6 +739,8 @@ void SerialCommand::ReportConfiguration(CommandSource src)
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_DELAY_S, string_param);
     EmitMessage(" " + string_param, src);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_RETRIES_S, string_param);
+    EmitMessage(" " + string_param, src);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_TIMEOUT_S, string_param);
     EmitMessage(" " + string_param + "\n", src);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_MODULEID_S, string_param);
     EmitMessage("  Module ID String: " + string_param + "\n", src);
@@ -804,6 +808,8 @@ void SerialCommand::SetupLogger(String const& spec, CommandSource src)
                     logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_DELAY_S, params["wifi"]["station"]["delay"]);
                 if (params["wifi"]["station"].containsKey("retries"))
                     logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_RETRIES_S, params["wifi"]["station"]["retries"]);
+                if (params["wifi"]["station"].containsKey("timeout"))
+                    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_TIMEOUT_S, params["wifi"]["station"]["timeout"]);
             }
             if (params["wifi"].containsKey("ssids")) {
                 if (params["wifi"]["ssids"].containsKey("ap"))
@@ -1007,12 +1013,16 @@ void SerialCommand::ReportFileCount(CommandSource src)
 void SerialCommand::ReportWebserverConfig(CommandSource src)
 {
     bool enable;
-    String station_delay, station_retries;
+    String station_delay, station_retries, station_timeout;
     logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_WEBSERVER_B, enable);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_DELAY_S, station_delay);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_RETRIES_S, station_retries);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_TIMEOUT_S, station_timeout);
     if (src == CommandSource::SerialPort || src == CommandSource::WirelessPort) {
-        EmitMessage(String("Webserver is ") + (enable ? "on" : "off") + " with delay " + station_delay + " and " + station_retries + " retries.\n", src);
+        EmitMessage(String("Webserver is ") + (enable ? "on" : "off") +
+            " with connection delay " + station_delay +
+            ", connection timeout " + station_timeout +
+            ", and " + station_retries + " retries.\n", src);
     } else {
         EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
     }
@@ -1039,11 +1049,14 @@ void SerialCommand::ConfigureWebserver(String const& params, CommandSource src)
     }
     int delay_position = params.indexOf(' ') + 1;
     int retries_position = params.indexOf(' ', delay_position) + 1;
+    int timeout_position = params.indexOf(' ', retries_position) + 1;
     String station_delay = params.substring(delay_position, retries_position-1);
-    String station_retries = params.substring(retries_position);
+    String station_retries = params.substring(retries_position, timeout_position-1);
+    String station_timeout = params.substring(timeout_position);
     // TODO: Do some range checking on these parameters before accepting them.
     logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_DELAY_S, station_delay);
     logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_RETRIES_S, station_retries);
+    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_TIMEOUT_S, station_timeout);
     logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_WEBSERVER_B, state);
 }
 
@@ -1123,7 +1136,8 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  transfer file-number                Transfer log file [file-number] (WiFi and serial only).\n", src);
     EmitMessage("  verbose on|off                      Control verbosity of reporting for serial input strings.\n", src);
     EmitMessage("  version                             Report NMEA0183 and NMEA2000 logger version numbers.\n", src);
-    EmitMessage("  webserver on|off timeout retries    Configure web-server interface with given timeout (seconds) and reboots (int).\n", src);
+    EmitMessage("  webserver on|off delay reties timeout\n", src);
+    EmitMessage("                                      Configure web-server interface with given retry delay (seconds), retries (int), and connection timeout (seconds).\n", src);
     EmitMessage("  wireless on|off|accesspoint|station Control WiFi activity [on|off] and mode [accesspoint|station].\n", src);
 }
 

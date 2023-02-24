@@ -75,6 +75,7 @@ class Config {
             CONFIG_BRIDGE_PORT_S,   /* String: UDP broadcast port to bridge to NMEA0183 */
             CONFIG_STATION_DELAY_S, /* String: delay (seconds) before web-server attempts to re-joint a client network */
             CONFIG_STATION_RETRIES_S,/* String: retries (int) before web-server reverts to "safe-mode". */
+            CONFIG_STATION_TIMEOUT_S,/* String: delay (seconds) before declaring a WiFi connection attempt failed */
             CONFIG_WS_STATUS_S      /* String: status of the configuration web server */
         };
 

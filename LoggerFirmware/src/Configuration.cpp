@@ -56,6 +56,7 @@ const String lookup[] = {
     "BridgePort",       ///< Set the UDP port for broadcast packets to bridge to RS-422 (string)
     "StationDelay",     ///< Set the timeout between attempts of the webserver joining a client network
     "StationRetries",   ///< Set number of join attempts before the webserver reverts to safe mode
+    "StationTimeout",   ///< Set the timeout for any connect attempt
     "WSStatus"          ///< The current status of the configuration webserver
 };
 

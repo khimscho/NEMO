@@ -37,6 +37,172 @@
 
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
 
+class ConnectionStateMachine {
+public:
+    ConnectionStateMachine(void)
+    {
+        m_lastConnectAttempt = m_lastStatusCheck = millis();
+        
+        m_connectionRetries = maximumReties();
+        m_retryDelay = retryDelay();
+        m_connectDelay = connectionDelay();
+
+        m_statusDelay = 500;    // Delay between status checks in milliseconds
+
+        m_currentState = STOPPED;
+    }
+
+    void Start(void)
+    {
+        if (WiFiAdapter::GetWirelessMode() == WiFiAdapter::WirelessMode::ADAPTER_SOFTAP) {
+            m_currentState = AP_MODE;
+            apSetup();
+        } else {
+            m_currentState = STATION_CONNECTING;
+            if (attemptStationJoin())
+                m_currentState = STATION_CONNECTED;
+        }
+    }
+
+    void StepState(void)
+    {
+        int now = millis();
+        switch (m_currentState) {
+            case STOPPED:
+                break;
+            case AP_MODE:
+                // Once in AP mode and established, we stay in the state.
+                break;
+            case STATION_CONNECTING:
+                // We're waiting for the connection to complete, so check status
+                // if we've waiting long enough.
+                if ((now - m_lastStatusCheck) > m_statusDelay) {
+                    if (isConnected()) {
+                        m_currentState = STATION_CONNECTED;
+                    } else {
+                        // Still not connected, so we need to determine if
+                        // we need to terminate this try.
+                        if ((now - m_lastConnectAttempt) > m_connectDelay) {
+                            m_currentState = STATION_RETRY;
+                        }
+                    }
+                }
+                break;
+            case STATION_RETRY:
+                // We're attempting a retry for a station connection, if we've
+                // waited long enough
+                if ((now - m_lastConnectAttempt) > m_retryDelay) {
+                    if (m_connectionRetries > 0) {
+                        --m_connectionRetries;
+                        if (attemptStationJoin())
+                            m_currentState = STATION_CONNECTED;
+                        else
+                            m_currentState = STATION_CONNECTING;
+                    } else {
+                        m_currentState = MOVE_TO_SAFE_MODE;
+                    }
+                }
+                break;
+            case MOVE_TO_SAFE_MODE:
+                // We're out of retries for a station connection, so we have to assume
+                // that the network isn't there, or there's a problem with the password
+                // etc. -- so we revert to AP mode.
+                WiFiAdapter::SetWirelessMode(WiFiAdapter::WirelessMode::ADAPTER_SOFTAP);
+                logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_STATUS_S, "AP-Enabled,Station-Join-Failed");
+                ESP.restart();
+                break;
+            case STATION_CONNECTED:
+                // The system (finally?) connected, so we update status, and then go into
+                // connection checking mode.
+                logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_STATUS_S, "Station-Enabled,Connected");
+                m_currentState = CONNECTION_CHECK;
+                break;
+            case CONNECTION_CHECK:
+                // Once connected, we need to periodically check that we're still connected,
+                // going back into connection mode if not.
+                if ((now - m_lastStatusCheck) > m_retryDelay) {
+                    if (!isConnected()) {
+                        m_currentState = STATION_RETRY;
+                    }
+                }
+                break;
+        }
+    }
+private:
+    enum State {
+        STOPPED = 0,
+        AP_MODE,
+        STATION_CONNECTING,
+        STATION_CONNECTED,
+        STATION_RETRY,
+        MOVE_TO_SAFE_MODE,
+        CONNECTION_CHECK
+    };
+    State   m_currentState;         // Current state of the SM
+    int     m_lastConnectAttempt;   // Time (ms) for last connection attempt
+    int     m_lastStatusCheck;      // Time (ms) for last connection status attempt
+    int     m_connectionRetries;    // Count of remaining connection attempts
+    int     m_retryDelay;           // Delay (ms) before attempt to retry to connect
+    int     m_statusDelay;          // Delay (ms) before checking connection status again
+    int     m_connectDelay;         // Delay (ms) before assuming a connect attempt failed
+
+    void apSetup(void)
+    {
+        String ssid, password;
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_AP_SSID_S, ssid);
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_AP_PASSWD_S, password);
+        WiFi.softAP(ssid.c_str(), password.c_str());
+        IPAddress server_address = WiFi.softAPIP();
+        logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, server_address.toString());
+    }
+
+    bool attemptStationJoin(void)
+    {
+        String ssid, password;
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_SSID_S, ssid);
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_PASSWD_S, password);
+        Serial.print(String("Connecting to ") + ssid + ": ");
+        wl_status_t status = WiFi.begin(ssid.c_str(), password.c_str());
+        m_lastConnectAttempt = millis();
+        Serial.print(String("(status: ") + static_cast<int>(status) + ")");
+        return status == WL_CONNECTED;
+    }
+
+    void completeStationJoint(void)
+    {
+        IPAddress server_address = WiFi.softAPIP();
+        logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, server_address.toString());
+    }
+
+    bool isConnected(void)
+    {
+        wl_status_t status = WiFi.status();
+        m_lastStatusCheck = millis();
+        return status == WL_CONNECTED;
+    }
+
+    int maximumReties(void)
+    {
+        String val;
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_RETRIES_S, val);
+        return val.toInt();
+    }
+
+    int retryDelay(void)
+    {
+        String val;
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_DELAY_S, val);
+        return val.toInt() * 1000;
+    }
+
+    int connectionDelay(void)
+    {
+        String val;
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_TIMEOUT_S, val);
+        return val.toInt() * 1000;
+    }
+};
+
 /// \class ESP32WiFiAdapter
 /// \brief Implementation of the WiFiAdapter base class for the ESP32 module
 
@@ -64,6 +230,7 @@ private:
     WebServer           *m_server;  ///< Pointer to the server object, if started.
     std::queue<String>  m_commands; ///< Queue to handle commands sent by the user
     String              m_messages; ///< Accumulating message content to be send to the client
+    ConnectionStateMachine m_state; ///< Manager for connection state
 
     /// @brief Handle HTTP requests to the /command endpoint
     ///
@@ -113,39 +280,7 @@ private:
             m_server->on("/heartbeat", HTTPMethod::HTTP_GET, std::bind(&ESP32WiFiAdapter::heartbeat, this));
             m_server->on("/command", HTTPMethod::HTTP_POST, std::bind(&ESP32WiFiAdapter::handleCommand, this));
         }
-        if (get_wireless_mode() == WirelessMode::ADAPTER_SOFTAP) {
-            String ssid, password;
-            logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_AP_SSID_S, ssid);
-            logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_AP_PASSWD_S, password);
-            WiFi.softAP(ssid.c_str(), password.c_str());
-            IPAddress server_address = WiFi.softAPIP();
-            logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, server_address.toString());
-        } else {
-            String ssid, password;
-            logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_SSID_S, ssid);
-            logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_PASSWD_S, password);
-            Serial.print(String("Connecting to ") + ssid + ": ");
-            wl_status_t status = WiFi.begin(ssid.c_str(), password.c_str());
-            Serial.print(String("(status: ") + static_cast<int>(status) + ")");
-            uint32_t wait_loops = 0;
-            uint32_t retry_maximum;
-            String retries;
-            logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_RETRIES_S, retries);
-            retry_maximum = retries.toInt();
-            // TODO: Make this loop something that can be done in the background while we log
-            while (WiFi.status() != WL_CONNECTED) {
-                delay(500);
-                Serial.print(".");
-                ++wait_loops;
-                if (wait_loops > retry_maximum) {
-                    Serial.printf("\nINFO: Failed to connect on WiFi.\n");
-                    return false;
-                }
-            }
-            Serial.println("");
-            IPAddress server_address = WiFi.localIP();
-            logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, server_address.toString());
-        }
+        m_state.Start();
         m_server->begin();
         return true;
     }
@@ -209,53 +344,9 @@ private:
         return true;
     }
 
-    /// Sets the mode in which to bring up the interface.  Most WiFi embedded solutions can come up either
-    /// as a client on some other WiFi network, or as an access point ("Soft AP"), making its own network.  The
-    /// default condition is to come up as an AP, but for debug, and in some other applications, it might make
-    /// more sense to come up as a client.
-    ///
-    /// \param  mode    WirelessMode enum to use for the next setup
-    
-    void set_wireless_mode(WirelessMode mode)
-    {
-        String value;
-        if (mode == WirelessMode::ADAPTER_STATION) {
-            value = "Station";
-        } else if (mode == WirelessMode::ADAPTER_SOFTAP) {
-            value = "AP";
-        } else {
-            Serial.println("ERR: unknown wireless adapater mode.");
-            return;
-        }
-        if (!logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFIMODE_S, value)) {
-            Serial.println("ERR: failed to set WiFi adapater mode on module.");
-        }
-    }
-    
-    /// Gets the current configured mode for the WiFi adapter.  By default, the system should come up as an
-    /// access point ("SoftAP") that makes its own network, but can come up as a client on another network
-    /// if required.
-    ///
-    /// \return WirelessMode enum type for the current configuration; returns ADAPTER_SOFTAP by default
-    
-    WirelessMode get_wireless_mode(void)
-    {
-        String          value;
-        WirelessMode    rc;
-        
-        if (!logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIMODE_S, value)) {
-            Serial.println("ERR: failed to get WiFi adapter mode on module.");
-            value = "UNKNOWN";
-        }
-        if (value == "Station")
-            rc = WirelessMode::ADAPTER_STATION;
-        else
-            rc = WirelessMode::ADAPTER_SOFTAP;
-        return rc;
-    }
-
     void runLoop(void)
     {
+        m_state.StepState();
         if (m_server != nullptr)
             m_server->handleClient();
     }
@@ -298,12 +389,40 @@ bool WiFiAdapter::TransmitMessages(char const* data_type) { return transmitMessa
 /// Pass-through implementation to the sub-class code to set the wireless adapter mode.
 ///
 /// \param mode WirelessMode for the adapter on startup
-void WiFiAdapter::SetWirelessMode(WirelessMode mode) { return set_wireless_mode(mode); }
+void WiFiAdapter::SetWirelessMode(WirelessMode mode)
+{
+    String value;
+    if (mode == WirelessMode::ADAPTER_STATION) {
+        value = "Station";
+    } else if (mode == WirelessMode::ADAPTER_SOFTAP) {
+        value = "AP";
+    } else {
+        Serial.println("ERR: unknown wireless adapater mode.");
+        return;
+    }
+    if (!logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFIMODE_S, value)) {
+        Serial.println("ERR: failed to set WiFi adapater mode on module.");
+    }
+}
 
 /// Pass-through implementation to the sub-class code to get the wireless adapter mode.
 ///
 /// \return WirelessMode enum value, using AP as the default
-WiFiAdapter::WirelessMode WiFiAdapter::GetWirelessMode(void) { return get_wireless_mode(); }
+WiFiAdapter::WirelessMode WiFiAdapter::GetWirelessMode(void)
+{
+    String          value;
+    WirelessMode    rc;
+    
+    if (!logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIMODE_S, value)) {
+        Serial.println("ERR: failed to get WiFi adapter mode on module.");
+        value = "UNKNOWN";
+    }
+    if (value == "Station")
+        rc = WirelessMode::ADAPTER_STATION;
+    else
+        rc = WirelessMode::ADAPTER_SOFTAP;
+    return rc;
+}
 
 void WiFiAdapter::RunLoop(void) { runLoop(); }
 
