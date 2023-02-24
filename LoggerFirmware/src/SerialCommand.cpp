@@ -35,7 +35,7 @@
 #include "NVMFile.h"
 
 const uint32_t CommandMajorVersion = 1;
-const uint32_t CommandMinorVersion = 2;
+const uint32_t CommandMinorVersion = 3;
 const uint32_t CommandPatchVersion = 0;
 
 /// Default constructor for the SerialCommand object.  This stores the pointers for the logger and
