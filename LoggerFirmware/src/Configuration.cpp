@@ -57,7 +57,8 @@ const String lookup[] = {
     "StationDelay",     ///< Set the timeout between attempts of the webserver joining a client network
     "StationRetries",   ///< Set number of join attempts before the webserver reverts to safe mode
     "StationTimeout",   ///< Set the timeout for any connect attempt
-    "WSStatus"          ///< The current status of the configuration webserver
+    "WSStatus",         ///< The current status of the configuration webserver
+    "WSBootStatus"      ///< The status of the webserver on boot
 };
 
 /// Default constructor.  This sets up for a dummy parameter store, which is configured

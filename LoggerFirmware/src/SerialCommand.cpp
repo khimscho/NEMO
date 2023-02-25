@@ -1078,9 +1078,11 @@ void SerialCommand::ReportCurrentStatus(CommandSource src)
     int now = millis();
     status["elapsed"] = now;
 
-    String server_status;
+    String server_status, boot_status;
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WS_STATUS_S, server_status);
-    status["webserver"] = server_status;
+    logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_WS_BOOTSTATUS_S, boot_status);
+    status["webserver"]["current"] = server_status;
+    status["webserver"]["boot"] = boot_status;
 
     int filenumbers[logger::MaxLogFiles];
     int n_files = m_logManager->CountLogFiles(filenumbers);

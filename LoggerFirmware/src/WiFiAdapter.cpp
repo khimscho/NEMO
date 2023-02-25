@@ -39,8 +39,15 @@
 
 class ConnectionStateMachine {
 public:
-    ConnectionStateMachine(void)
+    ConnectionStateMachine(bool verbose = false)
+    : m_verbose(verbose)
     {
+        String boot_status;
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WS_STATUS_S, boot_status);
+        logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_BOOTSTATUS_S, boot_status);
+        if (m_verbose) {
+            Serial.printf("DBG: starting ConnectionStateMachine; boot status is %s\n", boot_status.c_str());
+        }
         m_lastConnectAttempt = m_lastStatusCheck = millis();
         
         m_connectionRetries = maximumReties();
@@ -50,14 +57,26 @@ public:
         m_statusDelay = 500;    // Delay between status checks in milliseconds
 
         m_currentState = STOPPED;
+        String status;
+        if (WiFiAdapter::GetWirelessMode() == WiFiAdapter::WirelessMode::ADAPTER_SOFTAP) {
+            status = "AP-Stopped";
+        } else {
+            status = "Station-Stopped";
+        }
+        logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_STATUS_S, status);
     }
+
+    bool Verbose(void) { return m_verbose; }
+    void Verbose(bool verbose) { m_verbose = verbose; }
 
     void Start(void)
     {
         if (WiFiAdapter::GetWirelessMode() == WiFiAdapter::WirelessMode::ADAPTER_SOFTAP) {
             m_currentState = AP_MODE;
+            logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_STATUS_S, "AP-Enabled");
             apSetup();
         } else {
+            logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_STATUS_S, "Station-Enabled,Connecting");
             m_currentState = STATION_CONNECTING;
             if (attemptStationJoin())
                 m_currentState = STATION_CONNECTED;
@@ -66,6 +85,8 @@ public:
 
     void StepState(void)
     {
+        using namespace logger;
+
         int now = millis();
         switch (m_currentState) {
             case STOPPED:
@@ -77,13 +98,23 @@ public:
                 // We're waiting for the connection to complete, so check status
                 // if we've waiting long enough.
                 if ((now - m_lastStatusCheck) > m_statusDelay) {
+                    if (m_verbose) {
+                        Serial.printf("DBG: checking for connection at %d\n", now);
+                    }
                     if (isConnected()) {
                         m_currentState = STATION_CONNECTED;
+                        if (m_verbose)
+                            Serial.print("DBG: station now connected.\n");
                     } else {
                         // Still not connected, so we need to determine if
                         // we need to terminate this try.
+                        if (m_verbose)
+                            Serial.print("DBG: station still not connected.\n");
                         if ((now - m_lastConnectAttempt) > m_connectDelay) {
                             m_currentState = STATION_RETRY;
+                            LoggerConfig.SetConfigString(Config::CONFIG_WS_STATUS_S, "Station-Enabled,Connect-Timeout-Retrying");
+                            if (m_verbose)
+                                Serial.printf("DBG: join attempt timed out since last attempt was %d (%d ago)\n", m_lastConnectAttempt, now - m_lastConnectAttempt);
                         }
                     }
                 }
@@ -92,14 +123,20 @@ public:
                 // We're attempting a retry for a station connection, if we've
                 // waited long enough
                 if ((now - m_lastConnectAttempt) > m_retryDelay) {
+                    if (m_verbose)
+                        Serial.printf("DBG: attempting to join again since last attempt was %d ago.\n", now - m_lastConnectAttempt);
                     if (m_connectionRetries > 0) {
                         --m_connectionRetries;
+                        if (m_verbose)
+                            Serial.printf("DBG: attempting retry; %d remaining.\n", m_connectionRetries);
                         if (attemptStationJoin())
                             m_currentState = STATION_CONNECTED;
                         else
                             m_currentState = STATION_CONNECTING;
                     } else {
                         m_currentState = MOVE_TO_SAFE_MODE;
+                        if (m_verbose)
+                            Serial.print("DBG: out of retry attempts, moving back to safe mode.\n");
                     }
                 }
                 break;
@@ -109,6 +146,8 @@ public:
                 // etc. -- so we revert to AP mode.
                 WiFiAdapter::SetWirelessMode(WiFiAdapter::WirelessMode::ADAPTER_SOFTAP);
                 logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_STATUS_S, "AP-Enabled,Station-Join-Failed");
+                if (m_verbose)
+                    Serial.print("DBG: set status to Station-Join-Failed, rebooting to AP safe mode.\n");
                 ESP.restart();
                 break;
             case STATION_CONNECTED:
@@ -116,12 +155,22 @@ public:
                 // connection checking mode.
                 logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_STATUS_S, "Station-Enabled,Connected");
                 m_currentState = CONNECTION_CHECK;
+                if (m_verbose) {
+                    Serial.print("DBG: station connected to network, setting state to Connected.\n");
+                }
                 break;
             case CONNECTION_CHECK:
                 // Once connected, we need to periodically check that we're still connected,
                 // going back into connection mode if not.
                 if ((now - m_lastStatusCheck) > m_retryDelay) {
+                    if (m_verbose) {
+                        Serial.printf("DBG: checking connection status since last check was %d ago.\n", now - m_lastStatusCheck);
+                    }
                     if (!isConnected()) {
+                        if (m_verbose) {
+                            Serial.print("DBG: station disconnected, so switching back to retry.\n");
+                        }
+                        logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_STATUS_S, "Station-Enabled,Disconnected-Retrying");
                         m_currentState = STATION_RETRY;
                     }
                 }
@@ -139,6 +188,7 @@ private:
         CONNECTION_CHECK
     };
     State   m_currentState;         // Current state of the SM
+    bool    m_verbose;              // Flag for debug information to happen
     int     m_lastConnectAttempt;   // Time (ms) for last connection attempt
     int     m_lastStatusCheck;      // Time (ms) for last connection status attempt
     int     m_connectionRetries;    // Count of remaining connection attempts
@@ -154,6 +204,9 @@ private:
         WiFi.softAP(ssid.c_str(), password.c_str());
         IPAddress server_address = WiFi.softAPIP();
         logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, server_address.toString());
+        if (m_verbose) {
+            Serial.printf("DBG: started AP mode on %s:%s with IP %s.\n", ssid.c_str(), password.c_str(), server_address.toString().c_str());
+        }
     }
 
     bool attemptStationJoin(void)
@@ -161,10 +214,11 @@ private:
         String ssid, password;
         logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_SSID_S, ssid);
         logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_PASSWD_S, password);
-        Serial.print(String("Connecting to ") + ssid + ": ");
         wl_status_t status = WiFi.begin(ssid.c_str(), password.c_str());
         m_lastConnectAttempt = millis();
-        Serial.print(String("(status: ") + static_cast<int>(status) + ")");
+        if (m_verbose) {
+            Serial.printf("DBG: started network join on %s:%s at %d with immediate status %d\n", ssid.c_str(), password.c_str(), m_lastConnectAttempt, (int)status);
+        }
         return status == WL_CONNECTED;
     }
 
@@ -172,12 +226,18 @@ private:
     {
         IPAddress server_address = WiFi.softAPIP();
         logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, server_address.toString());
+        if (m_verbose) {
+            Serial.printf("DBG: completing station join at IP %s\n", server_address.toString().c_str());
+        }
     }
 
     bool isConnected(void)
     {
         wl_status_t status = WiFi.status();
         m_lastStatusCheck = millis();
+        if (m_verbose) {
+            Serial.printf("DBG: checking WiFi status at %d with status %d\n", m_lastStatusCheck, (int)status);
+        }
         return status == WL_CONNECTED;
     }
 
@@ -280,6 +340,7 @@ private:
             m_server->on("/heartbeat", HTTPMethod::HTTP_GET, std::bind(&ESP32WiFiAdapter::heartbeat, this));
             m_server->on("/command", HTTPMethod::HTTP_POST, std::bind(&ESP32WiFiAdapter::handleCommand, this));
         }
+        //m_state.Verbose(true);
         m_state.Start();
         m_server->begin();
         return true;
