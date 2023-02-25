@@ -155,8 +155,8 @@ void SendN2kMisc() {
     SetN2kTransmissionParameters(N2kMsg,0,N2kTG_Forward,750000, CToKelvin(65.5),true,false,true);
     delay(DelayBetweenSend); NMEA2000.SendMsg(N2kMsg);
     
-    SetN2kAISClassAPosition(N2kMsg, 1, tN2kAISRepeat::N2kaisr_First, 123456789, 26.396, -80.075, 1, 1, 1, 20, 20, 30, 0, tN2kAISNavStatus::N2kaisns_At_Anchor);
-    delay(DelayBetweenSend); NMEA2000.SendMsg(N2kMsg);
+    //SetN2kAISClassAPosition(N2kMsg, 1, tN2kAISRepeat::N2kaisr_First, 123456789, 26.396, -80.075, 1, 1, 1, 20, 20, 30, 0, tN2kAISNavStatus::N2kaisns_At_Anchor);
+    //delay(DelayBetweenSend); NMEA2000.SendMsg(N2kMsg);
 
     SetN2kBinaryStatus(N2kMsg,2,N2kOnOff_On,N2kOnOff_Unavailable,N2kOnOff_Off);
     delay(DelayBetweenSend); NMEA2000.SendMsg(N2kMsg);
