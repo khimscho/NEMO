@@ -47,7 +47,7 @@ import uuid
 
 sys.path.append("../DataParser")
 
-import LoggerFile
+from wibl.core import logger_file as lf
 
 
 class CaptureReturn(QObject):
