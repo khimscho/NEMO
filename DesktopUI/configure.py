@@ -36,6 +36,8 @@ from uuid import uuid4
 class ConfigDBox:
     hor_pad = 10
     ver_pad = 5
+    __default_commandproc_version__ = '1.3.0'
+    __default_providerid__ = 'UNHJHC'
 
     def __init__(self, root, address: str, port: str, output_widget):
         self.root = tk.Toplevel(root)
@@ -200,7 +202,7 @@ class ConfigDBox:
         self.configure(config)
 
     def on_uuid_generate(self):
-        uniqueid = 'UNHJHC-' + str(uuid4())
+        uniqueid = self.__default_providerid__ + '-' + str(uuid4())
         self.uniqueid_var.set(uniqueid)
     
     def on_querylogger(self):
@@ -213,7 +215,12 @@ class ConfigDBox:
             self.record(info)
 
     def on_setlogger(self):
-        json_text = json.dumps(self.getconfig())
+        config = self.getconfig()
+        # The configuration doesn't have version information, but the logger needs this in order
+        # to know whether it's going to be able to interpret the JSON or not.  We add whatever's
+        # configured here, rather than what's coming from anywhere else.
+        config['version'] = { 'commandproc': self.__default_commandproc_version__ }
+        json_text = json.dumps(config)
         command = 'setup ' + json_text
         interface = LoggerInterface(self.server_address, self.server_port)
         success, info = interface.execute_command(command)
