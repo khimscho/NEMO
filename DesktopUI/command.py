@@ -25,15 +25,29 @@
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
 import requests
+from typing import Tuple
 
 class LoggerInterface:
     def __init__(self, address: str, port: str) -> None:
         self.server_url = 'http://' + address + ':' + port + '/command'
 
-    def execute_command(self, command: str) -> str:
+    def execute_command(self, command: str) -> Tuple[bool, str]:
         result = requests.post(self.server_url, data = {'command': command})
         if result.status_code == 200:
-            rtn = result.text
+            rtn = (True, result.text)
         else:
-            rtn = f'Error: logger returned status {result.status_code} and information {result.text}'
+            rtn = (False, f'Error: logger returned status {result.status_code} and information {result.text}')
         return rtn
+
+    def get_file(self, number: int) -> Tuple[bool, bytes]:
+        result = requests.post(self.server_url, data = {'command': f'transfer {number}'})
+        if result.status_code == 200:
+            rtn = (True, result.content)
+        else:
+            rtn = (True, f'Error: logger returned status {result.status_code} and information {result.text}')
+        return rtn
+
+def run_command(address: str, port: str, command: str) -> str:
+    interface = LoggerInterface(address, port)
+    result = interface.execute_command(command)
+    return result

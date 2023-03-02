@@ -26,15 +26,23 @@
 
 import tkinter as tk
 import tkinter.ttk as ttk
+from tkinter import filedialog
+from tkinter import messagebox as mbox
 from typing import Dict, Any
 import json
+from command import LoggerInterface
+from uuid import uuid4
 
-class ConfgDBox:
+class ConfigDBox:
     hor_pad = 10
     ver_pad = 5
 
-    def __init__(self, root, config: Dict[str,Any]):
+    def __init__(self, root, address: str, port: str, output_widget):
         self.root = tk.Toplevel(root)
+        self.server_address = address
+        self.server_port = port
+        self.output_widget = output_widget
+
         self.main_frame = tk.Frame(self.root, padx=self.hor_pad, pady=self.ver_pad)
         self.main_frame.pack(fill='both')
 
@@ -45,15 +53,15 @@ class ConfgDBox:
         self.nmea0183_var = tk.StringVar()
         self.nmea2000_var = tk.StringVar()
         self.command_version_label = tk.Label(self.version_frame, text='Command Processor')
-        self.command_version_entry = tk.Entry(self.version_frame, textvariable=self.command_var)
+        self.command_version_entry = tk.Entry(self.version_frame, textvariable=self.command_var, state='disabled')
         self.command_version_label.grid(row=0,column=0,sticky='e')
         self.command_version_entry.grid(row=0,column=1,sticky='w')
         self.nmea0183_version_label = tk.Label(self.version_frame, text='NMEA0183 Logger')
-        self.nmea0183_version_entry = tk.Entry(self.version_frame, textvariable=self.nmea0183_var)
+        self.nmea0183_version_entry = tk.Entry(self.version_frame, textvariable=self.nmea0183_var, state='disabled')
         self.nmea0183_version_label.grid(row=1,column=0,sticky='e')
         self.nmea0183_version_entry.grid(row=1,column=1,sticky='w')
         self.nmea2000_version_label = tk.Label(self.version_frame, text='NMEA2000 Logger')
-        self.nmea2000_version_entry = tk.Entry(self.version_frame, textvariable=self.nmea2000_var)
+        self.nmea2000_version_entry = tk.Entry(self.version_frame, textvariable=self.nmea2000_var, state='disabled')
         self.nmea2000_version_label.grid(row=2,column=0,sticky='e')
         self.nmea2000_version_entry.grid(row=2,column=1,sticky='w')
 
@@ -66,6 +74,8 @@ class ConfgDBox:
         self.uniqueid_entry = tk.Entry(self.metadata_frame, textvariable=self.uniqueid_var)
         self.uniqueid_label.grid(row=0,column=0,sticky='e')
         self.uniqueid_entry.grid(row=0,column=1,sticky='w')
+        self.uniqueid_button = tk.Button(self.metadata_frame, text='Generate UUID', command=self.on_uuid_generate)
+        self.uniqueid_button.grid(row=0,column=2,sticky='w')
         self.shipname_label = tk.Label(self.metadata_frame, text='Ship Name')
         self.shipname_entry = tk.Entry(self.metadata_frame, textvariable=self.shipname_var)
         self.shipname_label.grid(row=1,column=0,sticky='e')
@@ -117,7 +127,7 @@ class ConfgDBox:
         self.mode_label.grid(row=0,column=0,stick='e')
         self.mode_combo.grid(row=0,column=1,sticky='w')
         self.address_label = tk.Label(self.wifi_frame, text='Address')
-        self.address_entry = tk.Entry(self.wifi_frame, textvariable=self.wifi_address_var)
+        self.address_entry = tk.Entry(self.wifi_frame, textvariable=self.wifi_address_var, state='disabled')
         self.address_label.grid(row=1,column=0,sticky='e')
         self.address_entry.grid(row=1,column=1,sticky='w')
 
@@ -174,28 +184,68 @@ class ConfgDBox:
         # Set up bottons for 'Configure' and 'Cancel'
         self.button_frame = tk.Frame(self.main_frame, padx=self.hor_pad, pady=self.ver_pad)
         self.button_frame.pack()
-        self.config_button = tk.Button(self.button_frame, text='Configure', command=self.on_configure)
-        self.config_button.grid(row=0,column=0)
-        self.cancel_button = tk.Button(self.button_frame, text='Cancel', command=self.on_cancel)
-        self.cancel_button.grid(row=0,column=1)
+        self.querylogger_button = tk.Button(self.button_frame, text='Query Logger', command=self.on_querylogger)
+        self.querylogger_button.grid(row=0,column=0)
+        self.setlogger_button = tk.Button(self.button_frame, text='Set Logger', command=self.on_setlogger)
+        self.setlogger_button.grid(row=0,column=1)
+        self.load_button = tk.Button(self.button_frame, text='Load Config', command=self.on_load)
+        self.load_button.grid(row=0,column=2)
+        self.save_button = tk.Button(self.button_frame, text='Save Config', command=self.on_save)
+        self.save_button.grid(row=0,column=3)
+        self.dismiss_button = tk.Button(self.button_frame, text='Dismiss', command=self.on_dismiss)
+        self.dismiss_button.grid(row=0,column=4)
 
+        with open('assets/default_config.json', 'r') as f:
+            config = json.load(f)
         self.configure(config)
 
-    def on_configure(self):
-        self.do_configure = True
+    def on_uuid_generate(self):
+        uniqueid = 'UNHJHC-' + str(uuid4())
+        self.uniqueid_var.set(uniqueid)
+    
+    def on_querylogger(self):
+        interface = LoggerInterface(self.server_address, self.server_port)
+        success, info = interface.execute_command('setup')
+        if success:
+            config = json.loads(info)
+            self.configure(config)
+        else:
+            self.record(info)
+
+    def on_setlogger(self):
+        json_text = json.dumps(self.getconfig())
+        command = 'setup ' + json_text
+        interface = LoggerInterface(self.server_address, self.server_port)
+        success, info = interface.execute_command(command)
+        if success:
+            mbox.showinfo(title='Logger Setup', message='Logger configuration completed successfully.')
+        else:
+            mbox.showerror(title='Logger Setup', message='Logger configuration failed.')
+        self.record(info)
+
+    def on_load(self):
+        filename = filedialog.askopenfilename(title='Open Configuration', filetypes=[('JSON Files', '*.json')])
+        with open(filename, 'r') as f:
+            data = json.load(f)
+        if data:
+            self.configure(data)
+
+    def on_save(self):
+        config = self.getconfig()
+        config_name=f'{config["uniqueID"]}.json'
+        filename = filedialog.asksaveasfilename(title='Save Configuration', initialfile=config_name, defaultextension='json', confirmoverwrite=True)
+        with open(filename, 'w') as f:
+            json.dump(config, f, indent=4)
+
+    def on_dismiss(self):
         self.root.destroy()
 
-    def on_cancel(self):
-        self.do_configure = False
-        self.root.destroy()
+    def record(self, message: str) -> None:
+        self.output_widget.insert(tk.END, message)
+        self.output_widget.yview_moveto(1.0)
     
     def getconfig(self) -> Dict[str,Any]:
         rtn = {
-            'version': {
-                'commandproc':  self.command_var.get(),
-                'nmea0183':     self.nmea0183_var.get(),
-                'nmea2000':     self.nmea2000_var.get()
-            },
             'enable': {
                 'nmea0183':     self.map_checkbutton(self.log_nmea0183_var.get()),
                 'nmea2000':     self.map_checkbutton(self.log_nmea2000_var.get()),
@@ -238,9 +288,10 @@ class ConfgDBox:
             return False
 
     def configure(self, config: Dict[str,Any]):
-        self.command_var.set(config['version']['commandproc'])
-        self.nmea0183_var.set(config['version']['nmea0183'])
-        self.nmea2000_var.set(config['version']['nmea2000'])
+        if 'version' in config:
+            self.command_var.set(config['version']['commandproc'])
+            self.nmea0183_var.set(config['version']['nmea0183'])
+            self.nmea2000_var.set(config['version']['nmea2000'])
         self.log_nmea0183_var.set(config['enable']['nmea0183'])
         self.log_nmea2000_var.set(config['enable']['nmea2000'])
         self.log_imu_var.set(config['enable']['imu'])
@@ -249,7 +300,8 @@ class ConfgDBox:
         self.udpbridge_var.set(config['enable']['sdmmc'])
         self.webserver_var.set(config['enable']['webserver'])
         self.wifi_mode_var.set(config['wifi']['mode'])
-        self.wifi_address_var.set(config['wifi']['address'])
+        if 'address' in config['wifi']:
+            self.wifi_address_var.set(config['wifi']['address'])
         self.retry_delay_var.set(config['wifi']['station']['delay'])
         self.retry_count_var.set(config['wifi']['station']['retries'])
         self.join_timeout_var.set(config['wifi']['station']['timeout'])
