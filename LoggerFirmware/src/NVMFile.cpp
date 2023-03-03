@@ -29,6 +29,7 @@
 #include "SPIFFS.h"
 #include "LogManager.h"
 #include "serialisation.h"
+#include "ArduinoJson.h"
 
 namespace logger {
 
@@ -366,6 +367,26 @@ void AlgoRequestStore::ListAlgorithms(Stream& s)
     }
 }
 
+// Convert the algorithm requests into a JSON structure that we can then convert to a \a String
+// to send to the WiFi interface (or elsewhere)
+
+void AlgoRequestStore::MakeJSON(String& s)
+{
+    NVMFileReader alg(m_algoBackingStore);
+    NVMFileReader par(m_paramBackingStore);
+
+    DynamicJsonDocument algorithms(1024);
+
+    int entry = 0;
+    while (alg.HasMore()) {
+        algorithms["algorithm"][entry]["name"] = alg.NextEntry();
+        algorithms["algorithm"][entry]["parameters"] = par.NextEntry();
+        ++entry;
+    }
+    algorithms["count"] = entry;
+    serializeJson(algorithms, s);
+}
+
 /// Write a set of output blocks into the binary WIBL-format file containing the algorithms and their
 /// parameters that are being recommended to the post-processing code.
 ///
@@ -430,6 +451,22 @@ void N0183IDStore::ListIDs(Stream& s)
         s.printf("%d: %s\n", n, r.NextEntry().c_str());
         ++n;
     }
+}
+
+/// Generate a 
+
+void N0183IDStore::MakeJSON(String& s)
+{
+    NVMFileReader r(m_backingStore);
+    DynamicJsonDocument messages(1024);
+
+    int entry = 0;
+    while (r.HasMore()) {
+        messages["accepted"][entry] = r.NextEntry();
+        ++entry;
+    }
+    messages["count"] = entry;
+    serializeJson(messages, s);
 }
 
 /// Write the list of all allowed message IDs to an output WIBL-format binary file using

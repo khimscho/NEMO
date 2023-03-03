@@ -29,6 +29,7 @@ from tkinter import filedialog
 from command import LoggerInterface
 from configure import ConfigDBox
 from transfer import TransferDBox
+from algorithms import AlgoDBox
 import json
 from typing import Tuple
 
@@ -91,13 +92,15 @@ class MainWindow:
         self.setup_button = tk.Button(self.button_frame, text='Setup', command=self.on_setup)
         self.status_button = tk.Button(self.button_frame, text='Status', command=self.on_status)
         self.metadata_button = tk.Button(self.button_frame, text='Metadata', command=self.on_metadata)
+        self.algorithm_button = tk.Button(self.button_frame, text='Algorithms', command=self.on_algorithms)
         self.transfer_button = tk.Button(self.button_frame, text='Transfer Data', command=self.on_transfer)
         self.restart_button = tk.Button(self.button_frame, text='Restart', command=self.on_restart)
         self.setup_button.grid(row=0,column=0)
         self.status_button.grid(row=0,column=1)
         self.metadata_button.grid(row=0,column=2)
-        self.transfer_button.grid(row=0,column=3)
-        self.restart_button.grid(row=0,column=4)
+        self.algorithm_button.grid(row=0,column=3)
+        self.transfer_button.grid(row=0,column=4)
+        self.restart_button.grid(row=0,column=5)
 
         self.button_frame.pack(fill='x')
 
@@ -116,7 +119,7 @@ class MainWindow:
             self.output_text.insert(tk.END, '>>> ' + command + '\n')
             self.command_entry.delete(0, tk.END)
             success, info = self.run_command(command)
-            self.update_output(info)
+            self.update_output(info + '\n')
     
     def on_setup(self):
         config_dbox = ConfigDBox(self.root, self.server_address_var.get(), self.server_port_var.get(), self.output_text)
@@ -164,6 +167,8 @@ class MainWindow:
                 size_units = 'B'
             summary += f'  Total File Size: {file_size_total:.3f} {size_units}\n'
             self.update_output(summary)
+        else:
+            self.update_output(info + '\n')
 
     def on_metadata(self):
         json_filename = filedialog.askopenfilename(title='Select JSON Metadata File', filetypes=[('JSON Files', '*.json')])
@@ -174,9 +179,13 @@ class MainWindow:
             status, info = self.run_command(command)
             self.update_output(info)
 
+    def on_algorithms(self):
+        algo_dbox = AlgoDBox(self.root, self.server_address_var.get(), self.server_port_var.get(), self.output_text)
+        self.root.wait_window(algo_dbox.root)
+
     def on_restart(self):
         status, info = self.run_command('restart')
-        self.update_output(info)
+        self.update_output(info + '\n')
 
     def on_transfer(self):
         transfer_dbox = TransferDBox(self.root, self.server_address_var.get(), self.server_port_var.get(), self.output_text)

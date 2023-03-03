@@ -65,8 +65,9 @@ class TransferDBox:
     def on_filename(self):
         filenum = self.filenum_var.get()
         filename = filedialog.asksaveasfilename(title='Select Output File', initialfile=f'wibl-raw.{filenum}.wibl', confirmoverwrite=True, defaultextension='wibl')
-        self.filename_var.set(filename)
-        self.filename_entry.xview_moveto(1.0)
+        if filename:
+            self.filename_var.set(filename)
+            self.filename_entry.xview_moveto(1.0)
 
     def on_transfer(self):
         filename = self.filename_var.get()
@@ -76,9 +77,10 @@ class TransferDBox:
         if status:
             with open(filename, 'wb') as f:
                 f.write(data)
-            self.record(f'info: wrote file {filenum} to {filename}.')
+            self.record(f'info: wrote file {filenum} to {filename}.\n')
         else:
-            self.record(f'error: failed to write file {filenum} to {filename}.')
+            self.record(f'error: failed to write file {filenum} to {filename}.\n')
+            self.record(data + '\n') # detailed error message from the loger interface
     
     def record(self, message: str) -> None:
         self.output_widget.insert(tk.END, message)

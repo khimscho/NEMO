@@ -212,7 +212,7 @@ class ConfigDBox:
             config = json.loads(info)
             self.configure(config)
         else:
-            self.record(info)
+            self.record(info + '\n')
 
     def on_setlogger(self):
         config = self.getconfig()
@@ -228,21 +228,23 @@ class ConfigDBox:
             mbox.showinfo(title='Logger Setup', message='Logger configuration completed successfully.')
         else:
             mbox.showerror(title='Logger Setup', message='Logger configuration failed.')
-        self.record(info)
+        self.record(info + '\n')
 
     def on_load(self):
         filename = filedialog.askopenfilename(title='Open Configuration', filetypes=[('JSON Files', '*.json')])
-        with open(filename, 'r') as f:
-            data = json.load(f)
-        if data:
-            self.configure(data)
+        if filename:
+            with open(filename, 'r') as f:
+                data = json.load(f)
+            if data:
+                self.configure(data)
 
     def on_save(self):
         config = self.getconfig()
         config_name=f'{config["uniqueID"]}.json'
         filename = filedialog.asksaveasfilename(title='Save Configuration', initialfile=config_name, defaultextension='json', confirmoverwrite=True)
-        with open(filename, 'w') as f:
-            json.dump(config, f, indent=4)
+        if filename:
+            with open(filename, 'w') as f:
+                json.dump(config, f, indent=4)
 
     def on_dismiss(self):
         self.root.destroy()

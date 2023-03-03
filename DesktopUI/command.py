@@ -32,19 +32,25 @@ class LoggerInterface:
         self.server_url = 'http://' + address + ':' + port + '/command'
 
     def execute_command(self, command: str) -> Tuple[bool, str]:
-        result = requests.post(self.server_url, data = {'command': command})
-        if result.status_code == 200:
-            rtn = (True, result.text)
-        else:
-            rtn = (False, f'Error: logger returned status {result.status_code} and information {result.text}')
+        try:
+            result = requests.post(self.server_url, data = {'command': command}, timeout=3)
+            if result.status_code == 200:
+                rtn = (True, result.text)
+            else:
+                rtn = (False, f'Error: logger returned status {result.status_code} and information {result.text}')
+        except requests.exceptions.ConnectTimeout:
+            rtn = (False, f'Error: connection timed out - is the logger on?\n')
         return rtn
 
     def get_file(self, number: int) -> Tuple[bool, bytes]:
-        result = requests.post(self.server_url, data = {'command': f'transfer {number}'})
-        if result.status_code == 200:
-            rtn = (True, result.content)
-        else:
-            rtn = (True, f'Error: logger returned status {result.status_code} and information {result.text}')
+        try:
+            result = requests.post(self.server_url, data = {'command': f'transfer {number}'}, timeout=3)
+            if result.status_code == 200:
+                rtn = (True, result.content)
+            else:
+                rtn = (False, f'Error: logger returned status {result.status_code} and information {result.text}')
+        except requests.exceptions.ConnectTimeout:
+            rtn = (False, f'Error: connection timed out - is the logger on?')
         return rtn
 
 def run_command(address: str, port: str, command: str) -> str:

@@ -868,12 +868,14 @@ void SerialCommand::ReportHeapSize(CommandSource src)
 void SerialCommand::ReportAlgRequests(CommandSource src)
 {
     logger::AlgoRequestStore algstore;
+    String algorithms;
     switch (src) {
         case CommandSource::SerialPort:
             algstore.ListAlgorithms(Serial);
             break;
         case CommandSource::WirelessPort:
-            Serial.println("ERR: cannot stream algorithm requests to WiFi web server.");
+            algstore.MakeJSON(algorithms);
+            EmitMessage(algorithms, src);
             break;
         default:
             EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
@@ -942,13 +944,16 @@ void SerialCommand::ReportMetadataElement(CommandSource src)
 void SerialCommand::ReportNMEAFilter(CommandSource src)
 {
     logger::N0183IDStore filter;
-    EmitMessage("NMEA0183 message IDs accepted for logging:\n", src);
+    String filter_ids;
+    
     switch (src) {
         case CommandSource::SerialPort:
+            EmitMessage("NMEA0183 message IDs accepted for logging:\n", src);
             filter.ListIDs(Serial);
             break;
         case CommandSource::WirelessPort:
-            Serial.println("ERR: cannot stream NMEA filter settings to WiFi web server.");
+            filter.MakeJSON(filter_ids);
+            EmitMessage(filter_ids, src);
             break;
         default:
             EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
