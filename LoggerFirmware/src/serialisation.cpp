@@ -218,6 +218,13 @@ Serialiser::Serialiser(File& file)
     meta += identifier.c_str();
 
     rawProcess(logger::Manager::PacketIDs::Pkt_Metadata, meta);
+
+    Serialisable setup(1024);
+    String json_setup = logger::ConfigJSON::ExtractConfig(false, true);
+    setup += json_setup.length();
+    setup += json_setup.c_str();
+
+    rawProcess(logger::Manager::PacketIDs::Pkt_Setup, setup);
 }
 
 /// Private method to actually write the buffer to file.  This avoids cross-checks on the payload ID

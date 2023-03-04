@@ -98,7 +98,7 @@ SerialCommand::~SerialCommand()
 ///
 /// \return String for the version information
 
-String SerialCommand::CommandProcVersion(void)
+String SerialCommand::SoftwareVersion(void)
 {
     char buffer[32];
     snprintf(buffer, 32, "%d.%d.%d", CommandMajorVersion, CommandMinorVersion, CommandPatchVersion);
@@ -636,69 +636,7 @@ void SerialCommand::ConfigurePassthrough(String const& params, CommandSource src
 
 void SerialCommand::ReportConfigurationJSON(CommandSource src)
 {
-    using namespace ARDUINOJSON_NAMESPACE;
-    StaticJsonDocument<1024> params;
-    params["version"]["commandproc"] = CommandProcVersion();
-    params["version"]["nmea0183"] = m_serialLogger->SoftwareVersion();
-    params["version"]["nmea2000"] = m_CANLogger->SoftwareVersion();
-
-    // Enable/disable for the various loggers and features
-    bool nmea0183_enable, nmea2000_enable, imu_enable, powmon_enable, sdmmc_enable, udp_bridge_enable, webserver_on_boot;
-    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_NMEA0183_B, nmea0183_enable);
-    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_NMEA2000_B, nmea2000_enable);
-    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_MOTION_B, imu_enable);
-    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_POWMON_B, powmon_enable);
-    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_SDMMC_B, sdmmc_enable);
-    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_BRIDGE_B, udp_bridge_enable);
-    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_WEBSERVER_B, webserver_on_boot);
-    params["enable"]["nmea0183"] = nmea0183_enable;
-    params["enable"]["nmea2000"] = nmea2000_enable;
-    params["enable"]["imu"] = imu_enable;
-    params["enable"]["powermonitor"] = powmon_enable;
-    params["enable"]["sdmmc"] = sdmmc_enable;
-    params["enable"]["udpbridge"] = udp_bridge_enable;
-    params["enable"]["webserver"] = webserver_on_boot;
-
-    // String configurations for the various parameters in configuration
-    String wifi_station_delay, wifi_station_retries, wifi_station_timeout, wifi_ip_address, wifi_mode;
-    String wifi_ap_ssid, wifi_ap_password, wifi_station_ssid, wifi_station_password;
-    String moduleid, shipname, baudrate_port1, baudrate_port2, udp_bridge_port;
-
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_DELAY_S, wifi_station_delay);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_RETRIES_S, wifi_station_retries);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_TIMEOUT_S, wifi_station_timeout);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_MODULEID_S, moduleid);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_SHIPNAME_S, shipname);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_AP_SSID_S, wifi_ap_ssid);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_AP_PASSWD_S, wifi_ap_password);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_SSID_S, wifi_station_ssid);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_PASSWD_S, wifi_station_password);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, wifi_ip_address);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIMODE_S, wifi_mode);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_BAUDRATE_1_S, baudrate_port1);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_BAUDRATE_2_S, baudrate_port2);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_BRIDGE_PORT_S, udp_bridge_port);
-    params["wifi"]["mode"] = wifi_mode;
-    params["wifi"]["address"] = wifi_ip_address;
-    params["wifi"]["station"]["delay"] = wifi_station_delay.toInt();
-    params["wifi"]["station"]["retries"] = wifi_station_retries.toInt();
-    params["wifi"]["station"]["timeout"] = wifi_station_timeout.toInt();
-    params["wifi"]["ssids"]["ap"] = wifi_ap_ssid;
-    params["wifi"]["ssids"]["station"] = wifi_station_ssid;
-    params["wifi"]["passwords"]["ap"] = wifi_ap_password;
-    params["wifi"]["passwords"]["station"] = wifi_station_password;
-    params["uniqueID"] = moduleid;
-    params["shipname"] = shipname;
-    params["baudrate"]["port1"] = baudrate_port1.toInt();
-    params["baudrate"]["port2"] = baudrate_port2.toInt();
-    params["udpbridge"] = udp_bridge_port.toInt();
-
-    String json;
-    if (src == CommandSource::SerialPort) {
-        serializeJsonPretty(params, json);
-    } else {
-        serializeJson(params, json);
-    }
+    String json = logger::ConfigJSON::ExtractConfig(src == CommandSource::SerialPort ? true : false);
     EmitMessage(json + "\n", src);
 }
 
@@ -776,70 +714,10 @@ void SerialCommand::ReportConfiguration(CommandSource src)
 
 void SerialCommand::SetupLogger(String const& spec, CommandSource src)
 {
-    DynamicJsonDocument params(1024);
-    deserializeJson(params, spec);
-
-    if (!params.containsKey("version") || !params["version"].containsKey("commandproc")) {
-        EmitMessage("ERR: JSON format invalid (no version information).\n", src);
-        return;
-    }
-    if (params["version"]["commandproc"].as<String>() == CommandProcVersion()) {
-        if (params.containsKey("enable")) {
-            if (params["enable"].containsKey("nmea0183"))
-                logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_NMEA0183_B, params["enable"]["nmea0183"]);
-            if (params["enable"].containsKey("nmea2000"))
-                logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_NMEA2000_B, params["enable"]["nmea2000"]);
-            if (params["enable"].containsKey("imu"))
-                logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_MOTION_B, params["enable"]["imu"]);
-            if (params["enable"].containsKey("powermonitor"))
-                logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_POWMON_B, params["enable"]["powermonitor"]);
-            if (params["enable"].containsKey("sdmmc"))
-                logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_SDMMC_B, params["enable"]["sdmmc"]);
-            if (params["enable"].containsKey("udpbridge"))
-                logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_BRIDGE_B, params["enable"]["udpbridge"]);
-            if (params["enable"].containsKey("webserver"))
-                logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_WEBSERVER_B, params["enable"]["webserver"]);
-        }
-        if (params.containsKey("wifi")) {
-            if (params["wifi"].containsKey("mode"))
-                logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFIMODE_S, params["wifi"]["mode"]);
-            if (params["wifi"].containsKey("station")) {
-                if (params["wifi"]["station"].containsKey("delay"))
-                    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_DELAY_S, params["wifi"]["station"]["delay"]);
-                if (params["wifi"]["station"].containsKey("retries"))
-                    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_RETRIES_S, params["wifi"]["station"]["retries"]);
-                if (params["wifi"]["station"].containsKey("timeout"))
-                    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_TIMEOUT_S, params["wifi"]["station"]["timeout"]);
-            }
-            if (params["wifi"].containsKey("ssids")) {
-                if (params["wifi"]["ssids"].containsKey("ap"))
-                    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_AP_SSID_S, params["wifi"]["ssids"]["ap"]);
-                if (params["wifi"]["ssids"].containsKey("station"))
-                    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_SSID_S, params["wifi"]["ssids"]["station"]);
-            }
-            if (params["wifi"].containsKey("passwords")) {
-                if (params["wifi"]["passwords"].containsKey("ap"))
-                    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_AP_PASSWD_S, params["wifi"]["passwords"]["ap"]);
-                if (params["wifi"]["passwords"].containsKey("station"))
-                    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_PASSWD_S, params["wifi"]["passwords"]["station"]);
-            }
-        }
-        if (params.containsKey("baudrate")) {
-            if (params["baudrate"].containsKey("port1"))
-                logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_BAUDRATE_1_S, params["baudrate"]["port1"]);
-            if (params["baudrate"].containsKey("port2"))
-                logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_BAUDRATE_2_S, params["baudrate"]["port2"]);
-        }
-        if (params.containsKey("uniqueID"))
-            logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_MODULEID_S, params["uniqueID"]);
-        if (params.containsKey("shipname"))
-            logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_SHIPNAME_S, params["shipname"]);
-        if (params.containsKey("udpbridge"))
-            logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_BRIDGE_PORT_S, params["udpbridge"]);
+    if (logger::ConfigJSON::SetConfig(spec)) {
+        EmitMessage("INF: Accepted configuration from JSON input string.\n", src);
     } else {
-        EmitMessage(String("ERR: JSON input is for version \"") +
-                    params["version"]["commandproc"].as<String>() +
-                    "\" and current is " + CommandProcVersion() + "\n", src);
+        EmitMessage("ERR: Error accepting configuration from JSON input string.\n", src);
     }
 }
 
@@ -1076,9 +954,9 @@ void SerialCommand::ReportCurrentStatus(CommandSource src)
 {
     DynamicJsonDocument status(10240);
 
-    status["version"]["commandproc"] = CommandProcVersion();
-    status["version"]["nmea0183"] = m_serialLogger->SoftwareVersion();
-    status["version"]["nmea2000"] = m_CANLogger->SoftwareVersion();
+    status["version"]["commandproc"] = SoftwareVersion();
+    status["version"]["nmea0183"] = nmea::N0183::Logger::SoftwareVersion();
+    status["version"]["nmea2000"] = nmea::N2000::Logger::SoftwareVersion();
 
     int now = millis();
     status["elapsed"] = now;
@@ -1113,7 +991,7 @@ void SerialCommand::ReportCurrentStatus(CommandSource src)
 
 void SerialCommand::Syntax(CommandSource src)
 {
-    EmitMessage(String("Command Syntax (V") + CommandProcVersion() + "):\n", src);
+    EmitMessage(String("Command Syntax (V") + SoftwareVersion() + "):\n", src);
     EmitMessage("  accept [NMEA0183-ID | all]          Configure which NMEA0183 messages to accept.\n", src);
     EmitMessage("  algorithm [name params | none]      Add (or report) an algorithm request to the cloud processing.\n", src);
     EmitMessage("  configure [on|off logger-name]      Configure individual loggers on/off (or report config).\n", src);

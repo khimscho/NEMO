@@ -30,6 +30,7 @@
 #define __CONFIGURATION_H__
 
 #include <Arduino.h>
+#include "ArduinoJson.h"
 #include "ParamStore.h"
 
 namespace logger {
@@ -98,6 +99,24 @@ class Config {
 };
 
 extern Config LoggerConfig; ///< Declaration of a global pre-allocated instance for lookup
+
+/// \class ConfigJSON
+/// \brief Configuration adapter for JSON-format load/save
+///
+/// The configuration information is typically kept as a simple key-value store in the NVM of
+/// the logger.  Getting that information out to the outside world (either through the serial or
+/// WiFi interfaces, or into a log file) is difficult, however, at least if you want it to have
+/// some sort of useful structure.  This class acts as an adapter to the key-value store so that
+/// it can be packaged as a JSON-structured string (along with some versioning information) to
+/// make external transport simpler.
+
+class ConfigJSON {
+public:
+    /// @brief Generate a serialised JSON dictionary as a String for all of the configuration parameters
+    static String ExtractConfig(bool indent = false, bool secure = false);
+    /// @brief Configure the logger from a serialsed JSON dictionary of the configuration parameters
+    static bool SetConfig(String const& json_string);
+};
 
 }
 

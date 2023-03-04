@@ -26,7 +26,7 @@
  */
 
 #ifndef __N0183_LOGGER_H__
-#define __N1083_LOGGER_H__
+#define __N0183_LOGGER_H__
 
 #include <set>
 #include "LogManager.h"
@@ -146,7 +146,7 @@ public:
     void ProcessMessages(void);
 
     /// \brief Generate a version string for the logger
-    String SoftwareVersion(void) const;
+    static String SoftwareVersion(void);
     /// \brief Report the version information for the NMEA0183 logger
     static void SoftwareVersion(uint16_t& major, uint16_t& minor, uint16_t& patch);
 

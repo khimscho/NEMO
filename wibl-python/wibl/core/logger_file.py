@@ -81,6 +81,8 @@ class PacketTypes(Enum):
     SensorScales = 16
     ## Raw local IMU data (i.e., integer values) to be converted into floats
     RawIMU = 17
+    ## Setup information JSON string for the current logger configuration
+    Setup = 18
 
 ## Convert from Kelvin to degrees Celsius
 #
@@ -1298,14 +1300,37 @@ class NMEA0183Filter(DataPacket):
         rtn = DataPacket.__str__(self) + ' ' + self.name() + ': sentence recognition string = \"' + self.recog_string.decode('UTF-8') + '\"'
         return rtn
 
+## Implement a packet to store a JSON description of the sensor scales used by on-board sensors
+#
+# The WIBL logger has at least an on-board IMU, which generates integer readings for the accelerations
+# and gyro rates; these need to be converted by known scale factors (depending on the maximum range
+# configured) to give SI units (m/s and rad/s).  This packet contains a JSON-format string to provide
+# these scales.  Of course, since it's just a JSON string, it can also be readily extended for other
+# sensors that might be embedded in other implementations.
 class SensorScales(DataPacket):
+    ## Initialise the packet using either a bytes buffer from a file, or keywords ab initio
+    #
+    # If the keywords include "buffer", the code assumes that the contents of the buffer are a serialised
+    # version of the packet, and attempts to unpack it.  Otherwise, the code assumes that the keywords contain
+    # information required to initialise the packet, and attempts to pull them from the dictionary.
+    #
+    # \param self   Reference for the object
+    # \param kwargs Named arguments to initialise parameters, or "buffer" to unpack from binary data 
     def __init__(self, **kwargs):
         if 'buffer' in kwargs:
             self.buffer_constructor(kwargs['buffer'])
         else:
             self.data_constructor(**kwargs)
     
-    def buffer_constructor(self, buffer: bytes) -> NoReturn:
+    ## Construct for a serialised buffer of bytes
+    #
+    # This attempts to construct the packet from a previously serialised version, typically from a WIBL
+    # logger.  The serialisation assumes a length word followed by a serialised JSON dictionary as a
+    # simple C-style string.
+    #
+    # \param self   Reference for the object
+    # \param buffer Binary buffer with serialised information for the packet
+    def buffer_constructor(self, buffer: bytes) -> None:
         base = 0
         config_len, = struct.unpack_from('<I', buffer, base)
         base += 4
@@ -1314,7 +1339,15 @@ class SensorScales(DataPacket):
         self.config = json.loads(config)
         super().__init__(0, 0.0, 0)
 
-    def data_constructor(self, **kwargs) -> NoReturn:
+    ## Initialise the packet from keyword arguments
+    #
+    # This takes the keywords provided and attempts to initialise the packet.  For this packet, valid
+    # keywords are:
+    #   'scales': Dict containing the parameters scales required for the packet
+    #
+    # \param self       Reference for the object
+    # \param **kwargs   Keyword dictionary with parameters for the packet
+    def data_constructor(self, **kwargs) -> None:
         try:
             if type(kwargs['scales']) != 'Dict':
                 if type(kwargs['scales']) == 'bytes':
@@ -1327,37 +1360,94 @@ class SensorScales(DataPacket):
         except KeyError as e:
             raise SpecificationError('Bad packet parameters') from e
 
+    ## Encode the current packet for serialisation
+    #
+    # From the parameters set in the packet, convert to a stream of bytes that can be used to serialise
+    # the packet to an output stream.  Note that this returns only the contents of the packet; the
+    # packet length, recognition ID, etc., must be added separately.
+    #
+    # \param self   Reference for the object
+    # \return Bytes array with the binary representation of the packet-specific parameters
     def payload(self) -> bytes:
         config_len = len(self.config)
         buffer = struct.pack(f'<I{config_len}s', config_len, self.config)
         return buffer
 
+    ## Provide the recognition ID for the packet, as used in the binary file
+    #
+    # Each packet has a reference number that's used as an ID; this routine provides that number
+    #
+    # \param self   Reference for the object
+    # \returns Integer identification number for the packet
     def id(self) -> int:
         return PacketTypes.SensorScales.value
     
+    ## Provide the fixed-text string name for this data packet
+    #
+    # This simply reports the human-readable name for the class so that reporting is possible
+    #
+    # \param self   Reference for the object
+    # \return String with th ename of the object
     def name(self) -> str:
         return 'SensorScales'
     
+    ## Implement the printable interface for this class, allowing it to be streamed
+    #
+    # This converts to human-readable version of the data packet for standard streaming output interface
+    #
+    # \param self   Reference for the object
+    # \return String representation of the object
     def __str__(self) -> str:
         rtn = DataPacket.__str__(self) + ' ' + self.name() + ': sensor scales = \"' + str(self.config) + '\"'
         return rtn
 
-
+## Implement a packet to hold IMU information from a WIBL logger
+#
+# The IMU on the standard WIBL logger is a 6-dof device, and therefore provides a 3-axis acceleration and 3-axis
+# gyro rate estimate.  The particular device used also provides a die temperature estimate (needed to calibrate
+# internally) which is also serialised.
 class RawIMU(DataPacket):
+    ## Initialise the packet using either a bytes buffer from a file, or keywords ab initio
+    #
+    # If the keywords include "buffer", the code assumes that the contents of the buffer are a serialised
+    # version of the packet, and attempts to unpack it.  Otherwise, the code assumes that the keywords contain
+    # information required to initialise the packet, and attempts to pull them from the dictionary.
+    #
+    # \param self   Reference for the object
+    # \param kwargs Named arguments to initialise parameters, or "buffer" to unpack from binary data 
     def __init__(self, **kwargs):
         if 'buffer' in kwargs:
             self.buffer_constructor(kwargs['buffer'])
         else:
             self.data_constructor(**kwargs)
     
-    def buffer_constructor(self, buffer: bytes) -> NoReturn:
+    ## Construct for a serialised buffer of bytes
+    #
+    # This attempts to construct the packet from a previously serialised version, typically from a WIBL
+    # logger.  The serialisation assumes a length word followed by a serialised JSON dictionary as a
+    # simple C-style string.
+    #
+    # \param self   Reference for the object
+    # \param buffer Binary buffer with serialised information for the packet
+    def buffer_constructor(self, buffer: bytes) -> None:
         (elapsed, t, gx, gy, gz, ax, ay, az) = struct.unpack('<Ihhhhhhh', buffer)
         self.accel = (ax, ay, az)
         self.gyro = (gx, gy, gz)
         self.temp = t
         super().__init__(0, 0.0, elapsed)
 
-    def data_constructor(self, **kwargs) -> NoReturn:
+    ## Initialise the packet from keyword arguments
+    #
+    # This takes the keywords provided and attempts to initialise the packet.  For this packet, valid
+    # keywords are:
+    #   'accel': 3-tuple of int16s for accelerations (using appropriate scale factors)
+    #   'gyro': 3-tuple of int16s for gyro rates (using appropriate scale factors)
+    #   'temp': int16 for temperature (using appropriate scale factors)
+    #   'elapsed_time': uint32 for elapsed time of the packet
+    #
+    # \param self       Reference for the object
+    # \param **kwargs   Keyword dictionary with parameters for the packet
+    def data_constructor(self, **kwargs) -> None:
         try:
             self.accel = kwargs['accel']
             self.gyro = kwargs['gyro']
@@ -1366,20 +1456,148 @@ class RawIMU(DataPacket):
         except KeyError as e:
             raise SpecificationError('Bad packet parameters') from e
 
+    ## Encode the current packet for serialisation
+    #
+    # From the parameters set in the packet, convert to a stream of bytes that can be used to serialise
+    # the packet to an output stream.  Note that this returns only the contents of the packet; the
+    # packet length, recognition ID, etc., must be added separately.
+    #
+    # \param self   Reference for the object
+    # \return Bytes array with the binary representation of the packet-specific parameters
     def payload(self) -> bytes:
         buffer = struct.pack('<Ihhhhhhh', self.elapsed, self.gyro[0], self.gyro[1], self.gyrpo[2], self.accel[0], self.accel[1], self.accel[2])
         return buffer
 
+    ## Provide the recognition ID for the packet, as used in the binary file
+    #
+    # Each packet has a reference number that's used as an ID; this routine provides that number
+    #
+    # \param self   Reference for the object
+    # \returns Integer identification number for the packet
     def id(self) -> int:
         return PacketTypes.RawIMU.value
     
+    ## Provide the fixed-text string name for this data packet
+    #
+    # This simply reports the human-readable name for the class so that reporting is possible
+    #
+    # \param self   Reference for the object
+    # \return String with th ename of the object
     def name(self) -> str:
         return 'RawIMU'
     
+    ## Implement the printable interface for this class, allowing it to be streamed
+    #
+    # This converts to human-readable version of the data packet for standard streaming output interface
+    #
+    # \param self   Reference for the object
+    # \return String representation of the object
     def __str__(self) -> str:
         rtn = super().__str__() + ' ' + self.name() + ': acc = ' + str(self.accel) + ', gyro = ' + str(self.gyro) + ', temp = ' + str(self.temp)
         return rtn
-      
+
+## Implement a packet to store the configuration specification for a logger
+#
+# The WIBL logger can serialise a JSON-formatted dictionary containing all of the configuration parameters for
+# the current setup of the logger.  This packet encapsulates that string so that it can be used to determine the
+# configuration during processing, if required (or for general monitoring, etc.)
+class Setup(DataPacket):
+    ## Initialise the packet using either a bytes buffer from a file, or keywords ab initio
+    #
+    # If the keywords include "buffer", the code assumes that the contents of the buffer are a serialised
+    # version of the packet, and attempts to unpack it.  Otherwise, the code assumes that the keywords contain
+    # information required to initialise the packet, and attempts to pull them from the dictionary.
+    #
+    # \param self   Reference for the object
+    # \param kwargs Named arguments to initialise parameters, or "buffer" to unpack from binary data 
+    def __init__(self, **kwargs):
+        if 'buffer' in kwargs:
+            self.buffer_constructor(kwargs['buffer'])
+        else:
+            self.data_constructor(**kwargs)
+    
+    ## Construct for a serialised buffer of bytes
+    #
+    # This attempts to construct the packet from a previously serialised version, typically from a WIBL
+    # logger.  The serialisation assumes a length word followed by a serialised JSON dictionary as a
+    # simple C-style string.
+    #
+    # \param self   Reference for the object
+    # \param buffer Binary buffer with serialised information for the packet
+    def buffer_constructor(self, buffer: bytes) -> None:
+        base = 0
+        setup_len, = struct.unpack_from('<I', buffer, base)
+        base += 4
+        convert_string = f'<{setup_len}s'
+        setup, = struct.unpack_from(convert_string, buffer, base)
+        self.setup = json.loads(setup)
+        super().__init__(0, 0.0, 0)
+
+    ## Initialise the packet from keyword arguments
+    #
+    # This takes the keywords provided and attempts to initialise the packet.  The JSON-serialisable
+    # dictionary must contain at least { 'version': { 'commandproc': 'M.m.p' }} to be recognised by
+    # the logger, which is validated before the packet is constructed.
+    # For this packet, valid keywords are:
+    #   'setup':    Dict containing JSON-serialisable configuration information, or a bytes array or string
+    #               containing JSON-serialised dictionary information that can be reconstructed.
+    #
+    # \param self       Reference for the object
+    # \param **kwargs   Keyword dictionary with parameters for the packet
+    def data_constructor(self, **kwargs) -> None:
+        try:
+            if type(kwargs['setup']) != 'Dict':
+                if type(kwargs['setup']) == 'bytes':
+                    self.config = json.loads(kwargs['setup'].decode('UTF-8'))
+                else:
+                    self.config = json.load(kwargs['setup'])
+            else:
+                self.config = kwargs['setup']
+            if 'version' not in self.config or 'commandproc' not in self.config['version']:
+                raise SpecificationError('JSON specification does not contain version information.')
+        except KeyError as e:
+            raise SpecificationError('Bad packet parameters') from e
+
+    ## Encode the current packet for serialisation
+    #
+    # From the parameters set in the packet, convert to a stream of bytes that can be used to serialise
+    # the packet to an output stream.  Note that this returns only the contents of the packet; the
+    # packet length, recognition ID, etc., must be added separately.
+    #
+    # \param self   Reference for the object
+    # \return Bytes array with the binary representation of the packet-specific parameters
+    def payload(self) -> bytes:
+        setup_len = len(self.setup)
+        buffer = struct.pack(f'<I{setup_len}s', setup_len, self.setup)
+        return buffer
+
+    ## Provide the recognition ID for the packet, as used in the binary file
+    #
+    # Each packet has a reference number that's used as an ID; this routine provides that number
+    #
+    # \param self   Reference for the object
+    # \returns Integer identification number for the packet
+    def id(self) -> int:
+        return PacketTypes.Setup.value
+    
+    ## Provide the fixed-text string name for this data packet
+    #
+    # This simply reports the human-readable name for the class so that reporting is possible
+    #
+    # \param self   Reference for the object
+    # \return String with th ename of the object
+    def name(self) -> str:
+        return 'Setup'
+    
+    ## Implement the printable interface for this class, allowing it to be streamed
+    #
+    # This converts to human-readable version of the data packet for standard streaming output interface
+    #
+    # \param self   Reference for the object
+    # \return String representation of the object
+    def __str__(self) -> str:
+        rtn = super().__str__() + ' ' + self.name() + ': json = "' + str(self.setup) + '"'
+        return rtn
 
 ## Translate packets out of the binary file, reconstituing as an appropriate class
 #
@@ -1457,6 +1675,8 @@ class PacketFactory:
                 rtn = SensorScales(buffer=buffer)
             elif pkt_id == PacketTypes.RawIMU.value:
                 rtn = RawIMU(buffer=buffer)
+            elif pkt_id == PacketTypes.Setup.value:
+                rtn = Setup(buffer=buffer)
             else:
                 print("Unknown packet with ID " + str(pkt_id) + " in input stream; ignored.")
                 rtn = None

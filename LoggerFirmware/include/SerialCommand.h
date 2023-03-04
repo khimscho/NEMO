@@ -77,6 +77,9 @@ public:
     /// \brief Turn off character echo on the Serial interface
     void EchoOff(void) { m_echoOn = false; }
     
+    /// \brief Provide a string representation of the command processor version
+    static String SoftwareVersion(void);
+
 private:
     nmea::N2000::Logger *m_CANLogger;   ///< Pointer for the logger object to use
     nmea::N0183::Logger *m_serialLogger;///< Pointer for the NMEA0183 message handler
@@ -87,9 +90,6 @@ private:
     logger::IncBuffer   m_serialBuffer; ///< Space to assemble serial commands that doesn't block runtime
     bool                m_echoOn;       ///< Flag: indicate that characters from serial should be echoed back
     bool                m_passThrough;  ///< Flag: indicate that strings should be passed through to NMEA0183 transmit
-    
-    /// \brief Provide a string representation of the command processor version
-    String CommandProcVersion(void);
 
     /// \brief Print the console log on the output stream(s)
     void ReportConsoleLog(CommandSource src);

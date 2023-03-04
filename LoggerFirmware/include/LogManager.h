@@ -97,7 +97,8 @@ public:
         Pkt_JSON = 14,          ///< JSON metadata element to pass on to cloud processing
         Pkt_NMEA0183ID = 15,    ///< Acceptable NMEA0183 sentence ID for filtering
         Pkt_SensorScales = 16,  ///< Scale factors for any sensors that will be recorded raw
-        Pkt_RawIMU = 17         ///< Raw store for logger's on-board IMU
+        Pkt_RawIMU = 17,        ///< Raw store for logger's on-board IMU
+        Pkt_Setup = 18          ///< Setup JSON string for entire configuration
     };
     
     /// \brief Write a packet into the current log file

@@ -183,7 +183,7 @@ Logger::~Logger(void)
 ///
 /// \return String representation of the versioning information for the logger specifically.
 
-String Logger::SoftwareVersion(void) const
+String Logger::SoftwareVersion(void)
 {
     String rtn;
     rtn = String(SoftwareVersionMajor) + "." + String(SoftwareVersionMinor) +

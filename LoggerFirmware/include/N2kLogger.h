@@ -125,7 +125,7 @@ public:
     void HandleMsg(const tN2kMsg &N2kMsg);
     
     /// \brief Generate a software version string, as required by NMEA2000 library
-    String SoftwareVersion(void) const;
+    static String SoftwareVersion(void);
     /// \brief Report software version information for the NMEA2000 logger
     static void SoftwareVersion(uint16_t& major, uint16_t& minor, uint16_t& patch);
 
