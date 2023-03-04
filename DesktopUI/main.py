@@ -30,6 +30,7 @@ from command import LoggerInterface
 from configure import ConfigDBox
 from transfer import TransferDBox
 from algorithms import AlgoDBox
+from filters import NMEA0183FilterDBox
 import json
 from typing import Tuple
 
@@ -93,14 +94,16 @@ class MainWindow:
         self.status_button = tk.Button(self.button_frame, text='Status', command=self.on_status)
         self.metadata_button = tk.Button(self.button_frame, text='Metadata', command=self.on_metadata)
         self.algorithm_button = tk.Button(self.button_frame, text='Algorithms', command=self.on_algorithms)
+        self.nmea0183_button = tk.Button(self.button_frame, text='NMEA0183 Filter', command=self.on_filter)
         self.transfer_button = tk.Button(self.button_frame, text='Transfer Data', command=self.on_transfer)
         self.restart_button = tk.Button(self.button_frame, text='Restart', command=self.on_restart)
         self.setup_button.grid(row=0,column=0)
         self.status_button.grid(row=0,column=1)
         self.metadata_button.grid(row=0,column=2)
         self.algorithm_button.grid(row=0,column=3)
-        self.transfer_button.grid(row=0,column=4)
-        self.restart_button.grid(row=0,column=5)
+        self.nmea0183_button.grid(row=0,column=4)
+        self.transfer_button.grid(row=0,column=5)
+        self.restart_button.grid(row=0,column=6)
 
         self.button_frame.pack(fill='x')
 
@@ -182,6 +185,10 @@ class MainWindow:
     def on_algorithms(self):
         algo_dbox = AlgoDBox(self.root, self.server_address_var.get(), self.server_port_var.get(), self.output_text)
         self.root.wait_window(algo_dbox.root)
+
+    def on_filter(self):
+        filter_dbox = NMEA0183FilterDBox(self.root, self.server_address_var.get(), self.server_port_var.get(), self.output_text)
+        self.root.wait_window(filter_dbox.root)
 
     def on_restart(self):
         status, info = self.run_command('restart')

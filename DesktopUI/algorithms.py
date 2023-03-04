@@ -66,8 +66,11 @@ class AlgoDBox:
 
     def dict_to_table(self, input: Dict[str,Any]) -> Dict[str,Any]:
         data = {}
-        for alg in range(len(input['algorithm'])):
-            data[f'rec{alg+1}'] = input['algorithm'][alg]
+        if 'algorithm' in input:
+            for alg in range(len(input['algorithm'])):
+                data[f'rec{alg+1}'] = input['algorithm'][alg]
+        else:
+            data['rec1'] = {'name': '', 'parameters': ''}
         return data
 
     def table_to_dict(self, input: Dict[str,Any]) -> Dict[str,Any]:
@@ -84,8 +87,7 @@ class AlgoDBox:
             self.algo_table.model.importDict(data)
             self.algo_table.redraw()
         else:
-            self.output_widget.insert(tk.END, f'Error: failed to get algorithms from logger\n{info}\n')
-            self.output_widget.yview_moveto(1.0)
+            self.record(f'Error: failed to get algorithms from logger\n{info}\n')
 
     def on_set(self):
         algorithms = self.table_to_dict(self.algo_table.model.getAllCells())
