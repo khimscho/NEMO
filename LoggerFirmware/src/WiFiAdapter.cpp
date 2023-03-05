@@ -201,6 +201,10 @@ private:
         String ssid, password;
         logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_AP_SSID_S, ssid);
         logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_AP_PASSWD_S, password);
+        // On first bring-up, the SSID and password are not going to be set; this ensures that when the
+        // logger first boots, the WIFi comes up with known SSID and password.
+        if (ssid.length() == 0) ssid = "wibl-config";
+        if (ssid.length() == 0) password = "wibl-config-password";
         WiFi.softAP(ssid.c_str(), password.c_str());
         IPAddress server_address = WiFi.softAPIP();
         logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, server_address.toString());
@@ -214,6 +218,13 @@ private:
         String ssid, password;
         logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_SSID_S, ssid);
         logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_PASSWD_S, password);
+        // Note: we do not attempt to set a default SSID and password here --- if we're joining another network as
+        // a station, there's no way to guess these.  We have to have at least an SSID, but the password could be
+        // empty (for an unsecured network).
+        if (ssid.length() == 0) {
+            Serial.print("ERR: attempting to join a WiFi network as a station without a specified SSID\n");
+            return false;
+        }
         wl_status_t status = WiFi.begin(ssid.c_str(), password.c_str());
         m_lastConnectAttempt = millis();
         if (m_verbose) {
@@ -337,7 +348,6 @@ private:
             return false;
         } else {
             // Configure the endpoints served by the server
-            using namespace std::placeholders;
             m_server->on("/heartbeat", HTTPMethod::HTTP_GET, std::bind(&ESP32WiFiAdapter::heartbeat, this));
             m_server->on("/command", HTTPMethod::HTTP_POST, std::bind(&ESP32WiFiAdapter::handleCommand, this));
         }
