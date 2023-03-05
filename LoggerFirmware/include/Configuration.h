@@ -78,7 +78,8 @@ class Config {
             CONFIG_STATION_RETRIES_S,/* String: retries (int) before web-server reverts to "safe-mode". */
             CONFIG_STATION_TIMEOUT_S,/* String: delay (seconds) before declaring a WiFi connection attempt failed */
             CONFIG_WS_STATUS_S,      /* String: status of the configuration web server */
-            CONFIG_WS_BOOTSTATUS_S  /* String: status of the configuration web server at boot time */
+            CONFIG_WS_BOOTSTATUS_S,  /* String: status of the configuration web server at boot time */
+            CONFIG_DEFAULTS_S        /* String: JSON-format for default "lab reset" parameters */
         };
 
         /// \brief Extract a configuration string for the specified parameter

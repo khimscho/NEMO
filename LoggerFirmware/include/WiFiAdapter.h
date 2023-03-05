@@ -54,6 +54,9 @@ public:
     /// \brief Accumulate messages to be returned to the client for the current transaction
     void AddMessage(String const& message);
 
+    /// \brief Set the status code to return to the client
+    void SetStatusCode(uint32_t status);
+
     /// \brief Transmit the current set of accumulated messages to the client
     bool TransmitMessages(char const *data_type);
     
@@ -82,6 +85,9 @@ private:
 
     /// \brief Sub-class implementation of code to accumulate messages for transmission
     virtual void accumulateMessage(String const& message) = 0;
+
+    /// \brief Sub-class implementation of code to set the status code for the transaction
+    virtual void setStatusCode(uint32_t status_code) = 0;
 
     /// \brief Sub-class implementation of code to transmit messages (and complete transaction)
     virtual bool transmitMessages(char const *data_type) = 0;

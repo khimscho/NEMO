@@ -271,7 +271,7 @@ public:
     /// Default constructor for the ESP32 adapter.  This brings up the parameter store to use
     /// for WiFi parameters, but takes no other action until the user explicitly starts the AccessPoint.
     ESP32WiFiAdapter(void)
-    : m_storage(nullptr), m_server(nullptr)
+    : m_storage(nullptr), m_server(nullptr), m_statusCode(200)
     {
         if ((m_storage = mem::MemControllerFactory::Create()) == nullptr) {
             return;
@@ -286,11 +286,12 @@ public:
     }
     
 private:
-    mem::MemController  *m_storage; ///< Pointer to the storage object to use
-    WebServer           *m_server;  ///< Pointer to the server object, if started.
-    std::queue<String>  m_commands; ///< Queue to handle commands sent by the user
-    String              m_messages; ///< Accumulating message content to be send to the client
-    ConnectionStateMachine m_state; ///< Manager for connection state
+    mem::MemController  *m_storage;     ///< Pointer to the storage object to use
+    WebServer           *m_server;      ///< Pointer to the server object, if started.
+    std::queue<String>  m_commands;     ///< Queue to handle commands sent by the user
+    String              m_messages;     ///< Accumulating message content to be send to the client
+    uint32_t            m_statusCode;   ///< Status code to return to the user with the transaction response
+    ConnectionStateMachine m_state;     ///< Manager for connection state
 
     /// @brief Handle HTTP requests to the /command endpoint
     ///
@@ -393,17 +394,54 @@ private:
         return true;
     }
 
+    /// Accumulate the message given into the list of those to be sent to the client when the
+    /// response is finally sent.  Note that the code doesn't add any formatting, so if you want
+    /// newlines in the output message set, you need to add them explicitly to the \a message that
+    /// you send.
+    ///
+    /// \param message  \a String to add to the list of messages.
+    /// \return N/A
+
     void accumulateMessage(String const& message)
     {
         m_messages += message;
     }
 
+    /// Configure the HTTP status code that the response should use.  By default, the status code used
+    /// when the response is finally sent to the client is 200 OK.  However, if there is an error
+    /// condition, then it might be useful to send something else, alerting the client.  Although you
+    /// should technically only use HTTP status codes, there's no checking on this, so you could send
+    /// anything that your client will recognise.
+    ///
+    /// \param status_code  Code to return to the client (typically HTTP status codes)
+    /// \return N/A
+
+    void setStatusCode(uint32_t status_code)
+    {
+        m_statusCode = status_code;
+    }
+
+    /// Send the accumulated messages for this transaction back to the client.  This takes the accumulated
+    /// messages, and the status code, and sends back via the web-server, then resets the message buffer
+    /// to empty, and the status code to 200 OK.
+    ///
+    /// \param data_type    Text string indicating the MIME type to indicate for the data.
+    /// \return True if the message was send succesfully, otherwise false.
+
     bool transmitMessages(char const* data_type)
     {
-        m_server->send(200, data_type, m_messages);
+        m_server->send(m_statusCode, data_type, m_messages);
         m_messages = "";
+        m_statusCode = 200; // "OK" by default
         return true;
     }
+
+    /// In order for the WiFi adapter to manage its internal state, it has to get a regular run loop call
+    /// from the main logger.  In addition to passing on this time to the web server to handle client
+    /// requests, this code also manages the ConnectionStateMachine, which allows the logger to execute the
+    /// client network join code, with suitable fall-back conditions.
+    ///
+    /// \return N/A
 
     void runLoop(void)
     {
@@ -440,6 +478,12 @@ bool WiFiAdapter::TransferFile(String const& filename, uint32_t filesize)
 /// \param message  String for the message to send
 /// \return N/A
 void WiFiAdapter::AddMessage(String const& message) { accumulateMessage(message); }
+
+/// Pass-through implementation to the sub-class code to set status code
+///
+/// \param status_code  HTTP status code to set
+/// \return N/A
+void WiFiAdapter::SetStatusCode(uint32_t status_code) { setStatusCode(status_code); }
 
 /// Pass-through implementation to the sub-class code to transmit all available messages.
 /// This should also complete the transaction from the client's request.
@@ -485,6 +529,9 @@ WiFiAdapter::WirelessMode WiFiAdapter::GetWirelessMode(void)
     return rc;
 }
 
+/// Pass-through implementation to the sub-class to run the processing loop
+///
+/// \return N/A
 void WiFiAdapter::RunLoop(void) { runLoop(); }
 
 /// Create an implementation of the WiFiAdapter interface that's appropriate for the hardware in use

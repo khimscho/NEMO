@@ -187,15 +187,19 @@ class ConfigDBox:
         self.button_frame = tk.Frame(self.main_frame, padx=self.hor_pad, pady=self.ver_pad)
         self.button_frame.pack()
         self.querylogger_button = tk.Button(self.button_frame, text='Query Logger', command=self.on_querylogger)
-        self.querylogger_button.grid(row=0,column=0)
+        self.querylogger_button.grid(row=0,column=0,sticky="ew")
         self.setlogger_button = tk.Button(self.button_frame, text='Set Logger', command=self.on_setlogger)
-        self.setlogger_button.grid(row=0,column=1)
+        self.setlogger_button.grid(row=0,column=1,sticky="ew")
         self.load_button = tk.Button(self.button_frame, text='Load Config', command=self.on_load)
-        self.load_button.grid(row=0,column=2)
+        self.load_button.grid(row=0,column=2,sticky="ew")
         self.save_button = tk.Button(self.button_frame, text='Save Config', command=self.on_save)
-        self.save_button.grid(row=0,column=3)
+        self.save_button.grid(row=0,column=3,sticky="ew")
+        self.getdefaults_button = tk.Button(self.button_frame, text='Get Defaults', command=self.on_getdefaults)
+        self.getdefaults_button.grid(row=1,column=0,sticky="ew")
+        self.setdefaults_button = tk.Button(self.button_frame, text='Set Defaults', command=self.on_setdefaults)
+        self.setdefaults_button.grid(row=1,column=1,sticky="ew")
         self.dismiss_button = tk.Button(self.button_frame, text='Dismiss', command=self.on_dismiss)
-        self.dismiss_button.grid(row=0,column=4)
+        self.dismiss_button.grid(row=1,column=3,sticky="ew")
 
         with open('assets/default_config.json', 'r') as f:
             config = json.load(f)
@@ -245,6 +249,32 @@ class ConfigDBox:
         if filename:
             with open(filename, 'w') as f:
                 json.dump(config, f, indent=4)
+    
+    def on_getdefaults(self):
+        interface = LoggerInterface(self.server_address, self.server_port)
+        status, info = interface.execute_command('lab defaults')
+        if status:
+            json_data = json.loads(info)
+            if 'version' not in json_data or 'commandproc' not in json_data['version']:
+                self.record('ERR: lab defaults JSON text not valid ({json_data})\n')
+                return
+            if json_data['version']['commandproc'] != self.__default_commandproc_version__:
+                self.record(f'ERR: lab defaults JSON version is not compatible ({json_data["version"]})\n')
+                return
+            self.configure(json_data)
+        else:
+            self.record(f'ERR: failed to extract lab defaults from logger\n{info}\n')
+
+    def on_setdefaults(self):
+        interface = LoggerInterface(self.server_address, self.server_port)
+        current_config = self.getconfig()
+        current_config['version'] = { 'commandproc': self.__default_commandproc_version__ }
+        json_config = json.dumps(current_config)
+        status, info = interface.execute_command(f'lab defaults {json_config}')
+        if status:
+            self.record('INF: set lab defaults on logger.\n')
+        else:
+            self.record(f'ERR: failed to set lab defaults on logger\n{info}\n')
 
     def on_dismiss(self):
         self.root.destroy()
@@ -298,9 +328,14 @@ class ConfigDBox:
 
     def configure(self, config: Dict[str,Any]):
         if 'version' in config:
+            if 'commandproc' not in config['version']:
+                self.record(f'ERR: missing command processor version information in JSON configuration.\n{config}\n')
+                return
             self.command_var.set(config['version']['commandproc'])
-            self.nmea0183_var.set(config['version']['nmea0183'])
-            self.nmea2000_var.set(config['version']['nmea2000'])
+            if 'nmea0183' in config['version']:
+                self.nmea0183_var.set(config['version']['nmea0183'])
+            if 'nmea2000' in config['version']:
+                self.nmea2000_var.set(config['version']['nmea2000'])
         self.log_nmea0183_var.set(config['enable']['nmea0183'])
         self.log_nmea2000_var.set(config['enable']['nmea2000'])
         self.log_imu_var.set(config['enable']['imu'])

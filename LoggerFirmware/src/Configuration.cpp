@@ -62,7 +62,8 @@ const String lookup[] = {
     "StationRetries",   ///< Set number of join attempts before the webserver reverts to safe mode
     "StationTimeout",   ///< Set the timeout for any connect attempt
     "WSStatus",         ///< The current status of the configuration webserver
-    "WSBootStatus"      ///< The status of the webserver on boot
+    "WSBootStatus",     ///< The status of the webserver on boot
+    "LabDefaults"       ///< A JSON string for lab-default configuration
 };
 
 /// Default constructor.  This sets up for a dummy parameter store, which is configured

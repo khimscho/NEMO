@@ -986,6 +986,71 @@ void SerialCommand::ReportCurrentStatus(CommandSource src)
     EmitMessage(json+"\n", src);
 }
 
+/// Report the current set of "lab default" configuration parameters set on the logger.  These
+/// are the backup parameters that you can reset with the "lab reset" command to give you some
+/// sane set of configurations when it all goes wrong.
+///
+/// \param src  Channel on which this command was received
+/// \return N/A
+
+void SerialCommand::ReportLabDefaults(CommandSource src)
+{
+    String spec;
+    logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_DEFAULTS_S, spec);
+    if (spec.length() > 0) {
+        if (src == CommandSource::SerialPort) {
+            EmitMessage("Lab default JSON: ", src);
+            EmitMessage(spec + "\n", src);
+        } else {
+            EmitMessage(spec, src);
+        }
+    } else {
+        if (src == CommandSource::SerialPort)
+            EmitMessage("ERR: no lab defaults configuration set!\n", src);
+        else {
+            EmitMessage("{}", src);
+            if (m_wifi != nullptr) m_wifi->SetStatusCode(503); // "Service Unavailable"
+        }
+    }
+}
+
+/// Set the JSON-formatted configuration set to use when the user wants to attempt to reset
+/// the configuration of the logger to a "known good" state.  Note that the logger does not
+/// attempt to validate the JSON data at this stage, so it's entirely possible for the user
+/// to mess up the configuration and then have a problem when trying to reset ...
+///
+/// \param spec JSON-formatted serialised \a String with default configuration
+/// \param src  Channel on which this command was received
+/// \return N/A
+
+void SerialCommand::SetLabDefaults(String const& spec, CommandSource src)
+{
+    logger::LoggerConfig.SetConfigString(logger::Config::CONFIG_DEFAULTS_S, spec);
+    EmitMessage("INF: set lab defaults.\n", src);
+}
+
+/// Reset the configuration of the logger to the previous-stored default configuration.  Note
+/// that the configuration may be bad (the code here doesn't attempt to validate it when stored),
+/// and therefore this configuration may not take.  It's also possible that some of the configurations
+/// (such as which loggers are logging) may not take effect until the system is rebooted.
+///
+/// \param src  Channel on which this command was received
+/// \return N/A
+
+void SerialCommand::ResetLabDefaults(CommandSource src)
+{
+    String spec;
+    logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_DEFAULTS_S, spec);
+    if (spec.length() > 0) {
+        logger::ConfigJSON::SetConfig(spec);
+        EmitMessage("INF: lab default configuration reset; you may need to reboot for some changes to take effect.\n", src);
+    } else {
+        EmitMessage("ERR: no lab default configuration set!\n", src);
+        if (src == CommandSource::WirelessPort && m_wifi != nullptr)
+            m_wifi->SetStatusCode(503); // "Service Unavailable"
+    }
+}
+
 /// Output a list of known commands, since there are now enough of them to make remembering them
 /// all a little difficult.
 
@@ -1000,8 +1065,9 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  filecount                           Report the number of log files currently available for transfer.\n", src);
     EmitMessage("  heap                                Report current free heap size.\n", src);
     EmitMessage("  help|syntax                         Generate this list.\n", src);
-    EmitMessage("  uniqueid [logger-name]              Set or report the logger's unique identification string.\n", src);
     EmitMessage("  invert 1|2                          Invert polarity of RS-422 input on port 1|2.\n", src);
+    EmitMessage("  lab defaults [specification]        Report, or set, lab default configuration in JSON format.\n", src);
+    EmitMessage("  lab reset                           Reset configuration to the stored lab defaults, if any.\n", src);
     EmitMessage("  led normal|error|initialising|full|data|stopped\n", src);
     EmitMessage("                                      [Debug] Set the indicator LED status.\n", src);
     EmitMessage("  log                                 Output the contents of the console log.\n", src);
@@ -1019,6 +1085,7 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  steplog                             Close current log file, and move to the next in sequence.\n", src);
     EmitMessage("  stop                                Close files and go into self-loop for power-down.\n", src);
     EmitMessage("  transfer file-number                Transfer log file [file-number] (WiFi and serial only).\n", src);
+    EmitMessage("  uniqueid [logger-name]              Set or report the logger's unique identification string.\n", src);
     EmitMessage("  verbose on|off                      Control verbosity of reporting for serial input strings.\n", src);
     EmitMessage("  version                             Report NMEA0183 and NMEA2000 logger version numbers.\n", src);
     EmitMessage("  webserver on|off delay reties timeout\n", src);
@@ -1038,93 +1105,75 @@ void SerialCommand::Syntax(CommandSource src)
 
 void SerialCommand::Execute(String const& cmd, CommandSource src)
 {
-    if (cmd == "log") {
-        ReportConsoleLog(src);
-    } else if (cmd == "sizes") {
-        ReportLogfileSizes(src);
-    } else if (cmd == "version") {
-        ReportSoftwareVersion(src);
-    } else if (cmd.startsWith("verbose")) {
-        SetVerboseMode(cmd.substring(8));
-    } else if (cmd.startsWith("erase")) {
-        EraseLogfile(cmd.substring(6), src);
-    } else if (cmd == "steplog") {
-        m_logManager->CloseLogfile();
-        m_logManager->StartNewLog();
-    } else if (cmd.startsWith("led")) {
-        ModifyLEDState(cmd.substring(4));
-    } else if (cmd.startsWith("uniqueid")) {
-        if (cmd.length() == 8) {
-            ReportIdentificationString(src);
+    if (cmd.startsWith("accept")) {
+        if (cmd.length() == 6) {
+            ReportNMEAFilter(src);
         } else {
-            SetIdentificationString(cmd.substring(9));
+            AddNMEAFilter(cmd.substring(7), src);
         }
-    } else if (cmd == "stop") {
-        Shutdown();
-    } else if (cmd.startsWith("ssid")) {
-        if (cmd.length() == 4)
-            GetWiFiSSID(src);
-        else
-            SetWiFiSSID(cmd.substring(5), src);
-    } else if (cmd.startsWith("password")) {
-        if (cmd.length() == 8)
-            GetWiFiPassword(src);
-        else
-            SetWiFiPassword(cmd.substring(9), src);
-    } else if (cmd.startsWith("wireless")) {
-        ManageWireless(cmd.substring(9), src);
-    } else if (cmd.startsWith("transfer")) {
-        TransferLogFile(cmd.substring(9), src);
-    } else if (cmd.startsWith("invert")) {
-        ConfigureSerialPortInvert(cmd.substring(7), src);
-    } else if (cmd.startsWith("ota")) {
-        EmitMessage("Starting OTA update sequence ...\n", src);
-        OTAUpdater updater; // This puts the logger into a loop which ends with a full reset
-    } else if (cmd.startsWith("configure")) {
-        if (cmd.length() == 9) {
-            ReportConfiguration(src);
-        } else {
-            ConfigureLoggers(cmd.substring(10), src);
-        }
-    } else if (cmd == "restart") {
-        ESP.restart();
-    } else if (cmd.startsWith("echo")) {
-        ConfigureEcho(cmd.substring(5), src);
-    } else if (cmd == "heap") {
-        ReportHeapSize(src);
-    } else if (cmd.startsWith("speed")) {
-        ConfigureSerialPortSpeed(cmd.substring(6), src);
-    } else if (cmd == "passthrough") {
-        // Note that this is intentionally not defined in the syntax list, or elsewhere: it
-        // really is just for debugging.
-        ConfigurePassthrough("on", src);
     } else if (cmd.startsWith("algorithm")) {
         if (cmd.length() == 9) {
             ReportAlgRequests(src);
         } else {
             ConfigureAlgRequest(cmd.substring(10), src);
         }
+    } else if (cmd.startsWith("configure")) {
+        if (cmd.length() == 9) {
+            ReportConfiguration(src);
+        } else {
+            ConfigureLoggers(cmd.substring(10), src);
+        }
+    } else if (cmd.startsWith("echo")) {
+        ConfigureEcho(cmd.substring(5), src);
+    } else if (cmd.startsWith("erase")) {
+        EraseLogfile(cmd.substring(6), src);
+    } else if (cmd == "filecount") {
+        ReportFileCount(src);
+    } else if (cmd == "heap") {
+        ReportHeapSize(src);
+    } else if (cmd == "help" || cmd == "syntax") {
+        Syntax(src);
+    } else if (cmd.startsWith("invert")) {
+        ConfigureSerialPortInvert(cmd.substring(7), src);
+    } else if (cmd.startsWith("lab defaults")) {
+        if (cmd.length() == 12) {
+            ReportLabDefaults(src);
+        } else {
+            SetLabDefaults(cmd.substring(13), src);
+        }
+    } else if (cmd.startsWith("lab reset")) {
+        ResetLabDefaults(src);
+    } else if (cmd.startsWith("led")) {
+        ModifyLEDState(cmd.substring(4));
+    } else if (cmd == "log") {
+        ReportConsoleLog(src);
     } else if (cmd.startsWith("metadata")) {
         if (cmd.length() == 8) {
             ReportMetadataElement(src);
         } else {
             StoreMetadataElement(cmd.substring(9), src);
         }
-    } else if (cmd.startsWith("accept")) {
-        if (cmd.length() == 6) {
-            ReportNMEAFilter(src);
-        } else {
-            AddNMEAFilter(cmd.substring(7), src);
-        }
+    } else if (cmd.startsWith("ota")) {
+        EmitMessage("Starting OTA update sequence ...\n", src);
+        OTAUpdater updater; // This puts the logger into a loop which ends with a full reset
+    } else if (cmd == "passthrough") {
+        // Note that this is intentionally not defined in the syntax list, or elsewhere: it
+        // really is just for debugging.
+        ConfigurePassthrough("on", src);
+    } else if (cmd.startsWith("password")) {
+        if (cmd.length() == 8)
+            GetWiFiPassword(src);
+        else
+            SetWiFiPassword(cmd.substring(9), src);
+    } else if (cmd == "restart") {
+        ESP.restart();
     } else if (cmd == "scales") {
         ReportScalesElement(src);
-    } else if (cmd == "filecount") {
-        ReportFileCount(src);
-    } else if (cmd.startsWith("webserver")) {
-        if (cmd.length() == 9) {
-            ReportWebserverConfig(src);
+    } else if (cmd.startsWith("setup")) {
+        if (cmd.length() == 5) {
+            ReportConfigurationJSON(src);
         } else {
-            ConfigureWebserver(cmd.substring(10), src);
+            SetupLogger(cmd.substring(6), src);
         }
     } else if (cmd.startsWith("shipname")) {
         if (cmd.length() == 8) {
@@ -1132,19 +1181,47 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         } else {
             SetShipname(cmd.substring(9), src);
         }
-    } else if (cmd.startsWith("setup")) {
-        if (cmd.length() == 5) {
-            ReportConfigurationJSON(src);
-        } else {
-            SetupLogger(cmd.substring(6), src);
-        }
+    } else if (cmd == "sizes") {
+        ReportLogfileSizes(src);
+    } else if (cmd.startsWith("speed")) {
+        ConfigureSerialPortSpeed(cmd.substring(6), src);
+    } else if (cmd.startsWith("ssid")) {
+        if (cmd.length() == 4)
+            GetWiFiSSID(src);
+        else
+            SetWiFiSSID(cmd.substring(5), src);
     } else if (cmd == "status") {
         ReportCurrentStatus(src);
-    } else if (cmd == "help" || cmd == "syntax") {
-        Syntax(src);
+    } else if (cmd == "steplog") {
+        m_logManager->CloseLogfile();
+        m_logManager->StartNewLog();
+    } else if (cmd == "stop") {
+        Shutdown();
+    } else if (cmd.startsWith("transfer")) {
+        TransferLogFile(cmd.substring(9), src);
+    } else if (cmd.startsWith("uniqueid")) {
+        if (cmd.length() == 8) {
+            ReportIdentificationString(src);
+        } else {
+            SetIdentificationString(cmd.substring(9));
+        }
+    } else if (cmd.startsWith("verbose")) {
+        SetVerboseMode(cmd.substring(8));
+    } else if (cmd == "version") {
+        ReportSoftwareVersion(src);
+    } else if (cmd.startsWith("webserver")) {
+        if (cmd.length() == 9) {
+            ReportWebserverConfig(src);
+        } else {
+            ConfigureWebserver(cmd.substring(10), src);
+        }
+    } else if (cmd.startsWith("wireless")) {
+        ManageWireless(cmd.substring(9), src);
     } else {
-        Serial.print("Command not recognised: ");
-        Serial.println(cmd);
+        EmitMessage("ERR: command not recognised: \"" + cmd + "\".\n", src);
+        if (src == CommandSource::WirelessPort && m_wifi != nullptr) {
+            m_wifi->SetStatusCode(400);
+        }
     }
 }
 

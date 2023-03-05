@@ -167,6 +167,12 @@ private:
     void ConfigureWebserver(String const& command, CommandSource src);
     /// \brief Report on the current status of the logger
     void ReportCurrentStatus(CommandSource src);
+    /// \brief Report the lab-default configuration JSON string
+    void ReportLabDefaults(CommandSource src);
+    /// \brief Set the lab-default configuration JSON string
+    void SetLabDefaults(String const& spec, CommandSource src);
+    /// \brief Reset the configuration to lab-default configuration JSON string
+    void ResetLabDefaults(CommandSource src);
     /// \brief Check for commands, and execute them if found
     void Execute(String const& command, CommandSource src);
     
