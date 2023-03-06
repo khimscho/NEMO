@@ -31,7 +31,6 @@ import struct
 from abc import ABC, abstractmethod
 import io
 from enum import Enum
-from typing import NoReturn
 import json
 
 
@@ -42,6 +41,14 @@ class SpecificationError(Exception):
 ## Exception used to report a bad translation of a packet (rather than passing up a raw struct exception)
 class PacketTranscriptionError(Exception):
     pass
+
+## Definition of major version of the file format represented by this description
+wibl_file_version_major = 1
+## Definition of minor version of the file format represented by this description
+wibl_file_version_minor = 3
+
+def wibl_file_version() -> str:
+    return f'{wibl_file_version_major}.{wibl_file_version_minor}'
 
 ## Enumeration of the identification numbers associated with the various packets in a WIBL file
 class PacketTypes(Enum):
