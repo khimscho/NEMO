@@ -233,9 +233,11 @@ void MetadataStore::SerialiseMetadata(Serialiser *s)
     String meta = GetMetadata();
     Serialisable packet(meta.length() + 4);
 
-    packet += meta.length();
-    packet += meta.c_str();
-    s->Process(logger::Manager::PacketIDs::Pkt_JSON, packet);
+    if (meta.length() > 0) {
+        packet += meta.length();
+        packet += meta.c_str();
+        s->Process(logger::Manager::PacketIDs::Pkt_JSON, packet);
+    }
 }
 
 ScalesStore::ScalesStore(void)
@@ -310,9 +312,11 @@ void ScalesStore::SerialiseScales(Serialiser *s)
     String scales = GetScales();
     Serialisable packet(scales.length() + 4);
 
-    packet += scales.length();
-    packet += scales.c_str();
-    s->Process(logger::Manager::PacketIDs::Pkt_SensorScales, packet);
+    if (scales.length() > 2) {
+        packet += scales.length();
+        packet += scales.c_str();
+        s->Process(logger::Manager::PacketIDs::Pkt_SensorScales, packet);
+    }
 }
 
 /// Start a new interface to the list of algorithm requests stored with the logger.  These are algorithms

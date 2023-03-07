@@ -342,17 +342,13 @@ void Manager::RemoveAllLogfiles(void)
     long file_count = 0, total_files = 0;
     
     while (entry) {
-#if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
-        String filename = entry.name();
-#else
         String filename = String("/logs/") + entry.name();
-#endif
         entry.close();
         ++total_files;
 
         Serial.printf("INFO: erasing log file: \"%s\".\n", filename.c_str());
         
-        boolean rc = m_storage->Controller().remove(filename);
+        bool rc = m_storage->Controller().remove(filename);
         if (rc) {
             m_consoleLog.printf("INFO: erased log file \"%s\" by user command.\n", filename.c_str());
             ++file_count;
