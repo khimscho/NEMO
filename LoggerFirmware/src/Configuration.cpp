@@ -32,6 +32,7 @@
 #include "N0183Logger.h"
 #include "N2kLogger.h"
 #include "SerialCommand.h"
+#include "IMULogger.h"
 
 namespace logger {
 
@@ -166,6 +167,7 @@ String ConfigJSON::ExtractConfig(bool indent, bool secure)
     params["version"]["commandproc"] = SerialCommand::SoftwareVersion();
     params["version"]["nmea0183"] = nmea::N0183::Logger::SoftwareVersion();
     params["version"]["nmea2000"] = nmea::N2000::Logger::SoftwareVersion();
+    params["version"]["imu"] = imu::Logger::SoftwareVersion();
 
     // Enable/disable for the various loggers and features
     bool nmea0183_enable, nmea2000_enable, imu_enable, powmon_enable, sdmmc_enable, udp_bridge_enable, webserver_on_boot;

@@ -54,7 +54,7 @@ public:
     void TransferData(void);
 
     /// \brief Generate a version string for the logger
-    String SoftwareVersion(void) const;
+    static String SoftwareVersion(void);
     /// \brief Report the version information for the logger
     static void SoftwareVersion(uint16_t& major, uint16_t& minor, uint16_t& patch);
 

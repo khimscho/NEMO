@@ -54,6 +54,7 @@ class ConfigDBox:
         self.command_var = tk.StringVar()
         self.nmea0183_var = tk.StringVar()
         self.nmea2000_var = tk.StringVar()
+        self.imu_var = tk.StringVar()
         self.command_version_label = tk.Label(self.version_frame, text='Command Processor')
         self.command_version_entry = tk.Entry(self.version_frame, textvariable=self.command_var, state='disabled')
         self.command_version_label.grid(row=0,column=0,sticky='e')
@@ -66,6 +67,10 @@ class ConfigDBox:
         self.nmea2000_version_entry = tk.Entry(self.version_frame, textvariable=self.nmea2000_var, state='disabled')
         self.nmea2000_version_label.grid(row=2,column=0,sticky='e')
         self.nmea2000_version_entry.grid(row=2,column=1,sticky='w')
+        self.imu_version_label = tk.Label(self.version_frame, text='IMU Logger')
+        self.imu_version_entry = tk.Entry(self.version_frame, textvariable=self.imu_var, state='disabled')
+        self.imu_version_label.grid(row=3,column=0,sticky='e')
+        self.imu_version_entry.grid(row=3,column=1,sticky='w')
 
         # Set up metadata on unique ID and ship name
         self.metadata_frame = tk.LabelFrame(self.main_frame, text='Metadata', padx=self.hor_pad, pady=self.ver_pad)
@@ -139,7 +144,7 @@ class ConfigDBox:
         self.retry_delay_entry = tk.Entry(self.station_frame, textvariable=self.retry_delay_var)
         self.retry_delay_label.grid(row=0,column=0,sticky='e')
         self.retry_delay_entry.grid(row=0,column=1,sticky='w')
-        self.retry_count_label = tk.Label(self.station_frame, text='Retry Count (s)')
+        self.retry_count_label = tk.Label(self.station_frame, text='Retry Count')
         self.retry_count_entry = tk.Entry(self.station_frame, textvariable=self.retry_count_var)
         self.retry_count_label.grid(row=1,column=0,sticky='e')
         self.retry_count_entry.grid(row=1,column=1,sticky='w')
@@ -336,6 +341,8 @@ class ConfigDBox:
                 self.nmea0183_var.set(config['version']['nmea0183'])
             if 'nmea2000' in config['version']:
                 self.nmea2000_var.set(config['version']['nmea2000'])
+            if 'imu' in config['version']:
+                self.imu_var.set(config['version']['imu'])
         self.log_nmea0183_var.set(config['enable']['nmea0183'])
         self.log_nmea2000_var.set(config['enable']['nmea2000'])
         self.log_imu_var.set(config['enable']['imu'])

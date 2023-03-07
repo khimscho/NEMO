@@ -898,8 +898,8 @@ class SerialiserVersion(DataPacket):
             self.data_constructor(**kwargs)
 
     def buffer_constructor(self, buffer: bytes) -> None:
-        (major, minor, n2000_major, n2000_minor, n2000_patch, n0183_major, n0183_minor, n0183_patch) = \
-            struct.unpack('<HHHHHHHH', buffer)
+        (major, minor, n2000_major, n2000_minor, n2000_patch, n0183_major, n0183_minor, n0183_patch, imu_major, imu_minor, imu_patch) = \
+            struct.unpack('<HHHHHHHHHHH', buffer)
         ## Major software version for the serialiser code
         self.major = major
         ## Minor software version for the serialiser code
@@ -908,16 +908,21 @@ class SerialiserVersion(DataPacket):
         self.nmea2000 = (n2000_major, n2000_minor, n2000_patch)
         ## A tuple of the NMEA0183 software version
         self.nmea0183 = (n0183_major, n0183_minor, n0183_patch)
+        ## A tuple of the MIMU software version
+        self.imu = (imu_major, imu_minor, imu_patch)
         ## NMEA2000 software version information
         self.nmea2000_version = str(n2000_major) + '.' + str(n2000_minor) + '.' + str(n2000_patch)
         ## NMEA0183 software version information
         self.nmea0183_version = str(n0183_major) + '.' + str(n0183_minor) + '.' + str(n0183_patch)
+        ## IMU software version information
+        self.imu_version = str(imu_major) + '.' + str(imu_minor) + '.' + str(imu_patch)
 
         super().__init__(0, 0.0, 0)
 
     def payload(self) -> bytes:
-        buffer = struct.pack('<HHHHHHHH', self.major, self.minor, self.nmea2000[0], self.nmea2000[1], self.nmea2000[2],
-                            self.nmea0183[0], self.nmea0183[1], self.nmea0183[2])
+        buffer = struct.pack('<HHHHHHHHHHH', self.major, self.minor, self.nmea2000[0], self.nmea2000[1], self.nmea2000[2],
+                            self.nmea0183[0], self.nmea0183[1], self.nmea0183[2],
+                            self.imu[0], self.imu[1], self.imu[2])
         return buffer
     
     def id(self) -> int:
@@ -929,8 +934,10 @@ class SerialiserVersion(DataPacket):
             self.minor = kwargs['minor']
             self.nmea2000 = kwargs['n2000']
             self.nmea0183 = kwargs['n0183']
+            self.imu = kwargs['imu']
             self.nmea2000_version = str(self.nmea2000[0]) + '.' + str(self.nmea2000[1]) + '.' + str(self.nmea2000[2])
             self.nmea0183_version = str(self.nmea0183[0]) + '.' + str(self.nmea0183[1]) + '.' + str(self.nmea0183[2])
+            self.imu_version = str(self.imu[0]) + '.' + str(self.imu[1]) + '.' + str(self.imu[2])
             super().__init__(0, 0.0, 0)
         except KeyError as e:
             raise SpecificationError('Bad packet parameters') from e
@@ -951,7 +958,7 @@ class SerialiserVersion(DataPacket):
     # \param self   Pointer to the object
     # \return String representation of the object
     def __str__(self):
-        rtn = super().__str__() + ' ' + self.name() + f': version = {self.major}.{self.minor}, with NMEA2000 version {self.nmea2000} and NMEA0183 version {self.nmea0183}'
+        rtn = super().__str__() + ' ' + self.name() + f': version = {self.major}.{self.minor}, with NMEA2000 version {self.nmea2000},  NMEA0183 version {self.nmea0183}, and IMU version {self.imu}'
         return rtn
 
 ## Implement the motion sensor data packet
