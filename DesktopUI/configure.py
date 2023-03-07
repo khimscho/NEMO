@@ -249,6 +249,7 @@ class ConfigDBox:
 
     def on_save(self):
         config = self.getconfig()
+        config['version'] = { 'commandproc': self.__default_commandproc_version__ }
         config_name=f'{config["uniqueID"]}.json'
         filename = filedialog.asksaveasfilename(title='Save Configuration', initialfile=config_name, defaultextension='json', confirmoverwrite=True)
         if filename:
