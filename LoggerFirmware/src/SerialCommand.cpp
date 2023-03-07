@@ -1073,14 +1073,14 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  log                                 Output the contents of the console log.\n", src);
     EmitMessage("  metadata [platform-specific]        Store or report a platform-specific metadata JSON element.\n", src);
     EmitMessage("  ota                                 Start Over-the-Air update sequence for the logger.\n", src);
-    EmitMessage("  password [wifi-password]            Set the WiFi password.\n", src);
+    EmitMessage("  password ap|station [wifi-password] Set the WiFi password.\n", src);
     EmitMessage("  restart                             Restart the logger module hardware.\n", src);
     EmitMessage("  scales                              Report any registered sensor-specific scale factors.\n", src);
     EmitMessage("  setup [json-specification]          Report the configuration of the logger, or set it, using JSON specifications.\n", src);
     EmitMessage("  shipname name                       Set the name of the host ship carrying the logger.\n", src);
     EmitMessage("  sizes                               Output list of the extant log files, and their sizes in bytes.\n", src);
     EmitMessage("  speed 1|2 baud-rate                 Set the baud rate for the RS-422 input channels.\n", src);
-    EmitMessage("  ssid [wifi-ssid]                    Set the WiFi SSID.\n", src);
+    EmitMessage("  ssid ap|station [wifi-ssid]         Set the WiFi SSID.\n", src);
     EmitMessage("  status                              Generate JSON-format status message for current dynamic configuration\n", src);
     EmitMessage("  steplog                             Close current log file, and move to the next in sequence.\n", src);
     EmitMessage("  stop                                Close files and go into self-loop for power-down.\n", src);
