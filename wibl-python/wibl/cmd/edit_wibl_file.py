@@ -120,7 +120,8 @@ def editwibl():
                         json_metadata_out = True
                 elif isinstance(packet, lf.SerialiserVersion):
                     if file_major:
-                        packet = lf.SerialiserVersion(major=file_major, minor=file_minor, n2000 = packet.nmea2000, n0183 = packet.nmea0183)
+                        packet = lf.SerialiserVersion(major=file_major, minor=file_minor,
+                                                      n2000=packet.nmea2000, n0183=packet.nmea0183, imu=packet.imu)
                 packet.serialise(op)
         # At the end of the file, if we haven't yet sent out any of the edited packets,
         # we just append.  Note that we don't do this for the SerialiserVersion packet,
