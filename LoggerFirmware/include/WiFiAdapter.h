@@ -27,6 +27,7 @@
 #define __WIFI_ADAPTER_H__
 
 #include <WiFi.h>
+#include "LogManager.h"
 
 /// \class WiFiAdapter
 /// \brief Abstract base class for WiFi access.
@@ -49,7 +50,7 @@ public:
     String ReceivedString(void);
     
     /// \brief Manage the transfer of a log file to the client, given the filename.
-    bool TransferFile(String const& filename, uint32_t filesize);
+    bool TransferFile(String const& filename, uint32_t filesize, logger::Manager::MD5Hash const& filehash);
 
     /// \brief Accumulate messages to be returned to the client for the current transaction
     void AddMessage(String const& message);
@@ -81,7 +82,7 @@ private:
     virtual String readBuffer(void) = 0;
     
     /// \brief Sub-class implementation of code to send a log file to the client.
-    virtual bool sendLogFile(String const& filename, uint32_t filesize) = 0;
+    virtual bool sendLogFile(String const& filename, uint32_t filesize, logger::Manager::MD5Hash const& filehash) = 0;
 
     /// \brief Sub-class implementation of code to accumulate messages for transmission
     virtual void accumulateMessage(String const& message) = 0;

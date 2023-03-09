@@ -33,6 +33,7 @@
 #include "Configuration.h"
 #include "HeapMonitor.h"
 #include "NVMFile.h"
+#include "IMULogger.h"
 
 const uint32_t CommandMajorVersion = 1;
 const uint32_t CommandMinorVersion = 3;
@@ -140,15 +141,25 @@ void SerialCommand::ReportLogfileSizes(CommandSource src)
 {
     EmitMessage("Current log file sizes:\n", src);
     
-    int     filenumber[logger::MaxLogFiles];
-    int     file_count = m_logManager->CountLogFiles(filenumber);
-    String  filename;
-    int     filesize;
+    uint32_t    filenumber[logger::MaxLogFiles];
+    uint32_t    file_count = m_logManager->CountLogFiles(filenumber);
+    String      filename;
+    uint32_t    filesize;
+    logger::Manager::MD5Hash    filehash;
+    char        linebuffer[128];
 
+    if (file_count == 0) {
+        EmitMessage("INF: no completed files in current inventory.\n", src);
+        return;
+    }
     for (int f = 0; f < file_count; ++f) {
-        m_logManager->EnumerateLogFile(filenumber[f], filename, filesize);
-        String line = String("    ") + filename + " " + filesize + " B\n";
-        EmitMessage(line, src);
+        m_logManager->EnumerateLogFile(filenumber[f], filename, filesize, filehash);
+        if (filehash.Empty()) {
+            snprintf(linebuffer, 128, "    %s %8u B\n", filename.c_str(), filesize);
+        } else {
+            snprintf(linebuffer, 128, "    %s %8u B (MD5: %s)\n", filename.c_str(), filesize, filehash.Value().c_str());
+        }
+        EmitMessage(linebuffer, src);
     }
 }
 
@@ -159,12 +170,11 @@ void SerialCommand::ReportLogfileSizes(CommandSource src)
 
 void SerialCommand::ReportSoftwareVersion(CommandSource src)
 {
-    if (m_CANLogger != nullptr) {
-        EmitMessage(String("NMEA2000: ") + m_CANLogger->SoftwareVersion() + String("\n"), src);
-    }
-    if (m_serialLogger != nullptr) {
-        EmitMessage(String("NMEA0183: ") + m_serialLogger->SoftwareVersion() + String("\n"), src);
-    }
+    EmitMessage(String("Serialiser:        ") + Serialiser::SoftwareVersion() + "\n", src);
+    EmitMessage(String("Command Processor: ") + SoftwareVersion() + "\n", src);
+    EmitMessage(String("NMEA2000:          ") + nmea::N2000::Logger::SoftwareVersion() + String("\n"), src);
+    EmitMessage(String("NMEA0183:          ") + nmea::N0183::Logger::SoftwareVersion() + String("\n"), src);
+    EmitMessage(String("IMU:               ") + imu::Logger::SoftwareVersion() + "\n", src);
 }
 
 /// Erase one, or all, of the log files currently on the SD card.  If the string is "all", all
@@ -434,23 +444,38 @@ void SerialCommand::ManageWireless(String const& command, CommandSource src)
 
 void SerialCommand::TransferLogFile(String const& filenum, CommandSource src)
 {
-    String filename;
-    int filesize;
-    int file_number = filenum.toInt();
-    unsigned long tx_start, tx_end, tx_duration;
-    m_logManager->EnumerateLogFile(file_number, filename, filesize);
+    String          filename;
+    uint32_t        filesize;
+    uint32_t        file_number = filenum.toInt();
+    logger::Manager::MD5Hash filehash;
+    unsigned long   tx_start, tx_end, tx_duration;
+   
+    m_logManager->EnumerateLogFile(file_number, filename, filesize, filehash);
+    if (filesize == 0) {
+        // This implies File Not Found (since all log files have at least the serialiser
+        // version information in them).
+        EmitMessage("ERR: File " + filenum + " does not exist.\n", src);
+        if (src == CommandSource::WirelessPort && m_wifi != nullptr) {
+            m_wifi->SetStatusCode(404);
+        }
+        return;
+    }
+    if (filehash.Empty()) {
+        // This can happen if the automated hash construction (in the logger::Manager::Inventory)
+        // is not running for some reason.
+        m_logManager->HashFile(file_number, filehash);
+    }
     switch (src) {
         case CommandSource::SerialPort:
-            m_logManager->TransferLogFile(file_number, Serial);
+            m_logManager->TransferLogFile(file_number, filehash, Serial);
             break;
         case CommandSource::WirelessPort:
-            Serial.printf("Transfering \"%s\", total %d bytes.\n", filename.c_str(), filesize);
+            Serial.printf("DBG: Transfering \"%s\", total %u bytes.\n", filename.c_str(), filesize);
             tx_start = millis();
-            m_wifi->TransferFile(filename, filesize);
+            m_wifi->TransferFile(filename, filesize, filehash);
             tx_end = millis();
             tx_duration = (tx_end - tx_start) / 1000;
-            Serial.printf("Transferred in %lu seconds.\n", tx_duration);
-            //m_logManager->TransferLogFile(file_number, m_wifi->Client());
+            Serial.printf("DBG: Transferred in %lu seconds.\n", tx_duration);
             break;
         default:
             Serial.println("ERR: command source not recognised.");
@@ -888,8 +913,8 @@ void SerialCommand::ReportScalesElement(CommandSource src)
 
 void SerialCommand::ReportFileCount(CommandSource src)
 {
-    int filenumber[logger::MaxLogFiles];
-    int file_count = m_logManager->CountLogFiles(filenumber);
+    uint32_t filenumber[logger::MaxLogFiles];
+    uint32_t file_count = m_logManager->CountLogFiles(filenumber);
     EmitMessage(String(file_count) + "\n", src);
 }
 
@@ -957,6 +982,8 @@ void SerialCommand::ReportCurrentStatus(CommandSource src)
     status["version"]["commandproc"] = SoftwareVersion();
     status["version"]["nmea0183"] = nmea::N0183::Logger::SoftwareVersion();
     status["version"]["nmea2000"] = nmea::N2000::Logger::SoftwareVersion();
+    status["version"]["imu"] = imu::Logger::SoftwareVersion();
+    status["version"]["serialiser"] = Serialiser::SoftwareVersion();
 
     int now = millis();
     status["elapsed"] = now;
@@ -967,15 +994,18 @@ void SerialCommand::ReportCurrentStatus(CommandSource src)
     status["webserver"]["current"] = server_status;
     status["webserver"]["boot"] = boot_status;
 
-    int filenumbers[logger::MaxLogFiles];
-    int n_files = m_logManager->CountLogFiles(filenumbers);
+    uint32_t filenumbers[logger::MaxLogFiles];
+    uint32_t n_files = m_logManager->CountLogFiles(filenumbers);
     status["files"]["count"] = n_files;
     for (int n = 0; n < n_files; ++n) {
         String filename;
-        int filesize;
-        m_logManager->EnumerateLogFile(filenumbers[n], filename, filesize);
+        uint32_t filesize;
+        logger::Manager::MD5Hash filehash;
+        m_logManager->EnumerateLogFile(filenumbers[n], filename, filesize, filehash);
         status["files"]["detail"][n]["id"] = filenumbers[n];
         status["files"]["detail"][n]["len"] = filesize;
+        if (!filehash.Empty())
+            status["files"]["detail"][n]["md5"] = filehash.Value();
     }
     String json;
     if (src == CommandSource::SerialPort) {

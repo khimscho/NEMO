@@ -93,6 +93,8 @@ public:
     Serialiser(File& f);
     /// \brief Write the payload to file, with header block
     bool Process(uint32_t payload_id, Serialisable const& payload);
+
+    static String SoftwareVersion(void);
     
 private:
     File&    m_file;    ///< Reference for the file object to serialise into

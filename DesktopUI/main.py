@@ -134,8 +134,10 @@ class MainWindow:
             status = json.loads(info)
             summary: str = f'Status Summary: \n  Versions:\n'
             summary += f'    CommandProc: {status["version"]["commandproc"]}\n'
-            summary += f'    NMEA0183: {status["version"]["nmea0183"]}\n'
-            summary += f'    NMEA2000: {status["version"]["nmea2000"]}\n'
+            summary += f'    NMEA0183:    {status["version"]["nmea0183"]}\n'
+            summary += f'    NMEA2000:    {status["version"]["nmea2000"]}\n'
+            summary += f'    IMU:         {status["version"]["imu"]}\n'
+            summary += f'    Serialiser:  {status["version"]["serialiser"]}\n'
             up_time: float = status["elapsed"]/1000
             up_time_rep: str = ''
             if up_time > 24*60*60:

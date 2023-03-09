@@ -25,8 +25,9 @@
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
 import tkinter as tk
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 from command import LoggerInterface
+import hashlib
 
 class TransferDBox:
     hor_pad = 10
@@ -73,11 +74,17 @@ class TransferDBox:
         filename = self.filename_var.get()
         filenum = self.filenum_var.get()
         interface = LoggerInterface(self.server_address, self.server_port)
-        status, data = interface.get_file(filenum)
+        status, data, digest = interface.get_file(filenum)
         if status:
             with open(filename, 'wb') as f:
                 f.write(data)
+            local_hash = hashlib.md5()
+            local_hash.update(data)
+            local_digest = local_hash.hexdigest()
             self.record(f'info: wrote file {filenum} to {filename}.\n')
+            if local_digest.upper() != digest.upper():
+                self.record('error: local hash does not match the transferred hash value.\n')
+                dbx = messagebox.showwarning(title='Hash Mismatch', message='File hash from the logger does not match the local hash.  Check validity!')
         else:
             self.record(f'error: failed to write file {filenum} to {filename}.\n')
             self.record(data + '\n') # detailed error message from the loger interface

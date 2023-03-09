@@ -30,6 +30,7 @@
 #include <WiFIAP.h>
 #include <WebServer.h>
 
+#include "LogManager.h"
 #include "WiFiAdapter.h"
 #include "Configuration.h"
 #include "MemController.h"
@@ -391,13 +392,15 @@ private:
     /// \param filename Name of the file to transfer to the client
     /// \return True if the transfer worked, otherwise false.
     
-    bool sendLogFile(String const& filename, uint32_t filesize)
+    bool sendLogFile(String const& filename, uint32_t filesize, logger::Manager::MD5Hash const& filehash)
     {
         File f = m_storage->Controller().open(filename, FILE_READ);
         if (!f) {
             Serial.println("ERR: failed to open file for transfer.");
             return false;
         } else {
+            String hash_digest = "md5=" + filehash.Value();
+            m_server->sendHeader("Digest", hash_digest);
             m_server->streamFile(f, "application/octet-stream");
             f.close();
         }
@@ -480,8 +483,8 @@ String WiFiAdapter::ReceivedString(void) { return readBuffer(); }
 ///
 /// \param filename Name of the log file to be transferred.
 /// \return True if the file was transferred, otherwise false.
-bool WiFiAdapter::TransferFile(String const& filename, uint32_t filesize)
-    { return sendLogFile(filename, filesize); }
+bool WiFiAdapter::TransferFile(String const& filename, uint32_t filesize, logger::Manager::MD5Hash const& filehash)
+    { return sendLogFile(filename, filesize, filehash); }
 
 /// Pass-through implementation to the sub-class code to accumulate messages
 ///

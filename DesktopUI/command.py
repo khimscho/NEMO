@@ -42,15 +42,16 @@ class LoggerInterface:
             rtn = (False, f'Error: connection timed out - is the logger on?\n')
         return rtn
 
-    def get_file(self, number: int) -> Tuple[bool, bytes]:
+    def get_file(self, number: int) -> Tuple[bool, bytes, str]:
         try:
             result = requests.post(self.server_url, data = {'command': f'transfer {number}'}, timeout=3)
             if result.status_code == 200:
-                rtn = (True, result.content)
+                digest_alg, digest_val = result.headers['Digest'].split('=')
+                rtn = (True, result.content, digest_val)
             else:
-                rtn = (False, f'Error: logger returned status {result.status_code} and information {result.text}')
+                rtn = (False, f'Error: logger returned status {result.status_code} and information {result.text}', None)
         except requests.exceptions.ConnectTimeout:
-            rtn = (False, f'Error: connection timed out - is the logger on?')
+            rtn = (False, f'Error: connection timed out - is the logger on?', None)
         return rtn
 
 def run_command(address: str, port: str, command: str) -> str:

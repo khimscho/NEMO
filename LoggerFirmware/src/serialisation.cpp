@@ -267,3 +267,8 @@ bool Serialiser::Process(uint32_t payload_id, Serialisable const& payload)
     
     return rawProcess(payload_id, payload);
 }
+
+String Serialiser::SoftwareVersion(void)
+{
+    return String(SerialiserVersionMajor) + "." + String(SerialiserVersionMinor);
+}
