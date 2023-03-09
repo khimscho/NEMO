@@ -58,13 +58,13 @@ class AlgoDBox:
         self.loadconfig_button = tk.Button(self.button_frame, text='Load Config', command=self.on_load)
         self.saveconfig_button = tk.Button(self.button_frame, text='Save Config', command=self.on_save)
         self.dismiss_button = tk.Button(self.button_frame, text='Dismiss', command=self.on_dismiss)
-        self.getconfig_button.grid(row=0,column=0)
-        self.setconfig_button.grid(row=0,column=1)
-        self.loadconfig_button.grid(row=0,column=2)
-        self.saveconfig_button.grid(row=0,column=3)
-        self.dismiss_button.grid(row=0,column=4)
+        self.getconfig_button.grid(row=0, column=0)
+        self.setconfig_button.grid(row=0, column=1)
+        self.loadconfig_button.grid(row=0, column=2)
+        self.saveconfig_button.grid(row=0, column=3)
+        self.dismiss_button.grid(row=0, column=4)
 
-    def dict_to_table(self, input: Dict[str,Any]) -> Dict[str,Any]:
+    def dict_to_table(self, input: Dict[str, Any]) -> Dict[str, Any]:
         data = {}
         if 'algorithm' in input:
             for alg in range(len(input['algorithm'])):
@@ -73,7 +73,7 @@ class AlgoDBox:
             data['rec1'] = {'name': '', 'parameters': ''}
         return data
 
-    def table_to_dict(self, input: Dict[str,Any]) -> Dict[str,Any]:
+    def table_to_dict(self, input: Dict[str, Any]) -> Dict[str, Any]:
         data = {'algorithm': []}
         for alg in input.values():
             data['algorithm'].append({'name': alg[0], 'parameters': alg[1]})

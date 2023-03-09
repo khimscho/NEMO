@@ -29,7 +29,7 @@ from typing import Tuple
 
 class LoggerInterface:
     def __init__(self, address: str, port: str) -> None:
-        self.server_url = 'http://' + address + ':' + port + '/command'
+        self.server_url = f'http://{address}:{port}/command'
 
     def execute_command(self, command: str) -> Tuple[bool, str]:
         try:

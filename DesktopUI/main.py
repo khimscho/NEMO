@@ -33,6 +33,7 @@ from algorithms import AlgoDBox
 from filters import NMEA0183FilterDBox
 import json
 from typing import Tuple
+from io import StringIO
 
 __interface_version__ = "1.0.0"
 __default_server_ip__ = '192.168.4.1'
@@ -58,13 +59,13 @@ class MainWindow:
         self.server_frame = tk.LabelFrame(self.main_frame, text='Server', padx=self.hor_pad, pady=self.ver_pad)
         self.address_label = tk.Label(self.server_frame, text='IP Address', anchor='e')
         self.address_entry = tk.Entry(self.server_frame, textvariable=self.server_address_var)
-        self.address_label.grid(row=0,column=0)
-        self.address_entry.grid(row=0,column=1)
+        self.address_label.grid(row=0, column=0)
+        self.address_entry.grid(row=0, column=1)
 
         self.port_label = tk.Label(self.server_frame, text='Port', anchor='e')
         self.server_port_entry = tk.Entry(self.server_frame, textvariable=self.server_port_var)
-        self.port_label.grid(row=1,column=0)
-        self.server_port_entry.grid(row=1,column=1)
+        self.port_label.grid(row=1, column=0)
+        self.server_port_entry.grid(row=1, column=1)
         
         self.server_frame.pack(fill='x')
         
@@ -97,13 +98,13 @@ class MainWindow:
         self.nmea0183_button = tk.Button(self.button_frame, text='NMEA0183 Filter', command=self.on_filter)
         self.transfer_button = tk.Button(self.button_frame, text='Transfer Data', command=self.on_transfer)
         self.restart_button = tk.Button(self.button_frame, text='Restart', command=self.on_restart)
-        self.setup_button.grid(row=0,column=0)
-        self.status_button.grid(row=0,column=1)
-        self.metadata_button.grid(row=0,column=2)
-        self.algorithm_button.grid(row=0,column=3)
-        self.nmea0183_button.grid(row=0,column=4)
-        self.transfer_button.grid(row=0,column=5)
-        self.restart_button.grid(row=0,column=6)
+        self.setup_button.grid(row=0, column=0)
+        self.status_button.grid(row=0, column=1)
+        self.metadata_button.grid(row=0, column=2)
+        self.algorithm_button.grid(row=0, column=3)
+        self.nmea0183_button.grid(row=0, column=4)
+        self.transfer_button.grid(row=0, column=5)
+        self.restart_button.grid(row=0, column=6)
 
         self.button_frame.pack(fill='x')
 
@@ -132,12 +133,13 @@ class MainWindow:
         success, info = self.run_command('status')
         if success:
             status = json.loads(info)
-            summary: str = f'Status Summary: \n  Versions:\n'
-            summary += f'    CommandProc: {status["version"]["commandproc"]}\n'
-            summary += f'    NMEA0183:    {status["version"]["nmea0183"]}\n'
-            summary += f'    NMEA2000:    {status["version"]["nmea2000"]}\n'
-            summary += f'    IMU:         {status["version"]["imu"]}\n'
-            summary += f'    Serialiser:  {status["version"]["serialiser"]}\n'
+            summary = StringIO()
+            summary.write('Status Summary: \n  Versions:\n')
+            summary.write(f'    CommandProc: {status["version"]["commandproc"]}\n')
+            summary.write(f'    NMEA0183:    {status["version"]["nmea0183"]}\n')
+            summary.write(f'    NMEA2000:    {status["version"]["nmea2000"]}\n')
+            summary.write(f'    IMU:         {status["version"]["imu"]}\n')
+            summary.write(f'    Serialiser:  {status["version"]["serialiser"]}\n')
             up_time: float = status["elapsed"]/1000
             up_time_rep: str = ''
             if up_time > 24*60*60:
@@ -153,9 +155,9 @@ class MainWindow:
                 up_time_rep += f' {up_time_mins} mins'
                 up_time -= up_time_mins * 60
             up_time_rep += f' {up_time:.3f} s.'
-            summary += f'  Elapsed Time: {up_time_rep}\n'
-            summary += f'  Webserver Status: {status["webserver"]["current"]}\n'
-            summary += f'  Files On Logger: {status["files"]["count"]}\n'
+            summary.write(f'  Elapsed Time: {up_time_rep}\n')
+            summary.write(f'  Webserver Status: {status["webserver"]["current"]}\n')
+            summary.write(f'  Files On Logger: {status["files"]["count"]}\n')
             file_size_total: int = 0
             for file in range(status["files"]["count"]):
                 file_size_total += status["files"]["detail"][file]["len"]
@@ -170,8 +172,9 @@ class MainWindow:
                 size_units = 'kB'
             else:
                 size_units = 'B'
-            summary += f'  Total File Size: {file_size_total:.3f} {size_units}\n'
-            self.update_output(summary)
+            summary.write(f'  Total File Size: {file_size_total:.3f} {size_units}\n')
+            summary.seek(0)
+            self.update_output(summary.read())
         else:
             self.update_output(info + '\n')
 
