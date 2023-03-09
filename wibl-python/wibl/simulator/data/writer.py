@@ -37,6 +37,8 @@ SERIALISER_VERSION_MINOR = 0
 SERIALISER_VERSION_NMEA2000 = (1, 0, 0)
 # NMEA0183 version
 SERIALISER_VERSION_NMEA0183 = (1, 0, 0)
+# IMU version
+SERIALISER_VERSION_IMU = (1, 0, 0)
 
 
 class Writer(ABC):
@@ -45,7 +47,8 @@ class Writer(ABC):
         version: DataPacket = SerialiserVersion(major=SERIALISER_VERSION_MAJOR,
                                                 minor=SERIALISER_VERSION_MINOR,
                                                 n2000=SERIALISER_VERSION_NMEA2000,
-                                                n0183=SERIALISER_VERSION_NMEA0183)
+                                                n0183=SERIALISER_VERSION_NMEA0183,
+                                                imu=SERIALISER_VERSION_IMU)
         self.record(version)
         # Write metadata to underlying data stream
         meta: DataPacket = Metadata(logger=logger_name,
