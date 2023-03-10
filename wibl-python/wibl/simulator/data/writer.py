@@ -42,7 +42,7 @@ SERIALISER_VERSION_IMU = (1, 0, 0)
 
 
 class Writer(ABC):
-    def __init__(self, logger_name: str, logger_id: str):
+    def __init__(self, logger_name: str, shipname: str):
         # Write serialiser version to underlying data stream
         version: DataPacket = SerialiserVersion(major=SERIALISER_VERSION_MAJOR,
                                                 minor=SERIALISER_VERSION_MINOR,
@@ -52,7 +52,7 @@ class Writer(ABC):
         self.record(version)
         # Write metadata to underlying data stream
         meta: DataPacket = Metadata(logger=logger_name,
-                                    uniqid=logger_id)
+                                    shipname=shipname)
         self.record(meta)
 
     def record(self, data: DataPacket):
@@ -65,14 +65,14 @@ class Writer(ABC):
 
 
 class FileWriter(Writer):
-    def __init__(self, filename: str, logger_name: str, logger_id: str):
+    def __init__(self, filename: str, logger_name: str, shipname: str):
         # Keep the filename for logging purposes
         self.filename: str = filename
         self._file: BinaryIO = open(filename, 'wb')
         # Current output log file on the SD card
         self._m_output_log: io.BufferedWriter = io.BufferedWriter(self._file)
         # Call super-class constructor to write metadata to underlying stream
-        super().__init__(logger_name, logger_id)
+        super().__init__(logger_name, shipname)
 
     def __del__(self):
         self._m_output_log.close()
@@ -88,11 +88,11 @@ class FileWriter(Writer):
 
 
 class MemoryWriter(Writer):
-    def __init__(self, logger_name: str, logger_id: str):
+    def __init__(self, logger_name: str, shipname: str):
         self.bio = io.BytesIO()
         self.writer = io.BufferedWriter(self.bio)
         # Call super-class constructor to write metadata to underlying stream
-        super().__init__(logger_name, logger_id)
+        super().__init__(logger_name, shipname)
 
     def __del__(self):
         self.writer.close()
