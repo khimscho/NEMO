@@ -381,7 +381,8 @@ int Manager::CountLogFiles(int filenumbers[MaxLogFiles])
     File logdir = m_storage->Controller().open("/logs");
     File entry = logdir.openNextFile();
     while (entry) {
-        filenumbers[file_count] = String(entry.name()).substring(15).toInt();
+        int dot_position = String(entry.name()).indexOf(".");
+        filenumbers[file_count] = String(entry.name()).substring(dot_position+1).toInt();
         ++file_count;
         entry.close();
         entry = logdir.openNextFile();

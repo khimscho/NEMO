@@ -48,7 +48,7 @@ const String lookup[] = {
     "ssid",             ///< Set the WiFi SSID (string)
     "password",         ///< Set the WiFi password (string)
     "ipaddress",        ///< Set the IP address assigned to the WiFI module (string)
-    "wifimode"          ///< Set the WiFi mode (access point, station) to start in (string)
+    "wifimode",         ///< Set the WiFi mode (access point, station) to start in (string)
     "baud1",            ///< Set the baud rate of NMEA0183 input channel 1
     "baud2",            ///< Set the baud rate of NMEA0183 input channel 2
     "BridgePort"        ///< Set the UDP port for broadcast packets to bridge to RS-422 (string)
