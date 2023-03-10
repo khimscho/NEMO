@@ -31,8 +31,11 @@
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
 import numpy as np
+from wibl import __version__ as wiblversion
 from wibl.processing.algorithms.common import lineage
 from typing import Dict, Any
+
+__version__ = '1.0.0'
 
 def find_duplicates(source: Dict, config: Dict[str,Any]) -> np.ndarray:
     current_depth = 0
@@ -60,7 +63,7 @@ def deduplicate_depth(source: Dict[str,Any], params: str, config: Dict[str,Any])
     # To memorialise that we did something, we add an entry to the lineage segment of
     # the metadata headers in the data.
     n_op_points = len(source['depth']['z'])
-    actions.add_algorithm(name='deduplicate', params='', comment=f'Selected {n_op_points} non-duplicate depths from {n_ip_points} in input.')
+    actions.add_algorithm(name='deduplicate', parameters=None, source='WIBL-'+wiblversion, version=__version__, comment=f'Selected {n_op_points} non-duplicate depths from {n_ip_points} in input.')
     source['lineage'] = actions.export()
     
     return source
