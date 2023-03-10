@@ -93,7 +93,7 @@ def translate(data: Dict[str,Any], config: Dict[str,Any]) -> Dict[str,Any]:
                 "providerOrganizationName":     "CCOM/JHC, UNH",
                 "providerEmail":                "wibl@ccom.unh.edu",
                 "uniqueVesselID":               data['loggername'],
-                "convention":                   "GeoJSON CSB 3.0",
+                "convention":                   "GeoJSON CSB 3.1",
                 "dataLicense":                  "CC0 1.0",
                 "providerLogger":               "WIBL",
                 "providerLoggerVersion":        data['loggerversion'],
@@ -102,6 +102,7 @@ def translate(data: Dict[str,Any], config: Dict[str,Any]) -> Dict[str,Any]:
                 "vesselPositionReferencePoint": "GNSS"
             },
             "platform": {
+                "uniqueID":                     data['loggername'],
                 "type":                         "Ship",
                 "name":                         data['platform'],
                 "IDType":                       "LoggerName",
@@ -133,6 +134,10 @@ def translate(data: Dict[str,Any], config: Dict[str,Any]) -> Dict[str,Any]:
     provider_id = getenv('PROVIDER_ID')
     if provider_id not in final_json_dict['properties']['trustedNode']['uniqueVesselID']:
         final_json_dict['properties']['trustedNode']['uniqueVesselID'] = provider_id + '-' + final_json_dict['properties']['trustedNode']['uniqueVesselID']
+    # In 3.1.0 of the metadata, we need to duplicate the uniqueVeseelID as /properties/platform/uniqueID so that the DCDB
+    # data ingestion platform can find this without stress.  It's also a requirement of the schema validator!  We do this last
+    # to make sure that any changes to the /properties/trustedNode are propagated
+    final_json_dict['properties']['platform']['uniqueID'] = final_json_dict['properties']['trustedNode']['uniqueVesselID']
 
     if 'lineage' in data:
         final_json_dict['properties']['processing'] += data['lineage']
