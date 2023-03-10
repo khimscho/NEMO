@@ -32,7 +32,7 @@
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any
 
 from wibl.core import getenv
@@ -60,8 +60,9 @@ def translate(data: Dict[str,Any], config: Dict[str,Any]) -> Dict[str,Any]:
 
     feature_lst = []
     
+    FMT_OBS_TIME='%Y-%m-%dT%H:%M:%S.%fZ'
     for i in range(len(data['depth']['z'])):
-        timestamp = datetime.fromtimestamp(data['depth']['t'][i]).isoformat() + 'Z'
+        timestamp = datetime.fromtimestamp(data['depth']['t'][i], tz=timezone.utc).strftime(FMT_OBS_TIME)
         
         feature_dict = {
         "type": "Feature",
@@ -82,7 +83,7 @@ def translate(data: Dict[str,Any], config: Dict[str,Any]) -> Dict[str,Any]:
 
     final_json_dict = {
         "type": "FeatureCollection",
-        "crs":  {
+        "crs": {
             "type": "name",
             "properties": {
                 "name": "EPSG:4326"

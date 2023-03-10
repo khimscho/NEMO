@@ -38,7 +38,7 @@ class Lineage:
             self.lineage = []
     
     def add_algorithm(self, name: str, **kwargs) -> None:
-        timestamp = datetime.utcnow().isoformat() + 'Z'
+        timestamp = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%fZ')
         element = {
             "type":         "Algorithm",
             "timestamp":    timestamp,
