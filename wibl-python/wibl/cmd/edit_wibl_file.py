@@ -40,11 +40,11 @@ from wibl.core import logger_file as lf
 def editwibl():
     parser = arg.ArgumentParser(description = 'Edit WIBL logger files (in a limited capacity)',
                                 prog=get_subcommand_prog())
-    parser.add_argument('-n', '--name', type=str, help = 'Set the logger name (string)')
-    parser.add_argument('-u', '--uniq', type=str, help = 'Set the unique ID for the logger (string)')
+    parser.add_argument('-u', '--uniqueid', type=str, help = 'Set the logger name (string), which should be a unique identifier')
+    parser.add_argument('-s', '--shipname', type=str, help = 'Set the ship name for the logger (string)')
     parser.add_argument('-m', '--meta', type=str, help = 'Specify a JSON file for additional metadata elements (filename)')
     parser.add_argument('-a', '--algo', type=str, action='append', help = 'Add a processing algorithm request (name: str,params: str)')
-    parser.add_argument('-s', '--serversion', type=str, help = 'Specify the serialiser version for the output file (major: int, minor: int)')
+    parser.add_argument('-v', '--version', type=str, help = 'Specify the serialiser version for the output file (major: int, minor: int)')
     parser.add_argument('-f', '--filter', type=str, action='append', help='Specify a NMEA0183 sentence filter name')
     parser.add_argument('input', type=str, help = 'WIBL format input file')
     parser.add_argument('output', type=str, help = 'WIBL format output file')
@@ -57,14 +57,14 @@ def editwibl():
     if not optargs.output:
         sys.exit('Error: must have an output file!')
 
-    if optargs.name:
-        logger_name = optargs.name
+    if optargs.uniqueid:
+        logger_name = optargs.uniqueid
     else:
         logger_name = None
-    if optargs.uniq:
-        unique_id = optargs.uniq
+    if optargs.shipname:
+        shipname = optargs.shipname
     else:
-        unique_id = None
+        shipname = None
     if optargs.meta:
         with open(optargs.meta) as f:
             json_meta = json.load(f)
@@ -82,8 +82,8 @@ def editwibl():
     if optargs.filter:
         filters = optargs.filter
 
-    if optargs.serversion:
-        file_major, file_minor = optargs.serversion.split(',')
+    if optargs.version:
+        file_major, file_minor = optargs.version.split(',')
         file_major = int(file_major)
         file_minor = int(file_minor)
     else:
@@ -105,14 +105,14 @@ def editwibl():
             packet = source.next_packet()
             if packet:
                 if isinstance(packet, lf.Metadata):
-                    if logger_name or unique_id:
+                    if logger_name or shipname:
                         out_name = packet.logger_name
                         out_id = packet.ship_name
                         if logger_name:
                             out_name = logger_name
-                        if unique_id:
-                            out_id = unique_id
-                        packet = lf.Metadata(logger = out_name, uniqid = out_id)
+                        if shipname:
+                            out_id = shipname
+                        packet = lf.Metadata(logger = out_name, shipname = out_id)
                         metadata_out = True
                 elif isinstance(packet, lf.JSONMetadata):
                     if metadata:
@@ -128,14 +128,14 @@ def editwibl():
         # since all versions of the file format have this, so we are certain that it
         # must have occurred during the read-through.
         if not metadata_out:
-            if logger_name or unique_id:
+            if logger_name or shipname:
                 out_name = 'Unknown'
                 if logger_name:
                     out_name = logger_name
                 out_id = 'Unknown'
-                if unique_id:
-                    out_id = unique_id
-                packet = lf.Metadata(logger = out_name, uniqid = out_id)
+                if shipname:
+                    out_id = shipname
+                packet = lf.Metadata(logger = out_name, shipname = out_id)
                 packet.serialise(op)
         if not json_metadata_out and metadata:
             packet = lf.JSONMetadata(meta = metadata)

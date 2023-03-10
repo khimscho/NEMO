@@ -1282,7 +1282,7 @@ class Metadata(DataPacket):
     # \param self   Pointer to the object
     # \return String representation of the object
     def __str__(self):
-        rtn = DataPacket.__str__(self) + f' {self.name()}: logger name = {self.logger_name}, identifier = {self.ship_name}'
+        rtn = DataPacket.__str__(self) + f' {self.name()}: logger name (unique ID) = {self.logger_name}, shipname = {self.ship_name}'
         return rtn
 
 ## Implement the algorithm packet
