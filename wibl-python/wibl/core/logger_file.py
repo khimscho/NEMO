@@ -1232,15 +1232,15 @@ class Metadata(DataPacket):
 
     def buffer_constructor(self, buffer: bytes) -> None:
         base = 0
-        name_len, = struct.unpack_from('<I', buffer, base)
-        base += 4
-        name, = struct.unpack_from(f'<{name_len}s', buffer, base)
-        base += name_len
         id_len, = struct.unpack_from('<I', buffer, base)
         base += 4
         unique_id, = struct.unpack_from(f'<{id_len}s', buffer, base)
-        self.logger_name = name.decode('UTF-8')
-        self.ship_name = unique_id.decode('UTF-8')
+        base += id_len
+        name_len, = struct.unpack_from('<I', buffer, base)
+        base += 4
+        name, = struct.unpack_from(f'<{name_len}s', buffer, base)
+        self.logger_name = unique_id.decode('UTF-8')
+        self.ship_name = name.decode('UTF-8')
         super().__init__(0, 0.0, 0)
 
     def payload(self) -> bytes:

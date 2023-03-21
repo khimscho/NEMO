@@ -175,11 +175,15 @@ void Serialisable::operator+=(const char *p)
 /// base class doesn't have the pointer for output, and can't guarantee that it's initialised when
 /// the constructor is called.
 ///
-/// \param file Reference for the file on which the data should be serialised.
+/// \param n2k          Version of the NMEA2000 logger software to claim (typically 1.0.0)
+/// \param n1k          Version of the NMEA0183 logger software to claim (typically 1.0.1)
+/// \param imu          Version of the IMU logger software to claim (typically 1.0.0)
+/// \param logger_name  Ship (or logger) name, typically a short name string
+/// \param logger_id    Logger unique ID (typically provider ID then a UUID)
 
-Serialiser::Serialiser(Version& n2k, Version& n1k, std::string const& logger_name, std::string const& logger_id)
+Serialiser::Serialiser(Version& n2k, Version& n1k, Version& imu, std::string const& logger_name, std::string const& logger_id)
 {
-    m_version = std::shared_ptr<Serialisable>(new Serialisable(16));
+    m_version = std::shared_ptr<Serialisable>(new Serialisable(22));
     
     *m_version += (uint16_t)SerialiserVersionMajor;
     *m_version += (uint16_t)SerialiserVersionMinor;
@@ -191,13 +195,17 @@ Serialiser::Serialiser(Version& n2k, Version& n1k, std::string const& logger_nam
     *m_version += n1k.major;
     *m_version += n1k.minor;
     *m_version += n1k.patch;
+
+    *m_version += imu.major;
+    *m_version += imu.minor;
+    *m_version += imu.patch;
     
     m_metadata = std::shared_ptr<Serialisable>(new Serialisable(255));
     
-    *m_metadata += static_cast<uint32_t>(logger_name.length());
-    *m_metadata += logger_name.c_str();
     *m_metadata += static_cast<uint32_t>(logger_id.length());
     *m_metadata += logger_id.c_str();
+    *m_metadata += static_cast<uint32_t>(logger_name.length());
+    *m_metadata += logger_name.c_str();
 }
 
 /// Default destructor for the serialiser (empty)
