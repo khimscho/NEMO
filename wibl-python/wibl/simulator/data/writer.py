@@ -27,12 +27,13 @@ from abc import ABC
 from typing import BinaryIO
 import io
 
-from wibl.core.logger_file import DataPacket, Metadata, SerialiserVersion
+from wibl.core.logger_file import DataPacket, Metadata, SerialiserVersion, \
+    wibl_file_version_major, wibl_file_version_minor
 
 # Major version number for the serialiser
-SERIALISER_VERSION_MAJOR = 1
+SERIALISER_VERSION_MAJOR = wibl_file_version_major
 # Minor version number for the serialiser
-SERIALISER_VERSION_MINOR = 0
+SERIALISER_VERSION_MINOR = wibl_file_version_minor
 # NMEA2000 version
 SERIALISER_VERSION_NMEA2000 = (1, 0, 0)
 # NMEA0183 version
