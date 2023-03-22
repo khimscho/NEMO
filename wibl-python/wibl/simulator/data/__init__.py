@@ -176,16 +176,17 @@ class ComponentDateTime(TickCountMillisecondsMixin):
             return float(self._dt.second) + (self._dt.microsecond / 1000000)
         return None
 
-    def update(self, ticks: int):
+    def update(self, new_count: int):
         """
         Set the current time (in clock ticks)
-        :param ticks:
+        :param new_count:
         :return:
         """
-        tick_sec = ticks / CLOCKS_PER_SEC
-        delta = timedelta(seconds=tick_sec - self._init_time_sec)
+        delta_tics = new_count - self.tick_count
+        delta_sec = delta_tics / CLOCKS_PER_SEC
+        delta = timedelta(seconds=delta_sec)
         self._dt = self._dt + delta
-        self.tick_count += ticks
+        self.tick_count = new_count
 
     def days_since_epoch(self) -> int:
         """
