@@ -119,9 +119,10 @@ void setup()
 
     Serial.println("Configuring logger manager ...");
     logManager = new logger::Manager(LEDs);
-
     Serial.printf("DBG: After log manager start, free heap = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
-
+    logManager->AddInventory();
+    Serial.printf("DBG: After inventory object start, free heap = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+    
     bool start_nmea_2000, start_nmea_0183, start_motion_sensor;
     if (logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_NMEA2000_B, start_nmea_2000)
             && start_nmea_2000) {

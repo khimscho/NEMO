@@ -409,7 +409,7 @@ void Logger::ProcessMessages(void)
 ///
 /// \return Printable version of the version information
 
-String Logger::SoftwareVersion(void) const
+String Logger::SoftwareVersion(void)
 {
     String rtn;
     rtn = String(SoftwareVersionMajor) + "." + String(SoftwareVersionMinor) +

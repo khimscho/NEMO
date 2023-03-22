@@ -1,19 +1,15 @@
-# \file timestamp_data.py
-# \brief Read a binary data file from the SB2030 data logger, and generate timestamped data
+# \file wibl_to_ascii.py
+# \brief Read a binary data file from the WIBL data logger, and generate ASCII data
 #
-# The SB2030 data logger reports, for each packet received, the elapsed time with respect
-# to the logger's time ticker, and the data.  It also estimates the real time for the packet's
-# reception time using whatever time information it has available, in real-time, using a forward
-# extrapolation of the last time reference.  Of course, this isn't great, because it has to be
-# causal.  This code is designed to get around that by reading all of the data to find the best
-# time reference information, and then going back through again to provide timestamps for the
-# packets based on all of the time reference data.
-#    The code is pretty simple, just doing linear interpolation between timestamps of the reference
-# time in order to generate the timestamps.  Reference time is, by preference NMEA2000 SystemTime,
-# then the timestamps from NMEA2000 GNSS packets, and then finally from NMEA0183 GPGGA packets if
-# there's nothing else available.
+# The WIBL data logger, and any loggers for which converters exist in the LogConvert sub-project,
+# generate binary data for compactness on the logger's SD card.  Although the wibl python tool can
+# be used to convert this data into GeoJSON for output into the DCDB database, this isn't always
+# the simplest format to work with.  The code here reads the WIBL file using the standard file parser
+# and timestamps the data using the standard algorithm used for the conventional processing, but then
+# converts to ASCII.  For files that have heading, temperature, or wind speed/direction information,
+# the code can also generate separate output files with timestamped renderings of the data sources.
 #
-# Copyright 2020 Center for Coastal and Ocean Mapping & NOAA-UNH Joint
+# Copyright 2023 Center for Coastal and Ocean Mapping & NOAA-UNH Joint
 # Hydrographic Center, University of New Hampshire.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -83,29 +79,29 @@ def main():
     with open(out_filename, 'w') as f:
         f.write('Time,Epoch,Longitude,Latitude,Depth\n')
         for i in range(len(tsdata['depth']['t'])):
-            dt = datetime.fromtimestamp(tsdata['depth']['t'][i])
-            f.write('%s,%.3f,%.8f,%.8f,%.2f\n' % (dt, tsdata['depth']['t'][i], tsdata['depth']['lon'][i], tsdata['depth']['lat'][i], tsdata['depth']['z'][i]))
+            dt = datetime.utcfromtimestamp(tsdata['depth']['t'][i])
+            f.write('%sZ,%.3f,%.8f,%.8f,%.2f\n' % (dt.isoformat(), tsdata['depth']['t'][i], tsdata['depth']['lon'][i], tsdata['depth']['lat'][i], tsdata['depth']['z'][i]))
     
     if optargs.heading:
         with open(optargs.heading, 'w') as f:
             f.write('Time,Epoch,Longitude,Latitude,Heading\n')
             for i in range(len(tsdata['heading']['t'])):
-                dt = datetime.fromtimestamp(tsdata['heading']['t'][i])
-                f.write('%s,%.3f,%.8f,%.8f,%.1f\n' % (dt, tsdata['heading']['t'][i], tsdata['heading']['lon'][i], tsdata['heading']['lat'][i], tsdata['heading']['heading'][i]))
+                dt = datetime.utcfromtimestamp(tsdata['heading']['t'][i])
+                f.write('%sZ,%.3f,%.8f,%.8f,%.1f\n' % (dt.isoformat(), tsdata['heading']['t'][i], tsdata['heading']['lon'][i], tsdata['heading']['lat'][i], tsdata['heading']['heading'][i]))
     
     if optargs.temp:
         with open(optargs.temp, 'w') as f:
             f.write('Time,Epoch,Longitude,Latitude,Temperature\n')
             for i in range(len(tsdata['watertemp']['t'])):
-                dt = datetime.fromtimestamp(tsdata['watertemp']['t'][i])
-                f.write('%s,%.3f,%.8f,%.8f,%.1f\n' % (dt, tsdata['watertemp']['t'][i], tsdata['watertemp']['lon'][i], tsdata['watertemp']['lat'][i], tsdata['watertemp']['temperature'][i]))
+                dt = datetime.utcfromtimestamp(tsdata['watertemp']['t'][i])
+                f.write('%sZ,%.3f,%.8f,%.8f,%.1f\n' % (dt.isoformat(), tsdata['watertemp']['t'][i], tsdata['watertemp']['lon'][i], tsdata['watertemp']['lat'][i], tsdata['watertemp']['temperature'][i]))
                 
     if optargs.wind:
         with open(optargs.wind, 'w') as f:
             f.write('Time,Epoch,Longitude,Latitude,Direction,Speed\n')
             for i in range(len(tsdata['wind']['t'])):
-                dt = datetime.fromtimestamp(tsdata['wind']['t'][i])
-                f.write('%s,%.3f,%.8f,%.8f,%.2f,%.2f\n' % (dt, tsdata['wind']['t'][i], tsdata['wind']['lon'][i], tsdata['wind']['lat'][i], tsdata['wind']['direction'][i], tsdata['wind']['speed'][i]))
+                dt = datetime.utcfromtimestamp(tsdata['wind']['t'][i])
+                f.write('%sZ,%.3f,%.8f,%.8f,%.2f,%.2f\n' % (dt.isoformat(), tsdata['wind']['t'][i], tsdata['wind']['lon'][i], tsdata['wind']['lat'][i], tsdata['wind']['direction'][i], tsdata['wind']['speed'][i]))
 
 if __name__ == "__main__":
     main()

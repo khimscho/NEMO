@@ -87,7 +87,7 @@ def protocol_version(major: int, minor: int) -> int:
 ## Latest major protocol version understood by the code
 protocol_version_major = 1
 ## Latest minor protocol version understood by the code
-protocol_version_minor = 1
+protocol_version_minor = 3
  
 ## Maximum protocol version understood by the code
 maximum_version = protocol_version(protocol_version_major, protocol_version_minor)

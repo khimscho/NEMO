@@ -33,7 +33,6 @@
 #include "PointBridge.h"
 #include "LogManager.h"
 #include "StatusLED.h"
-#include "BluetoothAdapter.h"
 #include "WiFiAdapter.h"
 #include "IncrementalBuffer.h"
 
@@ -70,7 +69,6 @@ public:
     
     enum CommandSource {
         SerialPort,     ///< The USB serial connection to a monitoring computer
-        BluetoothPort,  ///< Bluetooth LE connection from a mobile client
         WirelessPort    ///< WiFi socket from a client
     };
 
@@ -79,18 +77,20 @@ public:
     /// \brief Turn off character echo on the Serial interface
     void EchoOff(void) { m_echoOn = false; }
     
+    /// \brief Provide a string representation of the command processor version
+    static String SoftwareVersion(void);
+
 private:
     nmea::N2000::Logger *m_CANLogger;   ///< Pointer for the logger object to use
     nmea::N0183::Logger *m_serialLogger;///< Pointer for the NMEA0183 message handler
     nmea::N0183::PointBridge *m_bridge; ///< Pointer for the WiFi/UDP -> NEMA0183 bridge
     logger::Manager     *m_logManager;  ///< Object to write to SD files and console log
     StatusLED           *m_led;         ///< Pointer for the status LED controller
-    BluetoothAdapter    *m_ble;         ///< Pointer for the BLE interface
     WiFiAdapter         *m_wifi;        ///< Pointer for the WiFi interface, once it comes up
     logger::IncBuffer   m_serialBuffer; ///< Space to assemble serial commands that doesn't block runtime
     bool                m_echoOn;       ///< Flag: indicate that characters from serial should be echoed back
     bool                m_passThrough;  ///< Flag: indicate that strings should be passed through to NMEA0183 transmit
-    
+
     /// \brief Print the console log on the output stream(s)
     void ReportConsoleLog(CommandSource src);
     /// \brief Walk the log file directory and report the files and their sizes
@@ -105,20 +105,20 @@ private:
     void ReportIdentificationString(CommandSource src);
     /// \brief Set the logger's user-specified identification string
     void SetIdentificationString(String const& identifier);
-    /// \brief Set the advertising name for the BLE service
-    void SetBluetoothName(String const& name);
-    /// \brief Report the advertising name for the BLE service
-    void ReportBluetoothName(CommandSource src);
+    /// \brief Report the host ship's name
+    void ReportShipname(CommandSource src);
+    /// \brief Set the host ship's name
+    void SetShipname(String const& name, CommandSource src);
     /// \brief Turn on/off verbose information on messages received
     void SetVerboseMode(String const& mode);
     /// \brief Shut down logging for safe power removal
     void Shutdown(void);
     /// \brief Set the WiFi SSID string
-    void SetWiFiSSID(String const& ssid);
+    void SetWiFiSSID(String const& params, CommandSource src);
     /// \brief Get the WiFi SSID string
     void GetWiFiSSID(CommandSource src);
     /// \brief Set the WiFi password string
-    void SetWiFiPassword(String const& password);
+    void SetWiFiPassword(String const& params, CommandSource src);
     /// \brief Get the WiFi password string
     void GetWiFiPassword(CommandSource src);
     /// \brief Turn the WiFi interface either on or off
@@ -135,12 +135,14 @@ private:
     void ConfigureEcho(String const& command, CommandSource src);
     /// \brief Configure whether to pass through characters on Serial to NMEA0183
     void ConfigurePassthrough(String const& command, CommandSource src);
-    /// \brief Set which radio gets booted at power on
-    void ConfigureBootRadio(String const& command, CommandSource src);
     /// \brief Set up algorithm requests for later post-processing
     void ConfigureAlgRequest(String const& command, CommandSource src);
+    /// \brief Report configuration parameters as a JSON structure
+    void ReportConfigurationJSON(CommandSource src);
     /// \brief Report configuration parameters for the logger
     void ReportConfiguration(CommandSource src);
+    /// \brief Set up all configuration parameters from a JSON string
+    void SetupLogger(String const& spec, CommandSource src);
     /// \brief Report algorithms that the logger requests be run on the data
     void ReportAlgRequests(CommandSource src);
     /// \brief Report heap size during run-time
@@ -159,6 +161,18 @@ private:
     void ReportScalesElement(CommandSource src);
     /// \brief Report the number of log files available on the SD card
     void ReportFileCount(CommandSource src);
+    /// \brief Report the configuration of the web-server
+    void ReportWebserverConfig(CommandSource src);
+    /// \brief Configure the web-server for system config/management
+    void ConfigureWebserver(String const& command, CommandSource src);
+    /// \brief Report on the current status of the logger
+    void ReportCurrentStatus(CommandSource src);
+    /// \brief Report the lab-default configuration JSON string
+    void ReportLabDefaults(CommandSource src);
+    /// \brief Set the lab-default configuration JSON string
+    void SetLabDefaults(String const& spec, CommandSource src);
+    /// \brief Reset the configuration to lab-default configuration JSON string
+    void ResetLabDefaults(CommandSource src);
     /// \brief Check for commands, and execute them if found
     void Execute(String const& command, CommandSource src);
     

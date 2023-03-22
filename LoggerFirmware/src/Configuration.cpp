@@ -28,6 +28,11 @@
 
 #include <Arduino.h>
 #include "Configuration.h"
+#include "ArduinoJson.h"
+#include "N0183Logger.h"
+#include "N2kLogger.h"
+#include "SerialCommand.h"
+#include "IMULogger.h"
 
 namespace logger {
 
@@ -41,17 +46,25 @@ const String lookup[] = {
     "IMUEnable",        ///< Control logging of motion sensor data (binary)
     "PowMon",           ///< Control whether power monitoring and emergency shutdown is done (binary)
     "MemModule",        ///< Control whether SD/MMC or SPI is used to access the SD card (binary)
-    "BootBLE",          ///< Control whether to start BLE or WiFi on boot (binary)
     "Bridge",           ///< Control whether to start the UDP->RS-422 bridge on WiFi startup (binary)
+    "WebServer",        ///< Control whether to use the web server interface to configure the system
     "modid",            ///< Set the module's Unique ID (string)
-    "modname",          ///< Set the ship's name (string)
-    "ssid",             ///< Set the WiFi SSID (string)
-    "password",         ///< Set the WiFi password (string)
+    "shipname",         ///< Set the ship's name (string)
+    "ap_ssid",          ///< Set the WiFi SSID (string)
+    "ap_password",      ///< Set the WiFi password (string)
+    "station_ssid",     ///< Set the WiFi SSID (string)
+    "station_password", ///< Set the WiFi password (string)
     "ipaddress",        ///< Set the IP address assigned to the WiFI module (string)
     "wifimode",         ///< Set the WiFi mode (access point, station) to start in (string)
     "baud1",            ///< Set the baud rate of NMEA0183 input channel 1
     "baud2",            ///< Set the baud rate of NMEA0183 input channel 2
-    "BridgePort"        ///< Set the UDP port for broadcast packets to bridge to RS-422 (string)
+    "BridgePort",       ///< Set the UDP port for broadcast packets to bridge to RS-422 (string)
+    "StationDelay",     ///< Set the timeout between attempts of the webserver joining a client network
+    "StationRetries",   ///< Set number of join attempts before the webserver reverts to safe mode
+    "StationTimeout",   ///< Set the timeout for any connect attempt
+    "WSStatus",         ///< The current status of the configuration webserver
+    "WSBootStatus",     ///< The status of the webserver on boot
+    "LabDefaults"       ///< A JSON string for lab-default configuration
 };
 
 /// Default constructor.  This sets up for a dummy parameter store, which is configured
@@ -137,5 +150,163 @@ void Config::Lookup(ConfigParam const param, String& key)
 }
 
 Config LoggerConfig;    ///< Static parameter to use for lookups (rather than making them on the heap)
+
+/// This reads all of the configuration parameters from the key-value store and structures them into
+/// a JSON dictionary (e.g., keeping the WiFi parameters together), and then serialises them into a
+/// \a String so that it can be readily sent to log files, or over WiFi, etc.  The serialisation can be
+/// compact (e.g., for sending to files) or formatted (i.e., with indents) as required.
+///
+/// @param indent Set true for formatted output, or false for compact strings for serialisation.
+/// @param secure Set true to avoid writing password information into the output dictionary.
+/// @return \a String object with the serialised JSON dictionary of configuration parameters.
+
+String ConfigJSON::ExtractConfig(bool indent, bool secure)
+{
+    using namespace ARDUINOJSON_NAMESPACE;
+    StaticJsonDocument<1024> params;
+    params["version"]["commandproc"] = SerialCommand::SoftwareVersion();
+    params["version"]["nmea0183"] = nmea::N0183::Logger::SoftwareVersion();
+    params["version"]["nmea2000"] = nmea::N2000::Logger::SoftwareVersion();
+    params["version"]["imu"] = imu::Logger::SoftwareVersion();
+    params["version"]["serialiser"] = Serialiser::SoftwareVersion();
+
+    // Enable/disable for the various loggers and features
+    bool nmea0183_enable, nmea2000_enable, imu_enable, powmon_enable, sdmmc_enable, udp_bridge_enable, webserver_on_boot;
+    LoggerConfig.GetConfigBinary(Config::CONFIG_NMEA0183_B, nmea0183_enable);
+    LoggerConfig.GetConfigBinary(Config::ConfigParam::CONFIG_NMEA2000_B, nmea2000_enable);
+    LoggerConfig.GetConfigBinary(Config::ConfigParam::CONFIG_MOTION_B, imu_enable);
+    LoggerConfig.GetConfigBinary(Config::ConfigParam::CONFIG_POWMON_B, powmon_enable);
+    LoggerConfig.GetConfigBinary(Config::ConfigParam::CONFIG_SDMMC_B, sdmmc_enable);
+    LoggerConfig.GetConfigBinary(Config::ConfigParam::CONFIG_BRIDGE_B, udp_bridge_enable);
+    LoggerConfig.GetConfigBinary(Config::ConfigParam::CONFIG_WEBSERVER_B, webserver_on_boot);
+    params["enable"]["nmea0183"] = nmea0183_enable;
+    params["enable"]["nmea2000"] = nmea2000_enable;
+    params["enable"]["imu"] = imu_enable;
+    params["enable"]["powermonitor"] = powmon_enable;
+    params["enable"]["sdmmc"] = sdmmc_enable;
+    params["enable"]["udpbridge"] = udp_bridge_enable;
+    params["enable"]["webserver"] = webserver_on_boot;
+
+    // String configurations for the various parameters in configuration
+    String wifi_station_delay, wifi_station_retries, wifi_station_timeout, wifi_ip_address, wifi_mode;
+    String wifi_ap_ssid, wifi_ap_password, wifi_station_ssid, wifi_station_password;
+    String moduleid, shipname, baudrate_port1, baudrate_port2, udp_bridge_port;
+
+    LoggerConfig.GetConfigString(Config::CONFIG_STATION_DELAY_S, wifi_station_delay);
+    LoggerConfig.GetConfigString(Config::CONFIG_STATION_RETRIES_S, wifi_station_retries);
+    LoggerConfig.GetConfigString(Config::CONFIG_STATION_TIMEOUT_S, wifi_station_timeout);
+    LoggerConfig.GetConfigString(Config::CONFIG_MODULEID_S, moduleid);
+    LoggerConfig.GetConfigString(Config::CONFIG_SHIPNAME_S, shipname);
+    LoggerConfig.GetConfigString(Config::CONFIG_AP_SSID_S, wifi_ap_ssid);
+    LoggerConfig.GetConfigString(Config::CONFIG_AP_PASSWD_S, wifi_ap_password);
+    LoggerConfig.GetConfigString(Config::CONFIG_STATION_SSID_S, wifi_station_ssid);
+    LoggerConfig.GetConfigString(Config::CONFIG_STATION_PASSWD_S, wifi_station_password);
+    LoggerConfig.GetConfigString(Config::CONFIG_WIFIIP_S, wifi_ip_address);
+    LoggerConfig.GetConfigString(Config::CONFIG_WIFIMODE_S, wifi_mode);
+    LoggerConfig.GetConfigString(Config::CONFIG_BAUDRATE_1_S, baudrate_port1);
+    LoggerConfig.GetConfigString(Config::CONFIG_BAUDRATE_2_S, baudrate_port2);
+    LoggerConfig.GetConfigString(Config::CONFIG_BRIDGE_PORT_S, udp_bridge_port);
+    params["wifi"]["mode"] = wifi_mode;
+    params["wifi"]["address"] = wifi_ip_address;
+    params["wifi"]["station"]["delay"] = wifi_station_delay.toInt();
+    params["wifi"]["station"]["retries"] = wifi_station_retries.toInt();
+    params["wifi"]["station"]["timeout"] = wifi_station_timeout.toInt();
+    params["wifi"]["ssids"]["ap"] = wifi_ap_ssid;
+    params["wifi"]["ssids"]["station"] = wifi_station_ssid;
+    if (!secure) {
+        params["wifi"]["passwords"]["ap"] = wifi_ap_password;
+        params["wifi"]["passwords"]["station"] = wifi_station_password;
+    }
+    params["uniqueID"] = moduleid;
+    params["shipname"] = shipname;
+    params["baudrate"]["port1"] = baudrate_port1.toInt();
+    params["baudrate"]["port2"] = baudrate_port2.toInt();
+    params["udpbridge"] = udp_bridge_port.toInt();
+
+    String rtn;
+    if (indent) {
+        serializeJsonPretty(params, rtn);
+    } else {
+        serializeJson(params, rtn);
+    }
+    return rtn;
+}
+
+/// Set configuration for all values of the key-value store specified in the serialised JSON dictionary
+/// provided at input.  The code here, to make sure that it knows what to expect in the JSON dictionary,
+/// checks for a version string, which must match what the \a SerialCommand::SoftwareVersion() method
+/// reports for the current firmware build to be acceptable.  The serialised dictionary can contain as
+/// few or as many parameters as are required: only the parameters set are used for updating the current
+/// configuration.
+///
+/// @param json_string \a String of the serialised JSON dictionary to use for configuration.
+/// @return True if the configuration completed, otherwise false.
+
+bool ConfigJSON::SetConfig(String const& json_string)
+{
+    DynamicJsonDocument params(1024);
+    deserializeJson(params, json_string);
+
+    if (!params.containsKey("version") || !params["version"].containsKey("commandproc")) {
+        return false;
+    }
+    if (params["version"]["commandproc"].as<String>() == SerialCommand::SoftwareVersion()) {
+        if (params.containsKey("enable")) {
+            if (params["enable"].containsKey("nmea0183"))
+                LoggerConfig.SetConfigBinary(Config::CONFIG_NMEA0183_B, params["enable"]["nmea0183"]);
+            if (params["enable"].containsKey("nmea2000"))
+                LoggerConfig.SetConfigBinary(Config::CONFIG_NMEA2000_B, params["enable"]["nmea2000"]);
+            if (params["enable"].containsKey("imu"))
+                LoggerConfig.SetConfigBinary(Config::CONFIG_MOTION_B, params["enable"]["imu"]);
+            if (params["enable"].containsKey("powermonitor"))
+                LoggerConfig.SetConfigBinary(Config::CONFIG_POWMON_B, params["enable"]["powermonitor"]);
+            if (params["enable"].containsKey("sdmmc"))
+                LoggerConfig.SetConfigBinary(Config::CONFIG_SDMMC_B, params["enable"]["sdmmc"]);
+            if (params["enable"].containsKey("udpbridge"))
+                LoggerConfig.SetConfigBinary(Config::CONFIG_BRIDGE_B, params["enable"]["udpbridge"]);
+            if (params["enable"].containsKey("webserver"))
+                LoggerConfig.SetConfigBinary(Config::CONFIG_WEBSERVER_B, params["enable"]["webserver"]);
+        }
+        if (params.containsKey("wifi")) {
+            if (params["wifi"].containsKey("mode"))
+                LoggerConfig.SetConfigString(Config::CONFIG_WIFIMODE_S, params["wifi"]["mode"]);
+            if (params["wifi"].containsKey("station")) {
+                if (params["wifi"]["station"].containsKey("delay"))
+                    LoggerConfig.SetConfigString(Config::CONFIG_STATION_DELAY_S, params["wifi"]["station"]["delay"]);
+                if (params["wifi"]["station"].containsKey("retries"))
+                    LoggerConfig.SetConfigString(Config::CONFIG_STATION_RETRIES_S, params["wifi"]["station"]["retries"]);
+                if (params["wifi"]["station"].containsKey("timeout"))
+                    LoggerConfig.SetConfigString(Config::CONFIG_STATION_TIMEOUT_S, params["wifi"]["station"]["timeout"]);
+            }
+            if (params["wifi"].containsKey("ssids")) {
+                if (params["wifi"]["ssids"].containsKey("ap"))
+                    LoggerConfig.SetConfigString(Config::CONFIG_AP_SSID_S, params["wifi"]["ssids"]["ap"]);
+                if (params["wifi"]["ssids"].containsKey("station"))
+                    LoggerConfig.SetConfigString(Config::CONFIG_STATION_SSID_S, params["wifi"]["ssids"]["station"]);
+            }
+            if (params["wifi"].containsKey("passwords")) {
+                if (params["wifi"]["passwords"].containsKey("ap"))
+                    LoggerConfig.SetConfigString(Config::CONFIG_AP_PASSWD_S, params["wifi"]["passwords"]["ap"]);
+                if (params["wifi"]["passwords"].containsKey("station"))
+                    LoggerConfig.SetConfigString(Config::CONFIG_STATION_PASSWD_S, params["wifi"]["passwords"]["station"]);
+            }
+        }
+        if (params.containsKey("baudrate")) {
+            if (params["baudrate"].containsKey("port1"))
+                LoggerConfig.SetConfigString(Config::CONFIG_BAUDRATE_1_S, params["baudrate"]["port1"]);
+            if (params["baudrate"].containsKey("port2"))
+                LoggerConfig.SetConfigString(Config::CONFIG_BAUDRATE_2_S, params["baudrate"]["port2"]);
+        }
+        if (params.containsKey("uniqueID"))
+            LoggerConfig.SetConfigString(Config::CONFIG_MODULEID_S, params["uniqueID"]);
+        if (params.containsKey("shipname"))
+            LoggerConfig.SetConfigString(Config::CONFIG_SHIPNAME_S, params["shipname"]);
+        if (params.containsKey("udpbridge"))
+            LoggerConfig.SetConfigString(Config::CONFIG_BRIDGE_PORT_S, params["udpbridge"]);
+    } else {
+        return false;
+    }
+    return true;
+}
 
 }

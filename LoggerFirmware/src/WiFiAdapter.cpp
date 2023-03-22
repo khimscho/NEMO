@@ -23,18 +23,257 @@
  * OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <WiFi.h>
-#include <WiFiClient.h>
-#include <WiFIAP.h>
+#include <functional>
+#include <queue>
 
+#include <WiFi.h>
+#include <WiFIAP.h>
+#include <WebServer.h>
+
+#include "LogManager.h"
 #include "WiFiAdapter.h"
 #include "Configuration.h"
 #include "MemController.h"
+#include "serial_number.h"
 
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
 
-/// \const Port number to use for the server (assumed pre-shared).
-const int server_port_number = 25443;
+class ConnectionStateMachine {
+public:
+    ConnectionStateMachine(bool verbose = false)
+    : m_verbose(verbose)
+    {
+        String boot_status;
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WS_STATUS_S, boot_status);
+        logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_BOOTSTATUS_S, boot_status);
+        if (m_verbose) {
+            Serial.printf("DBG: starting ConnectionStateMachine; boot status is %s\n", boot_status.c_str());
+        }
+        m_lastConnectAttempt = m_lastStatusCheck = millis();
+        
+        m_connectionRetries = maximumReties();
+        m_retryDelay = retryDelay();
+        m_connectDelay = connectionDelay();
+
+        m_statusDelay = 500;    // Delay between status checks in milliseconds
+
+        m_currentState = STOPPED;
+        String status;
+        if (WiFiAdapter::GetWirelessMode() == WiFiAdapter::WirelessMode::ADAPTER_SOFTAP) {
+            status = "AP-Stopped";
+        } else {
+            status = "Station-Stopped";
+        }
+        logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_STATUS_S, status);
+    }
+
+    bool Verbose(void) { return m_verbose; }
+    void Verbose(bool verbose) { m_verbose = verbose; }
+
+    void Start(void)
+    {
+        if (WiFiAdapter::GetWirelessMode() == WiFiAdapter::WirelessMode::ADAPTER_SOFTAP) {
+            m_currentState = AP_MODE;
+            logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_STATUS_S, "AP-Enabled");
+            apSetup();
+        } else {
+            logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_STATUS_S, "Station-Enabled,Connecting");
+            m_currentState = STATION_CONNECTING;
+            if (attemptStationJoin())
+                m_currentState = STATION_CONNECTED;
+        }
+    }
+
+    void StepState(void)
+    {
+        using namespace logger;
+
+        int now = millis();
+        switch (m_currentState) {
+            case STOPPED:
+                break;
+            case AP_MODE:
+                // Once in AP mode and established, we stay in the state.
+                break;
+            case STATION_CONNECTING:
+                // We're waiting for the connection to complete, so check status
+                // if we've waiting long enough.
+                if ((now - m_lastStatusCheck) > m_statusDelay) {
+                    if (m_verbose) {
+                        Serial.printf("DBG: checking for connection at %d\n", now);
+                    }
+                    if (isConnected()) {
+                        m_currentState = STATION_CONNECTED;
+                        if (m_verbose)
+                            Serial.print("DBG: station now connected.\n");
+                    } else {
+                        // Still not connected, so we need to determine if
+                        // we need to terminate this try.
+                        if (m_verbose)
+                            Serial.print("DBG: station still not connected.\n");
+                        if ((now - m_lastConnectAttempt) > m_connectDelay) {
+                            m_currentState = STATION_RETRY;
+                            LoggerConfig.SetConfigString(Config::CONFIG_WS_STATUS_S, "Station-Enabled,Connect-Timeout-Retrying");
+                            if (m_verbose)
+                                Serial.printf("DBG: join attempt timed out since last attempt was %d (%d ago)\n", m_lastConnectAttempt, now - m_lastConnectAttempt);
+                        }
+                    }
+                }
+                break;
+            case STATION_RETRY:
+                // We're attempting a retry for a station connection, if we've
+                // waited long enough
+                if ((now - m_lastConnectAttempt) > m_retryDelay) {
+                    if (m_verbose)
+                        Serial.printf("DBG: attempting to join again since last attempt was %d ago.\n", now - m_lastConnectAttempt);
+                    if (m_connectionRetries > 0) {
+                        --m_connectionRetries;
+                        if (m_verbose)
+                            Serial.printf("DBG: attempting retry; %d remaining.\n", m_connectionRetries);
+                        if (attemptStationJoin())
+                            m_currentState = STATION_CONNECTED;
+                        else
+                            m_currentState = STATION_CONNECTING;
+                    } else {
+                        m_currentState = MOVE_TO_SAFE_MODE;
+                        if (m_verbose)
+                            Serial.print("DBG: out of retry attempts, moving back to safe mode.\n");
+                    }
+                }
+                break;
+            case MOVE_TO_SAFE_MODE:
+                // We're out of retries for a station connection, so we have to assume
+                // that the network isn't there, or there's a problem with the password
+                // etc. -- so we revert to AP mode.
+                WiFiAdapter::SetWirelessMode(WiFiAdapter::WirelessMode::ADAPTER_SOFTAP);
+                logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_STATUS_S, "AP-Enabled,Station-Join-Failed");
+                if (m_verbose)
+                    Serial.print("DBG: set status to Station-Join-Failed, rebooting to AP safe mode.\n");
+                ESP.restart();
+                break;
+            case STATION_CONNECTED:
+                // The system (finally?) connected, so we update status, and then go into
+                // connection checking mode.
+                logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_STATUS_S, "Station-Enabled,Connected");
+                m_currentState = CONNECTION_CHECK;
+                if (m_verbose) {
+                    Serial.print("DBG: station connected to network, setting state to Connected.\n");
+                }
+                break;
+            case CONNECTION_CHECK:
+                // Once connected, we need to periodically check that we're still connected,
+                // going back into connection mode if not.
+                if ((now - m_lastStatusCheck) > m_retryDelay) {
+                    if (m_verbose) {
+                        Serial.printf("DBG: checking connection status since last check was %d ago.\n", now - m_lastStatusCheck);
+                    }
+                    if (!isConnected()) {
+                        if (m_verbose) {
+                            Serial.print("DBG: station disconnected, so switching back to retry.\n");
+                        }
+                        logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_STATUS_S, "Station-Enabled,Disconnected-Retrying");
+                        m_currentState = STATION_RETRY;
+                    }
+                }
+                break;
+        }
+    }
+private:
+    enum State {
+        STOPPED = 0,
+        AP_MODE,
+        STATION_CONNECTING,
+        STATION_CONNECTED,
+        STATION_RETRY,
+        MOVE_TO_SAFE_MODE,
+        CONNECTION_CHECK
+    };
+    State   m_currentState;         // Current state of the SM
+    bool    m_verbose;              // Flag for debug information to happen
+    int     m_lastConnectAttempt;   // Time (ms) for last connection attempt
+    int     m_lastStatusCheck;      // Time (ms) for last connection status attempt
+    int     m_connectionRetries;    // Count of remaining connection attempts
+    int     m_retryDelay;           // Delay (ms) before attempt to retry to connect
+    int     m_statusDelay;          // Delay (ms) before checking connection status again
+    int     m_connectDelay;         // Delay (ms) before assuming a connect attempt failed
+
+    void apSetup(void)
+    {
+        String ssid, password;
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_AP_SSID_S, ssid);
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_AP_PASSWD_S, password);
+        // On first bring-up, the SSID and password are not going to be set; this ensures that when the
+        // logger first boots, the WIFi comes up with known SSID and password.
+        if (ssid.length() == 0) ssid = "wibl-config";
+        if (ssid.length() == 0) password = "wibl-config-password";
+        WiFi.softAP(ssid.c_str(), password.c_str());
+        IPAddress server_address = WiFi.softAPIP();
+        logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, server_address.toString());
+        if (m_verbose) {
+            Serial.printf("DBG: started AP mode on %s:%s with IP %s.\n", ssid.c_str(), password.c_str(), server_address.toString().c_str());
+        }
+    }
+
+    bool attemptStationJoin(void)
+    {
+        String ssid, password;
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_SSID_S, ssid);
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_PASSWD_S, password);
+        // Note: we do not attempt to set a default SSID and password here --- if we're joining another network as
+        // a station, there's no way to guess these.  We have to have at least an SSID, but the password could be
+        // empty (for an unsecured network).
+        if (ssid.length() == 0) {
+            Serial.print("ERR: attempting to join a WiFi network as a station without a specified SSID\n");
+            return false;
+        }
+        wl_status_t status = WiFi.begin(ssid.c_str(), password.c_str());
+        m_lastConnectAttempt = millis();
+        if (m_verbose) {
+            Serial.printf("DBG: started network join on %s:%s at %d with immediate status %d\n", ssid.c_str(), password.c_str(), m_lastConnectAttempt, (int)status);
+        }
+        return status == WL_CONNECTED;
+    }
+
+    void completeStationJoint(void)
+    {
+        IPAddress server_address = WiFi.softAPIP();
+        logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, server_address.toString());
+        if (m_verbose) {
+            Serial.printf("DBG: completing station join at IP %s\n", server_address.toString().c_str());
+        }
+    }
+
+    bool isConnected(void)
+    {
+        wl_status_t status = WiFi.status();
+        m_lastStatusCheck = millis();
+        if (m_verbose) {
+            Serial.printf("DBG: checking WiFi status at %d with status %d\n", m_lastStatusCheck, (int)status);
+        }
+        return status == WL_CONNECTED;
+    }
+
+    int maximumReties(void)
+    {
+        String val;
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_RETRIES_S, val);
+        return val.toInt();
+    }
+
+    int retryDelay(void)
+    {
+        String val;
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_DELAY_S, val);
+        return val.toInt() * 1000;
+    }
+
+    int connectionDelay(void)
+    {
+        String val;
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_TIMEOUT_S, val);
+        return val.toInt() * 1000;
+    }
+};
 
 /// \class ESP32WiFiAdapter
 /// \brief Implementation of the WiFiAdapter base class for the ESP32 module
@@ -44,7 +283,7 @@ public:
     /// Default constructor for the ESP32 adapter.  This brings up the parameter store to use
     /// for WiFi parameters, but takes no other action until the user explicitly starts the AccessPoint.
     ESP32WiFiAdapter(void)
-    : m_storage(nullptr), m_server(nullptr)
+    : m_storage(nullptr), m_server(nullptr), m_statusCode(200)
     {
         if ((m_storage = mem::MemControllerFactory::Create()) == nullptr) {
             return;
@@ -59,10 +298,42 @@ public:
     }
     
 private:
-    mem::MemController *m_storage;  ///< Pointer to the storage object to use
-    WiFiServer  *m_server;          ///< Pointer to the server object, if started.
-    WiFiClient  m_client;           ///< Pointer to the current client connection, if there is one.
-    
+    mem::MemController  *m_storage;     ///< Pointer to the storage object to use
+    WebServer           *m_server;      ///< Pointer to the server object, if started.
+    std::queue<String>  m_commands;     ///< Queue to handle commands sent by the user
+    String              m_messages;     ///< Accumulating message content to be send to the client
+    uint32_t            m_statusCode;   ///< Status code to return to the user with the transaction response
+    ConnectionStateMachine m_state;     ///< Manager for connection state
+
+    /// @brief Handle HTTP requests to the /command endpoint
+    ///
+    /// HTTP POST endpoint handler for commands being sent to the logger through the web-server
+    /// interface.  This simple captures any "command" arguments and queues them for the system
+    /// to execute later.
+    ///
+    /// @return N/A
+    void handleCommand(void)
+    {
+        for (uint32_t i = 0; i < m_server->args(); ++i) {
+            if (m_server->argName(i) == "command") {
+                m_commands.push(m_server->arg(i));
+            }
+        }
+    }
+
+    /// @brief Provide a simple endpoint for HTTP GET to indicate presence
+    ///
+    /// It's not always possible to tell whether you have a web-server available on a known IP
+    /// address.  This endpoint handle (typically for GET but it should work for anything) returns
+    /// a simple text message with the serial number of the logger board and 200OK so that you
+    /// know that the server is on and running.
+    ///
+    /// @return N/A
+    void heartbeat(void)
+    {
+        m_server->send(200, "text/plain", GetSerialNumberString());
+    }
+
     /// Bring up the WiFi adapter, which in this case includes bring up the soft access point.  This
     /// uses the ParamStore to get the information required for the soft-AP, and then interrogates the
     /// server to find out which IP address was allocated.  This is very likely to be the same address
@@ -73,32 +344,16 @@ private:
     
     bool start(void)
     {
-        if ((m_server = new WiFiServer(server_port_number)) == nullptr) {
-            Serial.println("ERR: failed to start WiFi server.");
+        if ((m_server = new WebServer()) == nullptr) {
+            Serial.println("ERR: failed to start web server.");
             return false;
-        }
-        if (get_wireless_mode() == WirelessMode::ADAPTER_SOFTAP) {
-            WiFi.softAP(get_ssid().c_str(), get_password().c_str());
-            IPAddress server_address = WiFi.softAPIP();
-            set_address(server_address);
         } else {
-            Serial.print(String("Connecting to ") + get_ssid() + ": ");
-            wl_status_t status = WiFi.begin(get_ssid().c_str(), get_password().c_str());
-            Serial.print(String("(status: ") + static_cast<int>(status) + ")");
-            uint32_t wait_loops = 0;
-            while (WiFi.status() != WL_CONNECTED) {
-                delay(500);
-                Serial.print(".");
-                ++wait_loops;
-                if (wait_loops > 100) {
-                    Serial.printf("\nINFO: Failed to connect on WiFi.\n");
-                    return false;
-                }
-            }
-            Serial.println("");
-            IPAddress server_address = WiFi.localIP();
-            set_address(server_address);
+            // Configure the endpoints served by the server
+            m_server->on("/heartbeat", HTTPMethod::HTTP_GET, std::bind(&ESP32WiFiAdapter::heartbeat, this));
+            m_server->on("/command", HTTPMethod::HTTP_POST, std::bind(&ESP32WiFiAdapter::handleCommand, this));
         }
+        //m_state.Verbose(true);
+        m_state.Start();
         m_server->begin();
         return true;
     }
@@ -108,51 +363,8 @@ private:
     
     void stop(void)
     {
-        if (m_client) {
-            m_client.stop();
-        }
-        if (m_server)
-            m_server->end();
         delete m_server;
         m_server = nullptr;
-    }
-    
-    /// Check whether there is a client already, or one waiting to be connected, and return an
-    /// indication of whether there is some work likely to be required.
-    ///
-    /// \return True if there is a current client, or false.
-    
-    bool isConnected(void)
-    {
-        if (m_server == nullptr)
-            return false;
-        
-        if (!m_client) {
-            m_client = m_server->available();
-        }
-        if (m_client) {
-            if (m_client.connected()) {
-                return true;
-            } else {
-                m_client.stop();
-                return false;
-            }
-        }
-        return false;
-    }
-    
-    /// Provide an indication of whethere there is data waiting to be read from the client.  This
-    /// implicitly indicates that a client is connected.
-    ///
-    /// \return True if there is a client with data waiting, otherwise false.
-    
-    bool dataCount(void)
-    {
-        if (isConnected() && m_client.available() > 0) {
-            return true;
-        } else {
-            return false;
-        }
     }
     
     /// Read the first terminated (with [LF]) string from the client, and return.  This will read over multiple
@@ -163,20 +375,13 @@ private:
     
     String readBuffer(void)
     {
-        String buffer;
-        if (!isConnected()) {
-            m_client.stop();
-            return buffer;
+        if (m_commands.size() == 0) {
+            return String("");
+        } else {
+            String rtn = m_commands.front();
+            m_commands.pop();
+            return rtn;
         }
-        while (m_client.available() > 0) {
-            char c = m_client.read();
-            if (c == '\n') {
-                return buffer;
-            } else {
-                buffer += c;
-            }
-        }
-        return buffer;
     }
     
     /// Transfer a specific log file from the logger to the client in an efficient manner that doesn't include
@@ -187,172 +392,75 @@ private:
     /// \param filename Name of the file to transfer to the client
     /// \return True if the transfer worked, otherwise false.
     
-    bool sendLogFile(String const& filename, uint32_t filesize)
+    bool sendLogFile(String const& filename, uint32_t filesize, logger::Manager::MD5Hash const& filehash)
     {
-        if (!isConnected()) return false;
         File f = m_storage->Controller().open(filename, FILE_READ);
         if (!f) {
             Serial.println("ERR: failed to open file for transfer.");
             return false;
         } else {
-            m_client.write((uint8_t *)&filesize, sizeof(uint32_t));
-            uint8_t buffer[1435]; // The biggest buffer we can send in a single packet appears to be 1436 B.
-            size_t n_read;
-            while (f.available()) {
-                n_read = f.read(buffer, 1435);
-                m_client.write(buffer, n_read);
-            }
+            String hash_digest = "md5=" + filehash.Value();
+            m_server->sendHeader("Digest", hash_digest);
+            m_server->streamFile(f, "application/octet-stream");
             f.close();
         }
         return true;
     }
-    
-    /// Set the NVRAM version of the SSID for the WiFi adapter.  This provides the mechanism to cache the
-    /// SSID that the user wants the soft access point to use when it comes, making it simpler for the client
-    /// application to determine which wireless network to connect.  There is no checking on the string being
-    /// used, since there are apparently no restrictions on what an SSID can be.  It does have to be a valid
-    /// String, however, so it can't have any embedded null bytes.
+
+    /// Accumulate the message given into the list of those to be sent to the client when the
+    /// response is finally sent.  Note that the code doesn't add any formatting, so if you want
+    /// newlines in the output message set, you need to add them explicitly to the \a message that
+    /// you send.
     ///
-    /// \param ssid The SSID string to present to the soft-AP.
-    
-    void set_ssid(String const& ssid)
+    /// \param message  \a String to add to the list of messages.
+    /// \return N/A
+
+    void accumulateMessage(String const& message)
     {
-        if (!logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFISSID_S, ssid)) {
-            Serial.println("ERR: failed to set SSID string on module.");
-        }
+        m_messages += message;
     }
-    
-    /// Return the SSID set by the end-user application for the WiFi adapter.  This could be any set of bytes
-    /// in theory, but in practice here has to be a valid string, and therefore is a little more constrained.
+
+    /// Configure the HTTP status code that the response should use.  By default, the status code used
+    /// when the response is finally sent to the client is 200 OK.  However, if there is an error
+    /// condition, then it might be useful to send something else, alerting the client.  Although you
+    /// should technically only use HTTP status codes, there's no checking on this, so you could send
+    /// anything that your client will recognise.
     ///
-    /// \return String with the SSID, or "UNKNOWN" if it hasn't been set.
-    
-    String get_ssid(void)
+    /// \param status_code  Code to return to the client (typically HTTP status codes)
+    /// \return N/A
+
+    void setStatusCode(uint32_t status_code)
     {
-        String value;
-        if (!logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFISSID_S, value)) {
-            Serial.println("ERR: failed to get SSID string from module.");
-            value = "UNKNOWN";
-        }
-        return value;
+        m_statusCode = status_code;
     }
-    
-    /// Sets the password for the WiFi access point in NVRAM.  In worst-practice, this is currently stored in
-    /// plain-text in the NVRAM for the module, and therefore could be retrieved by anyone with physical
-    /// access to the module.  That might change in the future, but at least at the level of the proof of concept,
-    /// it shouldn't cause too much hassle.
+
+    /// Send the accumulated messages for this transaction back to the client.  This takes the accumulated
+    /// messages, and the status code, and sends back via the web-server, then resets the message buffer
+    /// to empty, and the status code to 200 OK.
     ///
-    /// \param password String to use for the WiFi password (i.e., to joint the network).
-    
-    void set_password(String const& password)
+    /// \param data_type    Text string indicating the MIME type to indicate for the data.
+    /// \return True if the message was send succesfully, otherwise false.
+
+    bool transmitMessages(char const* data_type)
     {
-        if (!logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFIPSWD_S, password)) {
-            Serial.println("ERR: failed to set password on module.");
-        }
+        m_server->send(m_statusCode, data_type, m_messages);
+        m_messages = "";
+        m_statusCode = 200; // "OK" by default
+        return true;
     }
-    
-    /// Gets the password for the WiFi access point from the NVRAM.  Since this is currently stored in
-    /// plain-text, it is returned in the same way.  In practice, this is unlikely to be a major problem for the proof
-    /// of concept project, although it might need to change in the future.  The rationale for having this
-    /// code, however, is so that the module can tell the end user (over BLE) what the password for the access
-    /// point should be, so that the system can log on successfully, and therefore having the password in
-    /// plain-text at some point is required.  Since an unknown logger isn't necessarily going to have a recent
-    /// password, it would be problematic to find the right password without something like this.
+
+    /// In order for the WiFi adapter to manage its internal state, it has to get a regular run loop call
+    /// from the main logger.  In addition to passing on this time to the web server to handle client
+    /// requests, this code also manages the ConnectionStateMachine, which allows the logger to execute the
+    /// client network join code, with suitable fall-back conditions.
     ///
-    /// \return String with the plain-text password to join the WiFi access point network.
-    
-    String get_password(void)
+    /// \return N/A
+
+    void runLoop(void)
     {
-        String value;
-        if (!logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIPSWD_S, value)) {
-            Serial.println("ERR: failed to get password on module.");
-            value = "UNKNOWN";
-        }
-        return value;
-    }
-    
-    /// Sets the IP address key for the WiFi adapter in NVRAM.  This address is only guaranteed while the WiFi server
-    /// is instantiated, since in theory it could change each time the server is instantiated.  In practice, that's unlikely
-    /// but possible.  Note that this is stored as a simple string rather than attempting to serialise the IP address and
-    /// then reconstruct on recovery.  That means a little more work for the client, but nothing there isn't a library for.
-    ///
-    /// \param address  The IP (v4) address assigned to the server by the soft-AP on boot.
-    
-    void set_address(IPAddress const& address)
-    {
-        if (!logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, address.toString())) {
-            Serial.println("ERR: failed to set WiFI IP address on module.");
-        }
-    }
-    
-    /// Gets the address for the WiFi server from NVRAM.  This value is really only valid when the server is instantiated,
-    /// so an arbitrary read of this could give you something from ancient history.  Note that this is stored as a "dotted
-    /// notation" IP (v4) address.
-    ///
-    /// \return String with the IP (v4) address of the sever.
-    
-    String get_address(void)
-    {
-        String value;
-        if (!logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, value)) {
-            Serial.println("ERR: failed to get WiFi IP address on module.");
-            value = "UNKNOWN";
-        }
-        return value;
-    }
-    
-    /// Sets the mode in which to bring up the interface.  Most WiFi embedded solutions can come up either
-    /// as a client on some other WiFi network, or as an access point ("Soft AP"), making its own network.  The
-    /// default condition is to come up as an AP, but for debug, and in some other applications, it might make
-    /// more sense to come up as a client.
-    ///
-    /// \param  mode    WirelessMode enum to use for the next setup
-    
-    void set_wireless_mode(WirelessMode mode)
-    {
-        String value;
-        if (mode == WirelessMode::ADAPTER_STATION) {
-            value = "Station";
-        } else if (mode == WirelessMode::ADAPTER_SOFTAP) {
-            value = "AP";
-        } else {
-            Serial.println("ERR: unknown wireless adapater mode.");
-            return;
-        }
-        if (!logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFIMODE_S, value)) {
-            Serial.println("ERR: failed to set WiFi adapater mode on module.");
-        }
-    }
-    
-    /// Gets the current configured mode for the WiFi adapter.  By default, the system should come up as an
-    /// access point ("SoftAP") that makes its own network, but can come up as a client on another network
-    /// if required.
-    ///
-    /// \return WirelessMode enum type for the current configuration; returns ADAPTER_SOFTAP by default
-    
-    WirelessMode get_wireless_mode(void)
-    {
-        String          value;
-        WirelessMode    rc;
-        
-        if (!logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIMODE_S, value)) {
-            Serial.println("ERR: failed to get WiFi adapter mode on module.");
-            value = "UNKNOWN";
-        }
-        if (value == "Station")
-            rc = WirelessMode::ADAPTER_STATION;
-        else
-            rc = WirelessMode::ADAPTER_SOFTAP;
-        return rc;
-    }
-    
-    /// Provide a Stream interface for the client (to read/write data).  Use with caution.
-    ///
-    /// \return WiFiClient reference up-cast to Stream.
-    
-    Stream& get_client_stream(void)
-    {
-        return m_client;
+        m_state.StepState();
+        if (m_server != nullptr)
+            m_server->handleClient();
     }
 };
 
@@ -366,17 +474,6 @@ bool WiFiAdapter::Startup(void) { return start(); }
 /// Pass-through implementation to the sub-class code to stop the WiFI adapter.
 void WiFiAdapter::Shutdown(void) { stop(); }
 
-/// Pass-through implementation to the sub-class code to check on whether a client is available.
-///
-/// \return True if there is a client available for connection or already connected.
-bool WiFiAdapter::IsConnected(void) { return isConnected(); }
-
-/// Pass-through implementation to the sub-class code to check for data availability from the client.
-/// This also implicitly demonstrates that there is a client connected.
-///
-/// \return True if there is a client, and data available, otherwise false.
-bool WiFiAdapter::DataAvailable(void) { return dataCount() > 0; }
-
 /// Pass-through implementation to the sub-class code to retrieve the first available string from the client.
 ///
 /// \return String with the latest LF-terminated data from the client.
@@ -386,59 +483,69 @@ String WiFiAdapter::ReceivedString(void) { return readBuffer(); }
 ///
 /// \param filename Name of the log file to be transferred.
 /// \return True if the file was transferred, otherwise false.
-bool WiFiAdapter::TransferFile(String const& filename, uint32_t filesize)
-    { return sendLogFile(filename, filesize); }
+bool WiFiAdapter::TransferFile(String const& filename, uint32_t filesize, logger::Manager::MD5Hash const& filehash)
+    { return sendLogFile(filename, filesize, filehash); }
 
-/// Pass-through implementation to the sub-class code to get the SSID in use for the WiFi adapter.
+/// Pass-through implementation to the sub-class code to accumulate messages
 ///
-/// \return String containing the SSID for the WiFi adapter.
-String WiFiAdapter::GetSSID(void) { return get_ssid(); }
+/// \param message  String for the message to send
+/// \return N/A
+void WiFiAdapter::AddMessage(String const& message) { accumulateMessage(message); }
 
-/// Pass-through implementation to the sub-class code to set the SSID for the WiFi adapter.  The
-/// string passed is not validated in any way, as there is no real standard for what the SSID should
-/// be.  It does, however, have to be a valid String, which means that it can't have any mid-string
-/// null characters, etc.
+/// Pass-through implementation to the sub-class code to set status code
 ///
-/// \param ssid String to use for the SSID.
-void WiFiAdapter::SetSSID(String const& ssid) { return set_ssid(ssid); }
+/// \param status_code  HTTP status code to set
+/// \return N/A
+void WiFiAdapter::SetStatusCode(uint32_t status_code) { setStatusCode(status_code); }
 
-/// Pass-through implementation to the sub-class code to get the password to use for the WiFi adapter.
-/// Since the primary purpose here is to send this password to the client (so it can log in), the string coming
-/// back out of this has to be in plain-text.  That's not great, but it is more or less unavoidable without
-/// significant extra effort.
+/// Pass-through implementation to the sub-class code to transmit all available messages.
+/// This should also complete the transaction from the client's request.
 ///
-/// \return String of the password for the WiFi access point.
-String WiFiAdapter::GetPassword(void) { return get_password(); }
-
-/// Pass-through implementation to the sub-class code to set the password to use for the WiFi adapter.
-/// Whether the password is plain-text or crypt-text is implementation specific in the sub-code.
-///
-/// \param password Password to connect to the WiFi access point.
-void WiFiAdapter::SetPassword(String const& password) { set_password(password); }
-
-/// Pass-through implementation to the sub-class code to get the IP address associated with the
-/// WiFi server.  This is usually set when the server instantiates and the access point is brought up, so this
-/// value should only be relied on once the server is actually running.  The value may be cached, however,
-/// from previous runs; use caution.
-///
-/// \return String (dotted notation) of the IP (v4) address of the server on the access point.
-String WiFiAdapter::GetServerAddress(void) { return get_address(); }
+/// \return True if the messages were transmitted successfully
+bool WiFiAdapter::TransmitMessages(char const* data_type) { return transmitMessages(data_type); }
 
 /// Pass-through implementation to the sub-class code to set the wireless adapter mode.
 ///
 /// \param mode WirelessMode for the adapter on startup
-void WiFiAdapter::SetWirelessMode(WirelessMode mode) { return set_wireless_mode(mode); }
+void WiFiAdapter::SetWirelessMode(WirelessMode mode)
+{
+    String value;
+    if (mode == WirelessMode::ADAPTER_STATION) {
+        value = "Station";
+    } else if (mode == WirelessMode::ADAPTER_SOFTAP) {
+        value = "AP";
+    } else {
+        Serial.println("ERR: unknown wireless adapater mode.");
+        return;
+    }
+    if (!logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFIMODE_S, value)) {
+        Serial.println("ERR: failed to set WiFi adapater mode on module.");
+    }
+}
 
 /// Pass-through implementation to the sub-class code to get the wireless adapter mode.
 ///
 /// \return WirelessMode enum value, using AP as the default
-WiFiAdapter::WirelessMode WiFiAdapter::GetWirelessMode(void) { return get_wireless_mode(); }
+WiFiAdapter::WirelessMode WiFiAdapter::GetWirelessMode(void)
+{
+    String          value;
+    WirelessMode    rc;
+    
+    if (!logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIMODE_S, value)) {
+        Serial.println("ERR: failed to get WiFi adapter mode on module.");
+        value = "UNKNOWN";
+    }
+    if (value == "Station")
+        rc = WirelessMode::ADAPTER_STATION;
+    else
+        rc = WirelessMode::ADAPTER_SOFTAP;
+    return rc;
+}
 
-/// Pass-through implementation to the sub-class code to return a Stream-version of the client attached to
-/// the server, if there is one.
+/// Pass-through implementation to the sub-class to run the processing loop
 ///
-/// \return Reference for a WiFiClient upcast to Stream.
-Stream& WiFiAdapter::Client(void) { return get_client_stream(); }
+/// \return N/A
+void WiFiAdapter::RunLoop(void) { runLoop(); }
 
 /// Create an implementation of the WiFiAdapter interface that's appropriate for the hardware in use
 /// in the current logger module.

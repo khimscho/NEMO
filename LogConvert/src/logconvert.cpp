@@ -302,8 +302,9 @@ int main(int argc, char **argv)
     
     Version n2k(1, 0, 0);
     Version n1k(1, 0, 1);
+    Version imu(1, 0, 0);
     
-    StdSerialiser ser(out, n2k, n1k, logger_name, logger_id);
+    StdSerialiser ser(out, n2k, n1k, imu, logger_name, logger_id);
     
     if (source->IsN2k()) {
         while (source->NextPacket(msg)) {

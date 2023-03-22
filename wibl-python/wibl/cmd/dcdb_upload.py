@@ -53,7 +53,7 @@ def dcdb_upload():
     filename = optargs.input
     
     sourceID = None
-    if hasattr(optargs, 'sourceid'):
+    if hasattr(optargs, 'sourceid') and optargs.sourceid:
         sourceID = optargs.sourceid
     else:
         with open(filename) as f:
@@ -81,7 +81,7 @@ def dcdb_upload():
                 else:
                     sys.exit('Error: unrecognised CSB metadata convention.')
     try:
-        if hasattr(optargs, 'config'):
+        if hasattr(optargs, 'config') and optargs.config:
             config_filename = optargs.config
         else:
             config_filename = get_config_file()
@@ -93,10 +93,10 @@ def dcdb_upload():
     if 'provider_id' in config:
         provider_id = config['provider_id']
     else:
-        if hasattr(optargs, 'provider'):
+        if hasattr(optargs, 'provider') and optargs.provider:
             provider_id = optargs.provider
     provider_auth = None
-    if hasattr(optargs, 'auth'):
+    if hasattr(optargs, 'auth') and optargs.auth:
         auth_filename = optargs.auth
         with open(auth_filename) as f:
             provider_auth = f.readline()

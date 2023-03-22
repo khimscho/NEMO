@@ -30,6 +30,7 @@
 #define __CONFIGURATION_H__
 
 #include <Arduino.h>
+#include "ArduinoJson.h"
 #include "ParamStore.h"
 
 namespace logger {
@@ -60,17 +61,25 @@ class Config {
             CONFIG_MOTION_B,        /* Binary: Motion sensor logging configured on */
             CONFIG_POWMON_B,        /* Binary: Power monitoring configured on */
             CONFIG_SDMMC_B,         /* Binary: SD-MMC (SDIO) interface for log files */
-            CONFIG_BOOT_BLE_B,      /* Binary: Boot the BLE interface on start, or WiFi */
             CONFIG_BRIDGE_B,        /* Binary: Bridge UDP broadcast packets to NMEA0183 */
+            CONFIG_WEBSERVER_B,     /* Binary: Use web server interface to configure system */
             CONFIG_MODULEID_S,      /* String: User-specified unique identifier for the module */
-            CONFIG_BLENAME_S,       /* String: BLE advertising name for the module */
-            CONFIG_WIFISSID_S,      /* String: WiFi SSID to use for AP/Station */
-            CONFIG_WIFIPSWD_S,      /* String: WiFi password to use */
+            CONFIG_SHIPNAME_S,      /* String: User-specific name for the ship hosting the WIBL */
+            CONFIG_AP_SSID_S,       /* String: WiFi SSID for AP */
+            CONFIG_AP_PASSWD_S,     /* String: WiFi password to use for AP */
+            CONFIG_STATION_SSID_S,  /* String: WiFi SSID to use when acting as a station */
+            CONFIG_STATION_PASSWD_S,/* String: WiFi password to use when acting as a station */
             CONFIG_WIFIIP_S,        /* String: WiFi IP address assigned */
             CONFIG_WIFIMODE_S,      /* String: WiFi mode (Station, SoftAP) */
             CONFIG_BAUDRATE_1_S,    /* String: baud rate for NMEA0183 input channel 1 */
             CONFIG_BAUDRATE_2_S,    /* String: baud rate for NMEA0183 input channel 2 */
-            CONFIG_BRIDGE_PORT_S    /* String: UDP broadcast port to bridge to NMEA0183 */
+            CONFIG_BRIDGE_PORT_S,   /* String: UDP broadcast port to bridge to NMEA0183 */
+            CONFIG_STATION_DELAY_S, /* String: delay (seconds) before web-server attempts to re-joint a client network */
+            CONFIG_STATION_RETRIES_S,/* String: retries (int) before web-server reverts to "safe-mode". */
+            CONFIG_STATION_TIMEOUT_S,/* String: delay (seconds) before declaring a WiFi connection attempt failed */
+            CONFIG_WS_STATUS_S,      /* String: status of the configuration web server */
+            CONFIG_WS_BOOTSTATUS_S,  /* String: status of the configuration web server at boot time */
+            CONFIG_DEFAULTS_S        /* String: JSON-format for default "lab reset" parameters */
         };
 
         /// \brief Extract a configuration string for the specified parameter
@@ -91,6 +100,24 @@ class Config {
 };
 
 extern Config LoggerConfig; ///< Declaration of a global pre-allocated instance for lookup
+
+/// \class ConfigJSON
+/// \brief Configuration adapter for JSON-format load/save
+///
+/// The configuration information is typically kept as a simple key-value store in the NVM of
+/// the logger.  Getting that information out to the outside world (either through the serial or
+/// WiFi interfaces, or into a log file) is difficult, however, at least if you want it to have
+/// some sort of useful structure.  This class acts as an adapter to the key-value store so that
+/// it can be packaged as a JSON-structured string (along with some versioning information) to
+/// make external transport simpler.
+
+class ConfigJSON {
+public:
+    /// @brief Generate a serialised JSON dictionary as a String for all of the configuration parameters
+    static String ExtractConfig(bool indent = false, bool secure = false);
+    /// @brief Configure the logger from a serialsed JSON dictionary of the configuration parameters
+    static bool SetConfig(String const& json_string);
+};
 
 }
 

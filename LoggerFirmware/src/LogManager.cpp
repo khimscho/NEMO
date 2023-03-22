@@ -27,6 +27,8 @@
 #include <list>
 #include <stdint.h>
 #include <utility>
+#include "MD5Builder.h"
+#include "SPIFFS.h"
 #include "LogManager.h"
 #include "StatusLED.h"
 #include "MemController.h"
@@ -46,6 +48,143 @@ namespace logger {
 // limits (although you'd have to collect data for quite a file to get to this level).
 
 const int MAX_LOG_FILE_SIZE = 10*1024*1024; ///< Maximum size of a single log file before swapping
+
+Manager::MD5Hash::MD5Hash(void)
+{
+    memset(m_hash, 0, sizeof(uint8_t)*16);
+}
+
+String Manager::MD5Hash::Value(void) const
+{
+    char buffer[33];
+    for (uint32_t i = 0; i < 16; ++i) {
+        sprintf(buffer + i*2, "%02X", m_hash[i]);
+    }
+    buffer[32] = '\0';
+    return String(buffer);
+}
+
+uint8_t const * const Manager::MD5Hash::Hash(void) const
+{
+    return m_hash;
+}
+
+bool Manager::MD5Hash::Empty(void) const
+{
+    for (uint32_t b = 0; b < 16; ++b)
+        if (m_hash[b] != 0) return false;
+    return true;
+}
+
+void Manager::MD5Hash::Set(uint8_t hash[16])
+{
+    memcpy(m_hash, hash, sizeof(uint8_t)*16);
+}
+
+Manager::Inventory::Inventory(Manager *manager, bool verbose)
+: m_logManager(manager), m_verbose(verbose)
+{
+    m_filesize.resize(MaxLogFiles);
+    m_hashes.resize(MaxLogFiles);
+    Reinitialise();
+}
+
+Manager::Inventory::~Inventory(void)
+{
+}
+
+bool Manager::Inventory::Reinitialise(void)
+{
+    uint32_t    filenumbers[MaxLogFiles];
+    uint32_t    filecount = m_logManager->count(filenumbers);
+    String      filename;
+    Manager::MD5Hash emptyhash;
+
+    if (m_verbose)
+        Serial.printf("DBG: Reinitialising Inventory for %u objects.\n", filecount);
+    for (uint32_t entry = 0; entry < MaxLogFiles; ++entry) {
+        m_filesize[entry] = 0;
+        m_hashes[entry] = emptyhash;
+    }
+
+    for (uint32_t f = 0; f < filecount; ++f) {
+        Update(filenumbers[f]);
+    }
+
+    return true;
+}
+
+bool Manager::Inventory::Lookup(uint32_t filenum, uint32_t& filesize, Manager::MD5Hash& hash)
+{
+    if (filenum >= MaxLogFiles) return false;
+    if (m_filesize[filenum] == 0) return false;
+    filesize = m_filesize[filenum];
+    hash = m_hashes[filenum];
+    return true;
+}
+
+bool Manager::Inventory::Update(uint32_t filenum, MD5Hash *filehash)
+{
+    Manager::MD5Hash hash;
+    String filename;
+
+    if (m_verbose)
+        Serial.printf("DBG: Inventory update for file %u.\n", filenum);
+    if (filenum >= MaxLogFiles) return false;
+    m_logManager->enumerate(filenum, filename, m_filesize[filenum]);
+    m_logManager->hash(filename, m_hashes[filenum]);
+    if (m_verbose)
+        Serial.printf("DBG: File |%s|, %u B, hash |%s|.\n", filename.c_str(), m_filesize[filenum], m_hashes[filenum].Value().c_str());
+    if (filehash != nullptr) *filehash = m_hashes[filenum];
+    return true;
+}
+
+void Manager::Inventory::RemoveLogFile(uint32_t filenum)
+{
+    if (filenum >= MaxLogFiles) return;
+    m_filesize[filenum] = 0;
+    m_hashes[filenum] = Manager::MD5Hash();
+}
+
+uint32_t Manager::Inventory::CountLogFiles(uint32_t filenumbers[MaxLogFiles])
+{
+    uint32_t filecount = 0;
+    for (uint32_t entry = 0; entry < MaxLogFiles; ++entry) {
+        if (m_filesize[entry] != 0) {
+            filenumbers[filecount] = entry;
+            ++filecount;
+        }
+    }
+    return filecount;
+}
+
+uint32_t Manager::Inventory::GetNextLogNumber(void)
+{
+    if (m_verbose)
+        SerialiseCache(Serial);
+    for (uint32_t entry = 0; entry < MaxLogFiles; ++entry) {
+        if (m_filesize[entry] == 0) {
+            return entry;
+        }
+    }
+    return 0;
+}
+
+void Manager::Inventory::SerialiseCache(Stream& stream)
+{
+    stream.println("DBG: File Inventory Cache contents:");
+    for (uint32_t entry = 0; entry < MaxLogFiles; ++entry) {
+        if (m_filesize[entry] == 0) continue;
+        stream.printf("[%4u] %8u %s\n", entry, m_filesize[entry], m_hashes[entry].Value().c_str());
+    }
+}
+
+uint32_t Manager::Inventory::Filesize(uint32_t filenum)
+{
+    if (filenum >= MaxLogFiles || m_filesize[filenum] == 0)
+        return 0;
+    return m_filesize[filenum];
+}
 
 #ifdef DEBUG_LOG_MANAGER
 
@@ -227,7 +366,7 @@ void Manager::TransferLogFile(int file_num, Stream& output)
 /// \param led  Pointer to the LED controller for the logger (external owner)
 
 Manager::Manager(StatusLED *led)
-: m_led(led)
+: m_led(led), m_inventory(nullptr)
 {
     m_storage = mem::MemControllerFactory::Create();
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
@@ -249,7 +388,8 @@ Manager::~Manager(void)
 {
     if (m_outputLog)
         m_outputLog.close();
-    
+    if (m_inventory != nullptr)
+        delete m_inventory;
     m_consoleLog.println("INFO: shutting down log manager under control.");
     m_consoleLog.close();
     m_storage->Stop();
@@ -266,9 +406,9 @@ Manager::~Manager(void)
 void Manager::StartNewLog(void)
 {
     Serial.println("Starting new log ...");
-    uint32_t log_num = GetNextLogNumber();
-    Serial.println(String("Log Number: ") + log_num);
-    String filename = MakeLogName(log_num);
+    m_currentFile = GetNextLogNumber();
+    Serial.println(String("Log Number: ") + m_currentFile);
+    String filename = MakeLogName(m_currentFile);
     Serial.println(String("Log Name: ") + filename);
 
     m_outputLog = m_storage->Controller().open(filename, FILE_WRITE);
@@ -302,6 +442,7 @@ void Manager::CloseLogfile(void)
     delete m_serialiser;
     m_serialiser = nullptr;
     m_outputLog.close();
+    if (m_inventory != nullptr) m_inventory->Update(m_currentFile);
 }
 
 /// Remove a specific log file from the SD card.  The specification of the filename, etc.
@@ -320,6 +461,7 @@ bool Manager::RemoveLogFile(uint32_t file_num)
 
     if (rc) {
         m_consoleLog.printf("INFO: erased log file %d by user command.\n", file_num);
+        if (m_inventory != nullptr) m_inventory->RemoveLogFile(file_num);
     } else {
         m_consoleLog.printf("ERR: failed to erase log file %d on user command.\n", file_num);
     }
@@ -334,38 +476,27 @@ bool Manager::RemoveLogFile(uint32_t file_num)
 
 void Manager::RemoveAllLogfiles(void)
 {
-    File basedir = m_storage->Controller().open("/logs");
-    File entry = basedir.openNextFile();
+    uint32_t filenumbers[MaxLogFiles];
 
-    CloseLogfile();  // All means all ...
+    CloseLogfile(); // All means all ...
     
-    long file_count = 0, total_files = 0;
-    
-    while (entry) {
-#if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
-        String filename = entry.name();
-#else
-        String filename = String("/logs/") + entry.name();
-#endif
-        entry.close();
-        ++total_files;
-
+    uint32_t filecount = CountLogFiles(filenumbers);
+    uint32_t files_closed = 0;
+    for (uint32_t f = 0; f < filecount; ++f) {
+        String filename = MakeLogName(filenumbers[f]);
         Serial.printf("INFO: erasing log file: \"%s\".\n", filename.c_str());
-        
-        boolean rc = m_storage->Controller().remove(filename);
+        bool rc = m_storage->Controller().remove(filename);
         if (rc) {
             m_consoleLog.printf("INFO: erased log file \"%s\" by user command.\n", filename.c_str());
-            ++file_count;
+            ++files_closed;
+            if (m_inventory != nullptr) m_inventory->RemoveLogFile(filenumbers[f]);
         } else {
             m_consoleLog.printf("ERR: failed to erase log file \"%s\" by user command.\n", filename.c_str());
         }
-        entry = basedir.openNextFile();
     }
-    basedir.close();
-    m_consoleLog.printf("INFO: erased %ld log files of %ld.\n", file_count, total_files);
+    m_consoleLog.printf("INFO: erased %u log files of %u.\n", files_closed, filecount);
     m_consoleLog.flush();
-
-    StartNewLog();
+    StartNewLog(); // We need to have something running for the logging effort!
 }
 
 /// Count the number of log files on the SD card, so that the client can enumerate them
@@ -374,21 +505,14 @@ void Manager::RemoveAllLogfiles(void)
 /// \param filenumbers  (Out) Array of the log file numbers on card
 /// \return Number of files on the SD card
 
-int Manager::CountLogFiles(int filenumbers[MaxLogFiles])
+uint32_t Manager::CountLogFiles(uint32_t filenumbers[MaxLogFiles])
 {
-    int file_count = 0;
-    
-    File logdir = m_storage->Controller().open("/logs");
-    File entry = logdir.openNextFile();
-    while (entry) {
-        int dot_position = String(entry.name()).indexOf(".");
-        filenumbers[file_count] = String(entry.name()).substring(dot_position+1).toInt();
-        ++file_count;
-        entry.close();
-        entry = logdir.openNextFile();
-    }
-    logdir.close();
-    return file_count;
+    uint32_t filecount;
+    if (m_inventory != nullptr) {
+        filecount = m_inventory->CountLogFiles(filenumbers);
+    } else
+        filecount = count(filenumbers);
+    return filecount;
 }
 
 /// Make a list of all of the files that exist on the SD card in the log directory, along with their
@@ -396,16 +520,22 @@ int Manager::CountLogFiles(int filenumbers[MaxLogFiles])
 ///
 /// \param lognumber  Number of the file to look up
 /// \param filename   Name of the file
-/// \param filesize   Size of the specified file in bytes (or -1 if file doesn't exist)
+/// \param filesize   Size of the specified file in bytes (or 0 if file doesn't exist)
 
-void Manager::EnumerateLogFile(int lognumber, String& filename, int& filesize)
+void Manager::EnumerateLogFile(uint32_t lognumber, String& filename, uint32_t& filesize, MD5Hash& filehash)
 {
     filename = MakeLogName(lognumber);
-    File f = m_storage->Controller().open(filename);
-    if (f) {
-        filesize = f.size();
+
+    if (m_inventory != nullptr) {
+        m_inventory->Lookup(lognumber, filesize, filehash);
     } else {
-        filesize = -1;
+        File f = m_storage->Controller().open(filename);
+        if (f) {
+            filesize = f.size();
+        } else {
+            filesize = 0;
+        }
+        filehash = MD5Hash(); // We're not going to rehash the file just for this!
     }
 }
 
@@ -437,6 +567,21 @@ void Manager::CloseConsole(void)
     m_consoleLog.close();
 }
 
+void Manager::HashFile(uint32_t file_num, MD5Hash& filehash)
+{
+    if (m_inventory != nullptr) {
+        m_inventory->Update(file_num, &filehash);
+    } else {
+        String filename = MakeLogName(file_num);
+        hash(filename, filehash);
+    }
+}
+
+void Manager::AddInventory(bool verbose)
+{
+    m_inventory = new Inventory(this, verbose);
+}
+
 /// Generate a logical file number for the next log file to be written.  This operates
 /// by walking the current log directory counting files that exist until the upper
 /// limit is reached.  The log directory is created if it does not already exist, and any
@@ -459,6 +604,10 @@ uint32_t Manager::GetNextLogNumber(void)
         dir.close();
         m_storage->Controller().remove("/logs");
         m_storage->Controller().mkdir("/logs");
+    }
+
+    if (m_inventory != nullptr) {
+        return m_inventory->GetNextLogNumber();
     }
     
     uint32_t lognum = 0;
@@ -512,7 +661,7 @@ void Manager::DumpConsoleLog(Stream& output)
 /// \param file_num Number of the log file to transfer
 /// \param output   Anything Stream-like that supports the write() interface.
 
-void Manager::TransferLogFile(int file_num, Stream& output)
+void Manager::TransferLogFile(uint32_t file_num, MD5Hash const& filehash, Stream& output)
 {
     String filename(MakeLogName(file_num));
     Serial.println("Transferring file: " + filename);
@@ -520,8 +669,11 @@ void Manager::TransferLogFile(int file_num, Stream& output)
     uint32_t bytes_transferred = 0;
     uint32_t file_size = f.size();
     
-    // We need to send the file size first, so that the other end knows when to stop
+    // We need to send the hash and file size first, so that the other end knows when to stop
     // listening, and go back to ASCII mode.
+    uint32_t hash_size = MD5Hash::ObjectSize();
+    output.write((const uint8_t*)&hash_size, sizeof(uint32_t));
+    output.write(filehash.Hash(), MD5Hash::ObjectSize());
     output.write((const uint8_t*)&file_size, sizeof(uint32_t));
     
     unsigned long start = millis();
@@ -529,13 +681,54 @@ void Manager::TransferLogFile(int file_num, Stream& output)
         output.write(f.read());
         ++bytes_transferred;
         if ((bytes_transferred % 1024) == 0) {
-            Serial.printf("Transferred %d bytes.\n", bytes_transferred);
+            Serial.printf("Transferred %u bytes.\n", bytes_transferred);
         }
     }
     unsigned long end = millis();
     unsigned long duration = (end - start)/1000;
     f.close();
-    Serial.println(String("Sent ") + bytes_transferred + " B in " + duration + "s.");
+    Serial.printf("Sent %u B in %lu s.\n", bytes_transferred, duration);
+}
+
+uint32_t Manager::count(uint32_t filenumbers[MaxLogFiles])
+{
+    uint32_t file_count = 0;
+    File logdir = m_storage->Controller().open("/logs");
+    File entry = logdir.openNextFile();
+
+    while (entry) {
+        int dot_position = String(entry.name()).indexOf(".");
+        filenumbers[file_count] = String(entry.name()).substring(dot_position+1).toInt();
+        ++file_count;
+        entry.close();
+        entry = logdir.openNextFile();
+    }
+    logdir.close();
+    return file_count;
+}
+
+void Manager::enumerate(uint32_t lognumber, String& filename, uint32_t& filesize)
+{
+    filename = MakeLogName(lognumber);
+    File f = m_storage->Controller().open(filename);
+    if (f) {
+        filesize = f.size();
+    } else {
+        filesize = 0;
+    }
+}
+
+void Manager::hash(String const& filename, MD5Hash& hash)
+{
+    MD5Builder md5;
+    File f = m_storage->Controller().open(filename, "r");
+    md5.begin();
+    md5.addStream(f, 2*MAX_LOG_FILE_SIZE);
+    f.close();
+    md5.calculate();
+    uint8_t buffer[16];
+    md5.getBytes(buffer);
+    hash.Set(buffer);
 }
 
 #endif

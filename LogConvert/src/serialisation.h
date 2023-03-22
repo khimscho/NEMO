@@ -30,9 +30,11 @@
 #define __SERIALISATION_H__
 
 #include <stdint.h>
+#include <string>
+#include <memory>
 
 const int SerialiserVersionMajor = 1; ///< Major version number for the serialiser
-const int SerialiserVersionMinor = 0; ///< Minor version number for the serialiser
+const int SerialiserVersionMinor = 3; ///< Minor version number for the serialiser
 
 /// \class Serialisable
 /// \brief Provide encapsulation for data to be written to store
@@ -136,7 +138,7 @@ enum PayloadID {
 class Serialiser {
 public:
     /// \brief Default constructor
-    Serialiser(Version& n2k, Version& n1k, std::string const& logger_name, std::string const& logger_id);
+    Serialiser(Version& n2k, Version& n1k, Version& imu, std::string const& logger_name, std::string const& logger_id);
     
     /// \brief Default destructor
     virtual ~Serialiser(void);
@@ -158,8 +160,8 @@ private:
 class StdSerialiser : public Serialiser {
 public:
     /// \brief Default contructor, simply holding the information for the future
-    StdSerialiser(FILE *f, Version& n2k, Version& n1k, std::string const& logger_name, std::string const& logger_id)
-    : Serialiser(n2k, n1k, logger_name, logger_id), m_file(f) {}
+    StdSerialiser(FILE *f, Version& n2k, Version& n1k, Version& imu, std::string const& logger_name, std::string const& logger_id)
+    : Serialiser(n2k, n1k, imu, logger_name, logger_id), m_file(f) {}
     
 private:
     FILE *m_file;   ///< File pointer through which to serialise

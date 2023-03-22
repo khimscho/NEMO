@@ -35,7 +35,7 @@
 #include "FS.h"
 
 const int SerialiserVersionMajor = 1; ///< Major version number for the serialiser
-const int SerialiserVersionMinor = 2; ///< Minor version number for the serialiser
+const int SerialiserVersionMinor = 3; ///< Minor version number for the serialiser
 
 /// \class Serialisable
 /// \brief Provide encapsulation for data to be written to store
@@ -93,6 +93,8 @@ public:
     Serialiser(File& f);
     /// \brief Write the payload to file, with header block
     bool Process(uint32_t payload_id, Serialisable const& payload);
+
+    static String SoftwareVersion(void);
     
 private:
     File&    m_file;    ///< Reference for the file object to serialise into

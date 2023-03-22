@@ -1,8 +1,8 @@
 setuptools
-boto3==1.22.7
-requests==2.27.1
-numpy==1.22.3
-pynmea2==1.18.0
+boto3>=1.20
+requests>=2
+numpy>=1.20
+pynmea2>=1.18
 pylint==2.12.2
 unittest-xml-reporting==3.2.0
 lxml>=4.6.5

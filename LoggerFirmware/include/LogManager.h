@@ -27,6 +27,7 @@
 #ifndef __LOG_MANAGER_H__
 #define __LOG_MANAGER_H__
 
+#include <vector>
 #include <stdint.h>
 #include <Arduino.h>
 #include "FS.h"
@@ -73,10 +74,23 @@ public:
     void RemoveAllLogfiles(void);
 
     /// \brief Count the number of log files on the system
-    int CountLogFiles(int filenumbers[MaxLogFiles]);
+    uint32_t CountLogFiles(uint32_t filenumbers[MaxLogFiles]);
     
+    class MD5Hash {
+    public:
+        MD5Hash(void);
+        String Value(void) const;
+        uint8_t const * const Hash(void) const;
+        bool Empty(void) const;
+        void Set(uint8_t hash[16]);
+        static uint32_t ObjectSize(void) { return sizeof(uint8_t)*16; }
+    
+    private:
+        uint8_t m_hash[16];
+    };
+
     /// \brief Extract information on a single log file
-    void EnumerateLogFile(int lognumber, String& filename, int& filesize);
+    void EnumerateLogFile(uint32_t lognumber, String& filename, uint32_t& filesize, MD5Hash& filehash);
     
     /// \enum PacketIDs
     /// \brief Symbolic definition for the packet IDs used to serialise the messages from NMEA2000
@@ -97,7 +111,8 @@ public:
         Pkt_JSON = 14,          ///< JSON metadata element to pass on to cloud processing
         Pkt_NMEA0183ID = 15,    ///< Acceptable NMEA0183 sentence ID for filtering
         Pkt_SensorScales = 16,  ///< Scale factors for any sensors that will be recorded raw
-        Pkt_RawIMU = 17         ///< Raw store for logger's on-board IMU
+        Pkt_RawIMU = 17,        ///< Raw store for logger's on-board IMU
+        Pkt_Setup = 18          ///< Setup JSON string for entire configuration
     };
     
     /// \brief Write a packet into the current log file
@@ -112,19 +127,59 @@ public:
     /// \brief Dump console log to serial
     void DumpConsoleLog(Stream& output);
     /// \brief Send a log file to a particular output stream
-    void TransferLogFile(int file_num, Stream& output);
+    void TransferLogFile(uint32_t file_num, MD5Hash const& filehash, Stream& output);
+
+    void HashFile(uint32_t file_num, MD5Hash& hash);
+    void AddInventory(bool verbose = false);
 
 private:
+    /// \class Inventory
+    /// \brief Manage an inventory of the files currently on the SD card
+    ///
+    /// Although it is possible to keep track of log files by trawling the file system, this can be
+    /// relatively expensive if there are lots of files on the logger.  In order to speed things up,
+    /// this object can be used to maintain a cache of the files on the logger, listing their size and
+    /// MD5 checksum.
+
+    class Inventory {
+    public:
+        Inventory(Manager *manager, bool verbose = false);
+        ~Inventory(void);
+
+        bool Reinitialise(void);
+        bool Lookup(uint32_t filenum, uint32_t& filesize, MD5Hash& hash);
+        bool Update(uint32_t filenum, MD5Hash *hash = nullptr);
+        void RemoveLogFile(uint32_t filenum);
+        uint32_t CountLogFiles(uint32_t filenumbers[MaxLogFiles]);
+        uint32_t GetNextLogNumber(void);
+        uint32_t Filesize(uint32_t filenum);
+
+        void SerialiseCache(Stream& stream);
+
+    private:
+        Manager                 *m_logManager;
+        bool                    m_verbose;
+        std::vector<uint32_t>   m_filesize;
+        std::vector<MD5Hash>    m_hashes;
+    };
     mem::MemController  *m_storage; ///< Controller for the storage to use
     File        m_consoleLog;       ///< File on which to write console information
     File        m_outputLog;        ///< Current output log file on the SD card
+    uint32_t    m_currentFile;      ///< Filenumber of the currently open file
     Serialiser  *m_serialiser;      ///< Object to handle serialisation of data
     StatusLED   *m_led;             ///< Pointer for status (data event) handling
+    Inventory   *m_inventory;       ///< Cache for file information, if available
     
     /// \brief Find the next log number in sequence that doesn't already exist
     uint32_t GetNextLogNumber(void);
     /// \brief Make a filename for the given log file number
     String  MakeLogName(uint32_t lognum);
+    /// \brief Count the number of log files on the system
+    uint32_t count(uint32_t filenumbers[MaxLogFiles]);
+    /// \brief Extract information on a single log file
+    void enumerate(uint32_t lognumber, String& filename, uint32_t& filesize);
+    /// \brief Generate a hash for a given file 
+    void hash(String const& filename, MD5Hash& hash);
 };
 
 }

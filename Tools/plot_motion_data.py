@@ -23,9 +23,8 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
-from distutils.log import Log
 import sys
-import LoggerFile
+import wibl.core.logger_file as LoggerFile
 import matplotlib.pyplot as plt
 import numpy as np
 

@@ -29,6 +29,7 @@
 #include "serialisation.h"
 #include "N2kLogger.h"
 #include "N0183Logger.h"
+#include "IMULogger.h"
 #include "Configuration.h"
 
 /// Constructor for a serialisable buffer of data.  The buffer is allocated to the \a size_hint but
@@ -191,7 +192,7 @@ Serialiser::Serialiser(File& file)
 {
     uint16_t major, minor, patch;
     
-    Serialisable version(16);
+    Serialisable version(22);
     
     version += (uint16_t)SerialiserVersionMajor;
     version += (uint16_t)SerialiserVersionMinor;
@@ -205,12 +206,17 @@ Serialiser::Serialiser(File& file)
     version += major;
     version += minor;
     version += patch;
-    
+
+    imu::Logger::SoftwareVersion(major, minor, patch);
+    version += major;
+    version += minor;
+    version += patch;
+
     rawProcess(0, version);
 
     Serialisable meta(255);
     String name, identifier;
-    logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_WIFISSID_S, name);
+    logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_SHIPNAME_S, name);
     logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_MODULEID_S, identifier);
     meta += name.length();
     meta += name.c_str();
@@ -218,6 +224,13 @@ Serialiser::Serialiser(File& file)
     meta += identifier.c_str();
 
     rawProcess(logger::Manager::PacketIDs::Pkt_Metadata, meta);
+
+    Serialisable setup(1024);
+    String json_setup = logger::ConfigJSON::ExtractConfig(false, true);
+    setup += json_setup.length();
+    setup += json_setup.c_str();
+
+    rawProcess(logger::Manager::PacketIDs::Pkt_Setup, setup);
 }
 
 /// Private method to actually write the buffer to file.  This avoids cross-checks on the payload ID
@@ -253,4 +266,9 @@ bool Serialiser::Process(uint32_t payload_id, Serialisable const& payload)
     }
     
     return rawProcess(payload_id, payload);
+}
+
+String Serialiser::SoftwareVersion(void)
+{
+    return String(SerialiserVersionMajor) + "." + String(SerialiserVersionMinor);
 }

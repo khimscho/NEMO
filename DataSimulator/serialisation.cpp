@@ -196,6 +196,10 @@ Serialiser::Serialiser(FILE *file)
     version += minor;
     version += patch;
     
+    version += major;
+    version += minor;
+    version += patch;
+
     rawProcess(0, version);
 	
 	Serialisable meta(255);
