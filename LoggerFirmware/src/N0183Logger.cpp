@@ -394,6 +394,12 @@ void Logger::ProcessMessages(void)
                 }
                 continue;
             }
+            if (!sentence->Valid()) {
+                if (m_verbose) {
+                    Serial.printf("DBG: rejecting |%s| because it is invalid.\n", sentence->Contents());
+                }
+                continue;
+            }
             if (m_verbose) {
                 Serial.printf("DBG: logging \"%s\"\n", sentence->Contents());
             }
