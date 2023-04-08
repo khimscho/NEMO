@@ -50,6 +50,9 @@ wibl_file_version_minor = 3
 def wibl_file_version() -> str:
     return f'{wibl_file_version_major}.{wibl_file_version_minor}'
 
+def numeric_file_version(major: int, minor: int) -> int:
+    return major*1000 + minor
+
 ## Enumeration of the identification numbers associated with the various packets in a WIBL file
 class PacketTypes(Enum):
     ## Version information for the logger's file construction code, and the NMEA2000 and NMEA0183 loggers
@@ -1061,8 +1064,20 @@ class SerialiserVersion(DataPacket):
             self.data_constructor(**kwargs)
 
     def buffer_constructor(self, buffer: bytes) -> None:
-        (major, minor, n2000_major, n2000_minor, n2000_patch, n0183_major, n0183_minor, n0183_patch, imu_major, imu_minor, imu_patch) = \
-            struct.unpack('<HHHHHHHHHHH', buffer)
+        base = 0
+        (major, minor) = struct.unpack_from('<HH', buffer, base)
+        base += 4
+        if numeric_file_version(major, minor) < numeric_file_version(wibl_file_version_major, wibl_file_version_minor):
+            # Dealing with an older version of the file format, which means that we have slight
+            # differences in the rest of the buffer, and have to fake some of the data.
+            (n2000_major, n2000_minor, n2000_patch, n0183_major, n0183_minor, n0183_patch) = \
+                struct.unpack_from('<HHHHHH', buffer, base)
+            imu_major = 0
+            imu_minor = 0
+            imu_patch = 0
+        else:
+            (n2000_major, n2000_minor, n2000_patch, n0183_major, n0183_minor, n0183_patch, imu_major, imu_minor, imu_patch) = \
+                struct.unpack_from('<HHHHHHHHHHH', buffer, base)
         ## Major software version for the serialiser code
         self.major = major
         ## Minor software version for the serialiser code
