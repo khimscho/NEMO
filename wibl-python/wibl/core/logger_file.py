@@ -1077,7 +1077,7 @@ class SerialiserVersion(DataPacket):
             imu_patch = 0
         else:
             (n2000_major, n2000_minor, n2000_patch, n0183_major, n0183_minor, n0183_patch, imu_major, imu_minor, imu_patch) = \
-                struct.unpack_from('<HHHHHHHHHHH', buffer, base)
+                struct.unpack_from('<HHHHHHHHH', buffer, base)
         ## Major software version for the serialiser code
         self.major = major
         ## Minor software version for the serialiser code
