@@ -67,7 +67,7 @@ class TestDataGenerator(unittest.TestCase):
         # Major version in bytes 7-8, equals 1
         self.assertEqual(1, struct.unpack('<H', buff[8:10])[0])
         # Minor version in bytes 9-10, equals 0
-        self.assertEqual(0, struct.unpack('<H', buff[10:12])[0])
+        self.assertEqual(3, struct.unpack('<H', buff[10:12])[0])
         # NMEA2000 major version in bytes 11-12, equals 1
         self.assertEqual(1, struct.unpack('<H', buff[12:14])[0])
         # NMEA2000 minor version in bytes 13-14, equals 0
