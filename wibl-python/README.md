@@ -14,6 +14,12 @@ pip install -r requirements-build.txt
 pytest -n 4 --cov=wibl --cov-branch --cov-report=xml --junitxml=test-results.xml tests/unit/*.py
 ```
 
+To run integration tests exercising much of the functionality of the `wibl` command line tool 
+(except for file upload to S3 and submission DCDB):
+```
+bash ./tests/integration/test_wibl.bash
+```
+
 ## Usage
 ```
 ]$ wibl --help
@@ -69,6 +75,16 @@ Add platform metadata to existing binary WIBL file (e.g., from data simulator or
 ```
 $ wibl editwibl -m sensor-inject.json test.bin test-inject.bin
 ```
+
+### Procee WIBL file into GeoJSON
+Convert a binary WIBL file into GeoJSON:
+```
+$ wibl procwibl -c tests/fixtures/configure.local.json test-inject.bin test-inject.geojson
+```
+
+> Note: It is necessary to supply a configuration JSON file with the `local` attribute
+> set to `true`, such as `tests/fixtures/configure.local.json`, because `procwibl` uses
+> the same code as the conversion processing lambda code run in the cloud.
 
 ### Upload WIBL files into AWS S3 Buckets for processing
 Instead of using the mobile app (and for testing), WIBL binary files can be uploaded into a given S3 bucket to trigger processing.  If the file is being uploaded into the staging bucket (i.e., to test transfer to DCDB), a '.json' extension must be added (``-j|--json``), and the SourceID tag must be set (``-s|--source``) so that the submission Lambda can find this information.
