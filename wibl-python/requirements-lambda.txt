@@ -1,3 +1,4 @@
 setuptools
 requests>=2
 pynmea2>=1.18
+csbschema~=1.0.4

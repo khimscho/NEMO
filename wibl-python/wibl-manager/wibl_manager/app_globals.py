@@ -26,9 +26,13 @@
 # WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
 # OR OTHER DEALINGS IN THE SOFTWARE.
+import os
+
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 
+MANAGER_DATABASE_URI = os.environ.get('MANAGER_DATABASE_URI', 'sqlite:///database.db')
+
 app = Flask('WIBL-Manager')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = MANAGER_DATABASE_URI
 db = SQLAlchemy(app)

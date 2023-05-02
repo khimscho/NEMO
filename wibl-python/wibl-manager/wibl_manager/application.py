@@ -33,21 +33,23 @@
 from flask_restful import Api
 from typing import NoReturn
 
-from app_globals import app, db
-from wibl_data import WIBLData
-from geojson_data import GeoJSONData
-from heartbeat import Heartbeat
+from wibl_manager.app_globals import app, db
+from wibl_manager.wibl_data import WIBLData
+from wibl_manager.geojson_data import GeoJSONData
+from wibl_manager.heartbeat import Heartbeat
 
-#with app.app_context():
-#    db.create_all()
+with app.app_context():
+    db.create_all()
 
 api = Api(app)
 api.add_resource(WIBLData, '/wibl/<string:fileid>')
 api.add_resource(GeoJSONData, '/geojson/<string:fileid>')
 api.add_resource(Heartbeat, '/heartbeat')
 
+
 def main() -> NoReturn:
     app.run(debug=True)
+
 
 if __name__ == "__main__":
     main()

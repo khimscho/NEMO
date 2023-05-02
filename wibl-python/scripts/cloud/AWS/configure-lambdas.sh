@@ -6,120 +6,161 @@
 
 source configuration-parameters.sh
 
+# Specify the URL for the management console component.  Leave empty if you don't want
+# to run the management console.
+# TODO: This would probably be better generated automatically based on the provider ID
+# and some sensible default for URL of the server.
+# TODO: Having this set to a value rather than being empty should be the trigger to
+# package and deploy the management server container.
+MANAGEMENT_URL=http://"$(cat ${WIBL_BUILD_LOCATION}/create_elb.json | jq -r '.LoadBalancers[0].DNSName')"/
+
+LAMBDA_SUBNETS="$(cat ${WIBL_BUILD_LOCATION}/create_subnet_private.txt)"
+LAMBDA_SECURITY_GROUP="$(cat ${WIBL_BUILD_LOCATION}/create_security_group_private.json | jq -r '.GroupId')"
+
 ####################
 # Phase 1: Package up the WIBL software
 #
-
-echo $'\e[31mBuilding the WIBL package from' ${WIBL_SRC_LOCATION} $'...\e[0m'
-
-cat >package-setup.sh <<-HERE
-cd /build
-pip install --target ./package -r requirements-lambda.txt
-pip install --target ./package --no-deps .
-HERE
-
-# Remove any previous packaging attempt, so it doesn't try to update what's there already
-rm -r ${WIBL_SRC_LOCATION}/package
-
-# Package up the WIBL software so that it can be deployed as a ZIP file
-cat package-setup.sh | \
-    docker run --mount type=bind,source=${WIBL_SRC_LOCATION},target=/build \
-	    -i --entrypoint /bin/bash public.ecr.aws/lambda/python:${PYTHONVERSION}-${ARCHITECTURE}
-
-# You may not be able to run these commands inside the docker container, since the
-# AWS container doesn't have ZIP.  If that's the case, there should be a ./package
-# directory in your WIBL distribution (from the container); zip the internals of that
-# instead.
-WIBL_PACKAGE=${WIBL_BIN_LOCATION}/wibl-package-py${PYTHONVERSION}-${ARCHITECTURE}.zip
-rm -rf ${WIBL_PACKAGE}
-(cd ${WIBL_SRC_LOCATION}/package;
-zip -q -r ${WIBL_PACKAGE} .)
-
-# Clean up packaging attempt so that it doesn't throw off source code control tools
-rm -r ${WIBL_SRC_LOCATION}/package
+./build-lambda.sh || exit $?
 
 #####################
-# Phase 2: Generate IAM roles for the processing and submission roles, add policy support
+# Phase 2: Generate IAM roles for the conversion and submission roles, add policy support
 #
+echo $'\e[31mBuilding the IAM roles for lambdas ...\e[0m'
 
-echo $'\e[31mBuilding the IAM roles for processing,' ${PROCESSING_LAMBDA_ROLE} $', and submission,' ${SUBMISSION_LAMBDA_ROLE} $', lambdas ...\e[0m'
-
-cat >trust-policy.json <<-HERE
+cat > "${WIBL_BUILD_LOCATION}/lambda-trust-policy.json" <<-HERE
 {
-        "Version":      "2012-10-17",
-        "Statement":    [
-                {
-                        "Effect": "Allow",
-                        "Principal": {
-                                "Service": ["lambda.amazonaws.com"]
-                        },
-                        "Action": "sts:AssumeRole"
-                }
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": [
+          "lambda.amazonaws.com"
         ]
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
 }
 HERE
 
-# Generate roles that allow trust for Lambdas, one each for processing & submission
-aws iam create-role \
-	--role-name ${PROCESSING_LAMBDA_ROLE} \
-	--assume-role-policy-document file://trust-policy.json
-aws iam create-role \
+# Generate roles that allow lambdas to assume its execution role, one each for conversion, validation, submission,
+# and conversion start
+aws --region ${AWS_REGION} iam create-role \
+	--role-name ${CONVERSION_LAMBDA_ROLE} \
+	--assume-role-policy-document file://"${WIBL_BUILD_LOCATION}/lambda-trust-policy.json"
+test_aws_cmd_success $?
+
+aws --region ${AWS_REGION} iam create-role \
+	--role-name ${VALIDATION_LAMBDA_ROLE} \
+	--assume-role-policy-document file://"${WIBL_BUILD_LOCATION}/lambda-trust-policy.json"
+test_aws_cmd_success $?
+
+aws --region ${AWS_REGION} iam create-role \
 	--role-name ${SUBMISSION_LAMBDA_ROLE} \
-	--assume-role-policy-document file://trust-policy.json
+	--assume-role-policy-document file://"${WIBL_BUILD_LOCATION}/lambda-trust-policy.json"
+test_aws_cmd_success $?
+
+aws --region ${AWS_REGION} iam create-role \
+	--role-name ${CONVERSION_START_LAMBDA_ROLE} \
+	--assume-role-policy-document file://"${WIBL_BUILD_LOCATION}/lambda-trust-policy.json"
+test_aws_cmd_success $?
 
 # Attach the ability to run Lambdas to these roles
-aws iam attach-role-policy \
-	--role-name ${PROCESSING_LAMBDA_ROLE} \
-	--policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-aws iam attach-role-policy \
+aws --region ${AWS_REGION} iam attach-role-policy \
+	--role-name ${CONVERSION_LAMBDA_ROLE} \
+	--policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole || exit $?
+
+aws --region ${AWS_REGION} iam attach-role-policy \
+	--role-name ${VALIDATION_LAMBDA_ROLE} \
+	--policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole || exit $?
+
+aws --region ${AWS_REGION} iam attach-role-policy \
 	--role-name ${SUBMISSION_LAMBDA_ROLE} \
-	--policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+	--policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole || exit $?
+
+aws --region ${AWS_REGION} iam attach-role-policy \
+	--role-name ${CONVERSION_START_LAMBDA_ROLE} \
+	--policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole || exit $?
+
+# Create policy to allow lambdas to join our VPC
+# Define policy
+cat > "${WIBL_BUILD_LOCATION}/lambda-nic-policy.json" <<-HERE
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeNetworkInterfaces",
+        "ec2:CreateNetworkInterface",
+        "ec2:DeleteNetworkInterface",
+        "ec2:DescribeInstances",
+        "ec2:AttachNetworkInterface"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+HERE
+
+# Create policy
+aws --region ${AWS_REGION} iam create-policy \
+  --policy-name 'Lambda-VPC' \
+  --policy-document file://"${WIBL_BUILD_LOCATION}/lambda-nic-policy.json" \
+  | tee "${WIBL_BUILD_LOCATION}/create_lambda_nic_policy.json"
+
+# Attach policy to lambda execution roles
+aws --region ${AWS_REGION} iam attach-role-policy \
+  --role-name ${CONVERSION_LAMBDA_ROLE} \
+  --policy-arn "$(cat ${WIBL_BUILD_LOCATION}/create_lambda_nic_policy.json | jq -r '.Policy.Arn')" \
+  | tee "${WIBL_BUILD_LOCATION}/attach_role_policy_lamda_nic_conversion.json"
+
+aws --region ${AWS_REGION} iam attach-role-policy \
+  --role-name ${VALIDATION_LAMBDA_ROLE} \
+  --policy-arn "$(cat ${WIBL_BUILD_LOCATION}/create_lambda_nic_policy.json | jq -r '.Policy.Arn')" \
+  | tee "${WIBL_BUILD_LOCATION}/attach_role_policy_lamda_nic_validation.json"
+
+aws --region ${AWS_REGION} iam attach-role-policy \
+  --role-name ${SUBMISSION_LAMBDA_ROLE} \
+  --policy-arn "$(cat ${WIBL_BUILD_LOCATION}/create_lambda_nic_policy.json | jq -r '.Policy.Arn')" \
+  | tee "${WIBL_BUILD_LOCATION}/attach_role_policy_lamda_nic_submission.json"
+
+aws --region ${AWS_REGION} iam attach-role-policy \
+  --role-name ${CONVERSION_START_LAMBDA_ROLE} \
+  --policy-arn "$(cat ${WIBL_BUILD_LOCATION}/create_lambda_nic_policy.json | jq -r '.Policy.Arn')" \
+  | tee "${WIBL_BUILD_LOCATION}/attach_role_policy_lamda_nic_conversion_start.json"
 
 echo $'\e[31mWaiting for 10 seconds to allow roles to propagate ...\e[0m'
 sleep 10
 
 ########################
-# Phase 3: Generate the processing lambda, and configure it to trigger from the S3 incoming bucket
-#
-# Create the processing lambda
-
-echo $'\e[31mGenerating the processing lambda as' ${PROCESSING_LAMBDA} $'...\e[0m'
-
-aws lambda create-function \
-    --function-name ${PROCESSING_LAMBDA} \
-	--role arn:aws:iam::${ACCOUNT_NUMBER}:role/${PROCESSING_LAMBDA_ROLE} \
+# Phase 3: Generate the conversion lambda, and configure it to trigger from the conversion SNS topic, which gets
+# notifications from S3 upon upload to the incoming bucket.
+# Create the conversion lambda
+echo $'\e[31mGenerating conversion lambda...\e[0m'
+aws --region ${AWS_REGION} lambda create-function \
+  --function-name ${CONVERSION_LAMBDA} \
+  --no-cli-pager \
+	--role arn:aws:iam::${ACCOUNT_NUMBER}:role/${CONVERSION_LAMBDA_ROLE} \
 	--runtime python${PYTHONVERSION} \
-    --timeout ${LAMBDA_TIMEOUT} \
-    --memory-size ${LAMBDA_MEMORY} \
+  --timeout ${LAMBDA_TIMEOUT} \
+  --memory-size ${LAMBDA_MEMORY} \
 	--handler wibl.processing.cloud.aws.lambda_function.lambda_handler \
 	--zip-file fileb://${WIBL_PACKAGE} \
 	--architectures ${ARCHITECTURE} \
 	--layers ${SCIPY_LAYER_NAME} \
-	--environment "Variables={PROVIDER_ID=${DCDB_PROVIDER_ID},STAGING_BUCKET=${STAGING_BUCKET},UPLOAD_POINT=${DCDB_UPLOAD_URL}}"
+	--vpc-config "SubnetIds=${LAMBDA_SUBNETS},SecurityGroupIds=${LAMBDA_SECURITY_GROUP}" \
+	--environment "Variables={NOTIFICATION_ARN=${TOPIC_ARN_VALIDATION},PROVIDER_ID=${DCDB_PROVIDER_ID},STAGING_BUCKET=${STAGING_BUCKET},UPLOAD_POINT=${DCDB_UPLOAD_URL},MANAGEMENT_URL=${MANAGEMENT_URL}}" \
+	| tee "${WIBL_BUILD_LOCATION}/create_lambda_conversion.json"
 
-# We now have to configure the processing lambda to take events from the incoming S3 bucket,
-# and for uploads to that bucket to trigger the lambda
-UUID=`uuidgen`
-cat >bucket-notification-cfg.json <<-HERE
-{
-    "LambdaFunctionConfigurations": [
-        {
-            "Id": "${UUID}",
-            "LambdaFunctionArn": "arn:aws:lambda:${AWS_REGION}:${ACCOUNT_NUMBER}:function:${PROCESSING_LAMBDA}",
-            "Events": [
-                "s3:ObjectCreated:Put",
-                "s3:ObjectCreated:CompleteMultipartUpload"
-            ]
-        }
-    ]
-}
-HERE
-cat >lambda-s3-access.json <<-HERE
+echo $'\e[31mConfiguring S3 access policy so that conversion lambda can access S3 incoming and staging buckets...\e[0m'
+cat > "${WIBL_BUILD_LOCATION}/lambda-s3-access-all.json" <<-HERE
 {
     "Version": "2012-10-17",
     "Statement": [
         {
-            "Sid": "LambdaAllowS3Access",
+            "Sid": "LambdaAllowS3AccessAll",
             "Effect": "Allow",
             "Action": [
                 "s3:*"
@@ -134,70 +175,69 @@ cat >lambda-s3-access.json <<-HERE
     ]
 }
 HERE
+aws --region ${AWS_REGION} iam put-role-policy \
+	--role-name "${CONVERSION_LAMBDA_ROLE}" \
+	--policy-name lambda-s3-access-all \
+	--policy-document file://"${WIBL_BUILD_LOCATION}/lambda-s3-access-all.json" || exit $?
 
-echo $'\e[31mAdding permissions to the processing lambda for S3 invocation ...\e[0m'
-
-aws lambda add-permission \
-    --function-name ${PROCESSING_LAMBDA} \
+echo $'\e[31mAdding permissions to the conversion lambda for invocation from SNS topic...\e[0m'
+aws --region ${AWS_REGION} lambda add-permission \
+  --function-name "${CONVERSION_LAMBDA}" \
 	--action lambda:InvokeFunction \
 	--statement-id s3invoke \
-	--principal s3.amazonaws.com \
-	--source-arn arn:aws:s3:::${INCOMING_BUCKET} \
-	--source-account ${ACCOUNT_NUMBER}
+	--principal sns.amazonaws.com \
+	--source-arn "${TOPIC_ARN_CONVERSION}" \
+	--source-account "${ACCOUNT_NUMBER}" || exit $?
 
-echo $'\e[31mWaiting 5 seconds for lambda creation to complete ...\e[0m'
-sleep 5
-
-echo $'\e[31mAdding bucket notification trigger to' ${INCOMING_BUCKET} $'for processing lambda ...\e[0m'
-
-aws s3api put-bucket-notification-configuration \
-	--bucket ${INCOMING_BUCKET} \
-	--notification-configuration file://bucket-notification-cfg.json
-
-echo $'\e[31mConfiguring S3 access policy to the role so that lambda can access S3 incoming bucket ...\e[0m'
-
-aws iam put-role-policy \
-	--role-name ${PROCESSING_LAMBDA_ROLE} \
-	--policy-name lambda-s3-access \
-	--policy-document file://lambda-s3-access.json
-
-exit 0
-
-########################
-# Phase 4: Generate the submission lambda, and configure it to trigger from the S3 staging bucket
-#
-# Create the submission bucket
-aws lambda create-function \
-	--function-name ${SUBMISSION_LAMBDA} \
-	--role arn:aws:iam::${ACCOUNT_NUMBER}:role/${SUBMISSION_LAMBDA_ROLE} \
-	--runtime python${PYTHONVERSION} \
-    --timeout ${LAMBDA_TIMEOUT} \
-    --memory-size ${LAMBDA_MEMORY} \
-	--handler wibl.submission.cloud.aws.lambda_function.lambda_handler \
-	--zip-file fileb://${WIBL_PACKAGE} \
-	--environment "Variables={PROVIDER_ID=${DCDB_PROVIDER_ID},PROVIDER_AUTH=${DCDB_AUTH_KEY},STAGING_BUCKET=${STAGING_BUCKET},UPLOAD_POINT=${DCDB_UPLOAD_URL}}"
-
-UUID=`uuidgen`
-cat >bucket-notification-cfg.json <<-HERE
+echo $'\e[31mConfiguring SNS access policy so that conversion lambda can publish to' ${TOPIC_NAME_VALIDATION} $'...\e[0m'
+cat > "${WIBL_BUILD_LOCATION}/lambda-sns-access-validation.json" <<-HERE
 {
-    "LambdaFunctionConfigurations": [
+    "Version": "2012-10-17",
+    "Statement": [
         {
-            "Id": "${UUID}",
-            "LambdaFunctionArn": "arn:aws:lambda:${AWS_REGION}:${ACCOUNT_NUMBER}:function:${SUBMISSION_LAMBDA}",
-            "Events": [
-                "s3:ObjectCreated:Put",
-                "s3:ObjectCreated:CompleteMultipartUpload"
+            "Sid": "LambdaAllowSNSAccessValidation",
+            "Effect": "Allow",
+            "Action": [
+                "sns:Publish"
+            ],
+            "Resource": [
+                "${TOPIC_ARN_VALIDATION}"
             ]
         }
     ]
 }
 HERE
-cat >lambda-s3-access.json <<-HERE
+aws --region ${AWS_REGION} iam put-role-policy \
+	--role-name "${CONVERSION_LAMBDA_ROLE}" \
+	--policy-name lambda-conversion-sns-access-validation \
+	--policy-document file://"${WIBL_BUILD_LOCATION}/lambda-sns-access-validation.json" || exit $?
+
+########################
+# Phase 4: Generate the validation lambda, and configure it to trigger from the validation SNS topic.
+# Create the conversion lambda
+echo $'\e[31mGenerating conversion lambda...\e[0m'
+aws --region ${AWS_REGION} lambda create-function \
+  --function-name ${VALIDATION_LAMBDA} \
+  --no-cli-pager \
+	--role arn:aws:iam::${ACCOUNT_NUMBER}:role/${VALIDATION_LAMBDA_ROLE} \
+	--runtime python${PYTHONVERSION} \
+  --timeout ${LAMBDA_TIMEOUT} \
+  --memory-size ${LAMBDA_MEMORY} \
+	--handler wibl.validation.cloud.aws.lambda_function.lambda_handler \
+	--zip-file fileb://${WIBL_PACKAGE} \
+	--architectures ${ARCHITECTURE} \
+	--layers ${SCIPY_LAYER_NAME} \
+	--vpc-config "SubnetIds=${LAMBDA_SUBNETS},SecurityGroupIds=${LAMBDA_SECURITY_GROUP}" \
+	--environment "Variables={NOTIFICATION_ARN=${TOPIC_ARN_SUBMISSION},PROVIDER_ID=${DCDB_PROVIDER_ID},STAGING_BUCKET=${STAGING_BUCKET},UPLOAD_POINT=${DCDB_UPLOAD_URL},MANAGEMENT_URL=${MANAGEMENT_URL}}" \
+	| tee "${WIBL_BUILD_LOCATION}/create_lambda_validation.json"
+
+echo $'\e[31mConfiguring S3 access policy so that conversion lambda can access S3 staging buckets...\e[0m'
+cat > "${WIBL_BUILD_LOCATION}/lambda-s3-access-staging.json" <<-HERE
 {
     "Version": "2012-10-17",
     "Statement": [
         {
-            "Sid": "LambdaAllowS3Access",
+            "Sid": "LambdaAllowS3AccessStaging",
             "Effect": "Allow",
             "Action": [
                 "s3:*"
@@ -210,20 +250,269 @@ cat >lambda-s3-access.json <<-HERE
     ]
 }
 HERE
+aws --region ${AWS_REGION} iam put-role-policy \
+	--role-name "${VALIDATION_LAMBDA_ROLE}" \
+	--policy-name lambda-s3-access-staging \
+	--policy-document file://"${WIBL_BUILD_LOCATION}/lambda-s3-access-staging.json" || exit $?
 
-aws lambda add-permission \
-    --function-name ${SUBMISSION_LAMBDA} \
+echo $'\e[31mAdding permissions to the validation lambda for invocation from SNS topic...\e[0m'
+aws --region ${AWS_REGION} lambda add-permission \
+  --function-name "${VALIDATION_LAMBDA}" \
 	--action lambda:InvokeFunction \
 	--statement-id s3invoke \
-	--principal s3.amazonaws.com \
-	--source-arn arn:aws:s3:::${STAGING_BUCKET} \
-	--source-account ${ACCOUNT_NUMBER}
+	--principal sns.amazonaws.com \
+	--source-arn "${TOPIC_ARN_VALIDATION}" \
+	--source-account "${ACCOUNT_NUMBER}" || exit $?
 
-aws s3api put-bucket-notification-configuration \
-	--bucket ${STAGING_BUCKET} \
-	--notification-configuration file://bucket-notification-cfg.json
+echo $'\e[31mConfiguring SNS access policy so that validation lambda can publish to' ${TOPIC_NAME_SUBMISSION} $'...\e[0m'
+cat > "${WIBL_BUILD_LOCATION}/lambda-sns-access-submission.json" <<-HERE
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "LambdaAllowSNSAccessSubmission",
+            "Effect": "Allow",
+            "Action": [
+                "sns:Publish"
+            ],
+            "Resource": [
+                "${TOPIC_ARN_SUBMISSION}"
+            ]
+        }
+    ]
+}
+HERE
+aws --region ${AWS_REGION} iam put-role-policy \
+	--role-name "${VALIDATION_LAMBDA_ROLE}" \
+	--policy-name lambda-conversion-sns-access-submission \
+	--policy-document file://"${WIBL_BUILD_LOCATION}/lambda-sns-access-submission.json" || exit $?
 
-aws iam put-role-policy \
-	--role-name ${SUBMISSION_LAMBDA_ROLE} \
-	--policy-name lambda-s3-access \
-	--policy-document file://lambda-s3-access.json
+########################
+# Phase 5: Generate the submission lambda, and configure it to trigger from the submission SNS topic
+# TODO: PROVIDER_AUTH should be encrypted secrets, not an environment variable
+# Create the submission bucket
+echo $'\e[31mGenerating submission lambda...\e[0m'
+aws --region ${AWS_REGION} lambda create-function \
+	--function-name ${SUBMISSION_LAMBDA} \
+	--no-cli-pager \
+	--role arn:aws:iam::${ACCOUNT_NUMBER}:role/${SUBMISSION_LAMBDA_ROLE} \
+	--runtime python${PYTHONVERSION} \
+  --timeout ${LAMBDA_TIMEOUT} \
+  --memory-size ${LAMBDA_MEMORY} \
+	--handler wibl.submission.cloud.aws.lambda_function.lambda_handler \
+	--zip-file fileb://${WIBL_PACKAGE} \
+	--vpc-config "SubnetIds=${LAMBDA_SUBNETS},SecurityGroupIds=${LAMBDA_SECURITY_GROUP}" \
+	--environment "Variables={NOTIFICATION_ARN=${TOPIC_ARN_SUBMITTED},PROVIDER_ID=${DCDB_PROVIDER_ID},PROVIDER_AUTH=${AUTHKEY},STAGING_BUCKET=${STAGING_BUCKET},UPLOAD_POINT=${DCDB_UPLOAD_URL},MANAGEMENT_URL=${MANAGEMENT_URL}}" \
+	| tee "${WIBL_BUILD_LOCATION}/create_lambda_submission.json"
+
+echo $'\e[31mConfiguring S3 access policy so that submission lambda can access S3 staging bucket...\e[0m'
+aws --region ${AWS_REGION} iam put-role-policy \
+	--role-name "${SUBMISSION_LAMBDA_ROLE}" \
+	--policy-name lambda-s3-access-staging \
+	--policy-document file://"${WIBL_BUILD_LOCATION}/lambda-s3-access-staging.json" || exit $?
+
+echo $'\e[31mAdding permissions to the submission lambda for invocation from topic' \
+  "${TOPIC_NAME_SUBMISSION}" $'...\e[0m'
+aws --region ${AWS_REGION} lambda add-permission \
+  --function-name "${SUBMISSION_LAMBDA}" \
+	--action lambda:InvokeFunction \
+	--statement-id s3invoke \
+	--principal sns.amazonaws.com \
+	--source-arn "${TOPIC_ARN_SUBMISSION}" \
+	--source-account "${ACCOUNT_NUMBER}" || exit $?
+
+echo $'\e[31mConfiguring SNS access policy so that submission lambda can publish to' ${TOPIC_NAME_SUBMITTED} $'...\e[0m'
+cat > "${WIBL_BUILD_LOCATION}/lambda-sns-access-submitted.json" <<-HERE
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "LambdaAllowSNSAccessSubmitted",
+            "Effect": "Allow",
+            "Action": [
+                "sns:Publish"
+            ],
+            "Resource": [
+                "${TOPIC_ARN_SUBMITTED}"
+            ]
+        }
+    ]
+}
+HERE
+aws --region ${AWS_REGION} iam put-role-policy \
+	--role-name "${SUBMISSION_LAMBDA_ROLE}" \
+	--policy-name lambda-submission-sns-access-submitted \
+	--policy-document file://"${WIBL_BUILD_LOCATION}/lambda-sns-access-submitted.json" || exit $?
+
+########################
+# Phase 5: Generate the conversion start HTTP lambda, which initiates conversion by publishing to the conversion topic
+# Create the conversion start HTTP lambda
+echo $'\e[31mGenerating conversion start HTTP lambda...\e[0m'
+aws --region ${AWS_REGION} lambda create-function \
+  --function-name ${CONVERSION_START_LAMBDA} \
+  --no-cli-pager \
+	--role arn:aws:iam::${ACCOUNT_NUMBER}:role/${CONVERSION_START_LAMBDA_ROLE} \
+	--runtime python${PYTHONVERSION} \
+  --timeout ${LAMBDA_TIMEOUT} \
+  --memory-size ${LAMBDA_MEMORY} \
+	--handler wibl.upload.cloud.aws.lambda_function.lambda_handler \
+	--zip-file fileb://${WIBL_PACKAGE} \
+	--architectures ${ARCHITECTURE} \
+	--layers ${SCIPY_LAYER_NAME} \
+	--vpc-config "SubnetIds=${LAMBDA_SUBNETS},SecurityGroupIds=${LAMBDA_SECURITY_GROUP}" \
+	--environment "Variables={NOTIFICATION_ARN=${TOPIC_ARN_CONVERSION},INCOMING_BUCKET=${INCOMING_BUCKET},STAGING_BUCKET=${STAGING_BUCKET},MANAGEMENT_URL=${MANAGEMENT_URL}}" \
+	| tee "${WIBL_BUILD_LOCATION}/create_lambda_conversion_start.json"
+
+echo $'\e[31mConfiguring S3 access policy so that conversion start lambda can access S3 incoming and staging buckets...\e[0m'
+cat > "${WIBL_BUILD_LOCATION}/lambda-s3-access-incoming.json" <<-HERE
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "LambdaAllowS3AccessAll",
+            "Effect": "Allow",
+            "Action": [
+                "s3:*"
+            ],
+            "Resource": [
+                "arn:aws:s3:::${INCOMING_BUCKET}",
+                "arn:aws:s3:::${INCOMING_BUCKET}/*"
+            ]
+        }
+    ]
+}
+HERE
+aws --region ${AWS_REGION} iam put-role-policy \
+	--role-name "${CONVERSION_START_LAMBDA_ROLE}" \
+	--policy-name lambda-s3-access-incoming \
+	--policy-document file://"${WIBL_BUILD_LOCATION}/lambda-s3-access-incoming.json" || exit $?
+
+echo $'\e[31mConfiguring SNS access policy so that conversion start lambda can publish to' ${TOPIC_NAME_CONVERSION} $'...\e[0m'
+cat > "${WIBL_BUILD_LOCATION}/lambda-sns-access-conversion.json" <<-HERE
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "LambdaAllowSNSAccessConversion",
+            "Effect": "Allow",
+            "Action": [
+                "sns:Publish"
+            ],
+            "Resource": [
+                "${TOPIC_ARN_CONVERSION}"
+            ]
+        }
+    ]
+}
+HERE
+aws --region ${AWS_REGION} iam put-role-policy \
+	--role-name "${CONVERSION_START_LAMBDA_ROLE}" \
+	--policy-name lambda-conversion-sns-access-validation \
+	--policy-document file://"${WIBL_BUILD_LOCATION}/lambda-sns-access-conversion.json" || exit $?
+
+echo $'\e[31mAdd policy to conversion start lambda granting permissions to allow public access from function URL\e[0m'
+aws --region ${AWS_REGION} lambda add-permission \
+    --function-name ${CONVERSION_START_LAMBDA} \
+    --action lambda:InvokeFunctionUrl \
+    --principal "*" \
+    --function-url-auth-type "NONE" \
+    --statement-id url \
+    | tee "${WIBL_BUILD_LOCATION}/url_invoke_lambda_conversion_start.json"
+
+echo $'\e[31mCreate a URL endpoint for conversion start lambda...\e[0m'
+aws lambda create-function-url-config \
+    --function-name ${CONVERSION_START_LAMBDA} \
+    --auth-type NONE \
+    | tee "${WIBL_BUILD_LOCATION}/create_url_lambda_conversion_start.json"
+
+CONVERSION_START_URL="$(cat ${WIBL_BUILD_LOCATION}/create_url_lambda_conversion_start.json | jq -r '.FunctionUrl')"
+echo $'\e[31mConversion start lambda URL:' ${CONVERSION_START_URL} $'\e[0m'
+
+########################
+# Phase 6: Configure SNS subscriptions for lambdas
+#
+
+# Optional: If you want to automatically trigger the conversion lambda on upload to the incoming S3 bucket
+# (rather than using the conversion-start lambda to initiate WIBL file conversion), do the following:
+#   1. Create incoming bucket policy to notify the conversion topic; and
+#   2. Update conversion topic access policy to allow S3 to send notifications from our incoming bucket
+# Create incoming bucket policy to notify the conversion topic when files needing conversion
+echo $'\e[31mAdding bucket SNS notification to' ${INCOMING_BUCKET} $'...\e[0m'
+UUID=$(uuidgen)
+cat > "${WIBL_BUILD_LOCATION}/conversion-notification-cfg.json" <<-HERE
+{
+    "TopicConfigurations": [
+        {
+            "Id": "${UUID}",
+            "TopicArn": "${TOPIC_ARN_CONVERSION}",
+            "Events": [
+                "s3:ObjectCreated:Put",
+                "s3:ObjectCreated:CompleteMultipartUpload"
+            ]
+        }
+    ]
+}
+HERE
+aws --region ${AWS_REGION} s3api put-bucket-notification-configuration \
+  --skip-destination-validation \
+	--bucket "${INCOMING_BUCKET}" \
+	--notification-configuration file://"${WIBL_BUILD_LOCATION}/conversion-notification-cfg.json" || exit $?
+
+# Update conversion topic access policy to allow S3 to send notifications from our incoming bucket
+UUID=$(uuidgen)
+cat > "${WIBL_BUILD_LOCATION}/conversion-topic-access-policy.json" <<-HERE
+{
+    "Version": "2012-10-17",
+    "Id": "${UUID}",
+    "Statement": [
+        {
+            "Sid": "S3 SNS topic policy",
+            "Effect": "Allow",
+            "Principal": {
+                "Service": "s3.amazonaws.com"
+            },
+            "Action": [
+                "SNS:Publish"
+            ],
+            "Resource": "${TOPIC_ARN_CONVERSION}",
+            "Condition": {
+                "ArnLike": {
+                    "aws:SourceArn": "arn:aws:s3:::${INCOMING_BUCKET}"
+                },
+                "StringEquals": {
+                    "aws:SourceAccount": "${ACCOUNT_NUMBER}"
+                }
+            }
+        }
+    ]
+}
+HERE
+aws --region ${AWS_REGION} sns set-topic-attributes \
+  --topic-arn "${TOPIC_ARN_CONVERSION}" \
+  --attribute-name Policy \
+  --attribute-value file://"${WIBL_BUILD_LOCATION}/conversion-topic-access-policy.json"
+# End, optional configuration for automatically triggering conversion lambda on upload to incoming S3 bucket.
+
+# Create subscription to conversion topic
+echo $'\e[31mAdding subscription for conversion lambda...\e[0m'
+aws --region ${AWS_REGION} sns subscribe \
+  --protocol lambda \
+  --topic-arn "${TOPIC_ARN_CONVERSION}" \
+  --notification-endpoint "arn:aws:lambda:${AWS_REGION}:${ACCOUNT_NUMBER}:function:${CONVERSION_LAMBDA}" \
+  | tee "${WIBL_BUILD_LOCATION}/create_sns_sub_lambda_conversion.json"
+
+# Create subscription to validation topic
+echo $'\e[31mAdding subscription for validation lambda...\e[0m'
+aws --region ${AWS_REGION} sns subscribe \
+  --protocol lambda \
+  --topic-arn "${TOPIC_ARN_VALIDATION}" \
+  --notification-endpoint "arn:aws:lambda:${AWS_REGION}:${ACCOUNT_NUMBER}:function:${VALIDATION_LAMBDA}" \
+  | tee "${WIBL_BUILD_LOCATION}/create_sns_sub_lambda_validation.json"
+
+# Create subscription to submission topic
+echo $'\e[31mAdding subscription for submission lambda...\e[0m'
+aws --region ${AWS_REGION} sns subscribe \
+  --protocol lambda \
+  --topic-arn "${TOPIC_ARN_SUBMISSION}" \
+  --notification-endpoint "arn:aws:lambda:${AWS_REGION}:${ACCOUNT_NUMBER}:function:${SUBMISSION_LAMBDA}" \
+  | tee "${WIBL_BUILD_LOCATION}/create_sns_sub_lambda_submission.json"

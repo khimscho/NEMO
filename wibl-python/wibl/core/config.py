@@ -35,7 +35,7 @@ from typing import Union
 import json
 from typing import Dict, Any
 
-from pkg_resources import resource_filename
+from wibl import get_default_file
 
 RSRC_KEY = 'wibl'
 DEFAULT_CONFIG_FILE_ENV_KEY = 'WIBL_CONFIG_FILE'
@@ -58,13 +58,13 @@ class BadConfiguration(Exception):
     pass
 
 
-def get_config_resource_filename(resource_name) -> str:
+def get_config_resource_filename(resource_rel_path: str) -> str:
     """
     Get name of default configuration file packaged with wibl.
-    :param resource_name:
+    :param resource_rel_path: String representing path of resource file relative to ``wibl.defaults``.
     :return:
     """
-    return resource_filename(RSRC_KEY, resource_name)
+    return str(get_default_file(resource_rel_path))
 
 
 def get_config_path(default_config_file: str, env_key: str = DEFAULT_CONFIG_FILE_ENV_KEY) -> Path:

@@ -35,8 +35,9 @@ from datetime import datetime, timezone
 from flask import abort
 from flask_restful import Resource, reqparse, fields, marshal_with
 
-from app_globals import db
-from return_codes import ReturnCodes, ProcessingStatus
+from wibl_manager.app_globals import db
+from wibl_manager import ReturnCodes, ProcessingStatus
+
 
 class WIBLDataModel(db.Model):
     """
@@ -70,6 +71,8 @@ class WIBLDataModel(db.Model):
     :param status:          Status indicator for processing of the file to GeoJSON.  Set to 'started' on POST, but can then be
                             updated through PUT to reflect the results of processing.
     :type status:           :enum: `return_codes.ProcessStatus`
+    :param messages:        Messages returned during processing (usually error/warnings)
+    :type messages:         str, optional
     """
     fileid = db.Column(db.String(40), primary_key=True)
     processtime = db.Column(db.String(30))
@@ -83,6 +86,7 @@ class WIBLDataModel(db.Model):
     starttime = db.Column(db.String(30))
     endtime = db.Column(db.String(30))
     status = db.Column(db.Integer)
+    messages = db.Column(db.String(1024))
 
     def __repr__(self):
         """
@@ -105,6 +109,7 @@ WIBL_Update_Args.add_argument('startTime', type=str, help='First output sounding
 WIBL_Update_Args.add_argument('endTime', type=str, help='Last output sounding time.')
 WIBL_Update_Args.add_argument('notifyTime', type=str, help='Time of processing failure notification.')
 WIBL_Update_Args.add_argument('status', type=int, help='Status of conversion code run.')
+WIBL_Update_Args.add_argument('messages', type=str, help='Messages generated during processing.')
 
 # Data dictionary for marshalling the objects returned from the database (WIBLDataModel) into JSON
 wibl_resource_fields = {
@@ -119,7 +124,8 @@ wibl_resource_fields = {
     'soundings':        fields.Integer,
     'starttime':        fields.String,
     'endtime':          fields.String,
-    'status':           fields.Integer
+    'status':           fields.Integer,
+    'messages':         fields.String
 }
 
 class WIBLData(Resource):
@@ -141,6 +147,9 @@ class WIBLData(Resource):
         """
         if fileid == 'all':
             result = db.session.query(WIBLDataModel).all()
+            # TODO: Add check for if result is None, in which case, set to empty list
+            #   As it stands now, if there are no records, 'all' results in 404, which seems
+            #   wrong.
         else:
             result = WIBLDataModel.query.filter_by(fileid=fileid).first()
         if not result:
@@ -162,13 +171,13 @@ class WIBLData(Resource):
         """
         result = WIBLDataModel.query.filter_by(fileid=fileid).first()
         if result:
-            abort(ReturnCodes.RECORD_CONFLICT.value, message='That WIBL file already exists in the database; use PUT to update.')
+            abort(ReturnCodes.RECORD_CONFLICT.value, description='That WIBL file already exists in the database; use PUT to update.')
         args = WIBL_Args.parse_args()
         timestamp = datetime.now(timezone.utc).isoformat()
         wibl_file = WIBLDataModel(fileid=fileid, processtime=timestamp, updatetime='Unknown', notifytime='Unknown',
                                   logger='Unknown', platform='Unknown', size=args['size'],
                                   observations=-1, soundings=-1, starttime='Unknown', endtime='Unknown',
-                                  status=ProcessingStatus.PROCESSING_STARTED.value)
+                                  status=ProcessingStatus.PROCESSING_STARTED.value, messages='')
         db.session.add(wibl_file)
         db.session.commit()
         return wibl_file, ReturnCodes.RECORD_CREATED.value
@@ -184,7 +193,7 @@ class WIBLData(Resource):
         :type fileid:   str
         :return:        The updated state of the metadata for the file and RECORD_CREATED, or NOT_FOUND if the
                         record doesn't exist.
-        :rtype:         tuple   The marshalling decorator should convert to JSON-serliasable form.
+        :rtype:         tuple   The marshalling decorator should convert to JSON-serlisable form.
         """
         args = WIBL_Update_Args.parse_args()
         wibl_file = WIBLDataModel.query.filter_by(fileid=fileid).first()
@@ -210,6 +219,8 @@ class WIBLData(Resource):
             wibl_file.endtime = args['endTime']
         if args['status']:
             wibl_file.status = args['status']
+        if args['messages']:
+            wibl_file.messages = args['messages'][:1024]
         db.session.commit()
         return wibl_file, ReturnCodes.RECORD_CREATED.value
 

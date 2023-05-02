@@ -1907,8 +1907,8 @@ class PacketFactory:
             else:
                 print(f'Unknown packet with ID {pkt_id} in input stream; ignored.')
                 rtn = None
-        except struct.error:
-            raise PacketTranscriptionError
+        except struct.error as e:
+            raise PacketTranscriptionError(str(e))
 
         return rtn
 

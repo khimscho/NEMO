@@ -34,8 +34,9 @@ from datetime import datetime, timezone
 from flask import abort
 from flask_restful import Resource, reqparse, fields, marshal_with
 
-from app_globals import db
-from return_codes import ReturnCodes, UploadStatus
+from wibl_manager.app_globals import db
+from wibl_manager import ReturnCodes, UploadStatus
+
 
 # Data model for GeoJSON metadata stored in the database
 class GeoJSONDataModel(db.Model):
@@ -61,6 +62,8 @@ class GeoJSONDataModel(db.Model):
     :param status:      Status indicator for upload of the file to the archive.  Set to 'started' on POST, but can then be
                         updated through PUT to reflect the results of processing.
     :type status:       :enum: `return_codes.UploadStatus`
+    :param messages:    Messages returned during processing (usually error/warnings)
+    :type messages:     str, optional  
     """
     fileid = db.Column(db.String(40), primary_key=True)
     uploadtime = db.Column(db.String(30))
@@ -70,12 +73,13 @@ class GeoJSONDataModel(db.Model):
     size = db.Column(db.Float, nullable=False)
     soundings = db.Column(db.Integer)
     status = db.Column(db.Integer)
+    messages = db.Column(db.String(1024))
 
     def __repr__(self):
         """
         Generate a simple text version of the data model for debugging.
         """
-        return f'file {self.fileid} at {self.uploadtime} for logger {self.logger} with {self.soundings} observations, status={self.status}'
+        return f'file {self.fileid}, size {self.size} MB at {self.uploadtime} for logger {self.logger} with {self.soundings} observations, status={self.status}'
 
 # Arguments passable to the GeoJSON end-point to POST a new record's metadata
 GeoJSON_Args = reqparse.RequestParser()
@@ -88,6 +92,7 @@ GeoJSON_Update_Args.add_argument('logger', type=str, help='Logger name (unique I
 GeoJSON_Update_Args.add_argument('size', type=float, help='Size of the GeoJSON file in MB.')
 GeoJSON_Update_Args.add_argument('soundings', type=int, help='Number of soundings in the file.')
 GeoJSON_Update_Args.add_argument('status', type=int, help='Status of archive upload attempt.')
+GeoJSON_Update_Args.add_argument('messages', type=str, help='Messages generated during upload.')
 
 # Data mapping for marshalling GeoJSONDataModel for transfer
 geojson_resource_fields = {
@@ -98,7 +103,8 @@ geojson_resource_fields = {
     'logger':       fields.String,
     'size':         fields.Float,
     'soundings':    fields.Integer,
-    'status':       fields.Integer
+    'status':       fields.Integer,
+    'messages':     fields.String
 }
 
 class GeoJSONData(Resource):
@@ -142,7 +148,7 @@ class GeoJSONData(Resource):
         """
         result = GeoJSONDataModel.query.filter_by(fileid=fileid).first()
         if result:
-            abort(ReturnCodes.RECORD_CONFLICT.value, message='That GeoJSON file already exists in the database; use PUT to update.')
+            abort(ReturnCodes.RECORD_CONFLICT.value, description='That GeoJSON file already exists in the database; use PUT to update.')
         args = GeoJSON_Args.parse_args()
         timestamp = datetime.now(timezone.utc).isoformat()
         geojson_file = GeoJSONDataModel(fileid=fileid, uploadtime=timestamp, updatetime='Unknown', notifytime='Unknown',
@@ -181,8 +187,10 @@ class GeoJSONData(Resource):
             geojson_file.soundings = args['soundings']
         if args['status']:
             geojson_file.status = args['status']
+        if args['messages']:
+            geojson_file.messages = args['messages'][:1024]
         db.session.commit()
-        return geojson_file
+        return geojson_file, ReturnCodes.RECORD_CREATED.value
 
     def delete(self, fileid):
         """

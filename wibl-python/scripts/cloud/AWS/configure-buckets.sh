@@ -5,14 +5,16 @@
 
 source configuration-parameters.sh
 
-echo $'\e[31m' Creating incoming data bucket as ${INCOMING_BUCKET} in region ${AWS_REGION} ... $'\e[0m'
+echo $'\e[31m' Creating incoming data bucket as ${INCOMING_BUCKET} in region ${AWS_REGION}... $'\e[0m'
 aws s3api create-bucket \
     --bucket ${INCOMING_BUCKET} \
     --region ${AWS_REGION} \
-    --create-bucket-configuration LocationConstraint=${AWS_REGION}
+    --create-bucket-configuration LocationConstraint=${AWS_REGION} \
+    | tee "${WIBL_BUILD_LOCATION}/create_lambda_${INCOMING_BUCKET}.json"
 
 echo $'\e[31m' Creating staging data bucket as ${STAGING_BUCKET} in region ${AWS_REGION} ... $'\e[0m'
 aws s3api create-bucket \
     --bucket ${STAGING_BUCKET} \
     --region ${AWS_REGION} \
-    --create-bucket-configuration LocationConstraint=${AWS_REGION}
+    --create-bucket-configuration LocationConstraint=${AWS_REGION} \
+    | tee "${WIBL_BUILD_LOCATION}/create_lambda_${STAGING_BUCKET}.json"

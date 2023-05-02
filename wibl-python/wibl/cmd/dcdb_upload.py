@@ -38,6 +38,8 @@ import wibl.core.config as conf
 from wibl.core import getenv
 from wibl.submission.cloud.aws import get_config_file
 from wibl.submission.cloud.aws.lambda_function import transmit_geojson
+from wibl.core.datasource import LocalController, LocalSource
+import wibl.core.notification as nt
 
 def dcdb_upload():
     parser = arg.ArgumentParser(description="Upload GeoJSON files to DCDB for archival.",
@@ -55,31 +57,7 @@ def dcdb_upload():
     sourceID = None
     if hasattr(optargs, 'sourceid') and optargs.sourceid:
         sourceID = optargs.sourceid
-    else:
-        with open(filename) as f:
-            data = json.load(f)
-        # We need to make sure that we get the source ID from the right location in the
-        # metadata --- it varies between V2 and V3 metadata (and possibly from others)
-        if 'trustedNode' in data['properties']:
-            # This was added in V3 of the metadata specification
-            if data['properties']['trustedNode']['convention'] == 'GeoJSON CSB 3.0':
-                sourceID = data['properties']['trustedNode']['uniqueVesselID']
-            else:
-                # If we don't get a convention that we recognise, we can at least check to see
-                # whether the vessel ID is still in the same place
-                if 'uniqueVesselID' in data['properties']['trustedNode']:
-                    sourceID = data['properties']['trustedNode']['uniqueVesselID']
-                else:
-                    sys.exit('Error: failed to find a unique vessel ID in metadata.')
-        else:
-            if 'convention' in data['properties']:
-                # This was the case in V2 metadata, but we should check that it's a version
-                # that we understand.  This is more a nicety than anything else: there was
-                # only one version, so this should always pass!
-                if data['properties']['convention'] == 'CSB 2.0':    
-                    sourceID = data['properties']['platform']['uniqueID']
-                else:
-                    sys.exit('Error: unrecognised CSB metadata convention.')
+
     try:
         if hasattr(optargs, 'config') and optargs.config:
             config_filename = optargs.config
@@ -107,13 +85,27 @@ def dcdb_upload():
     if 'upload_point' not in config:
         sys.exit('Error: your configuration must include a DCDB upload point URL.')
     else:
-        # We can't modify the cloud-based code that uses enivornment variables to
+        # We can't modify the cloud-based code that uses environment variables to
         # determine where to send the data, so we need to add this information into
         # the environment directly.
         os.environ['UPLOAD_POINT'] = config['upload_point']
+    
+    if 'management_url' in config and config['management_url']:
+        os.environ['MANAGEMENT_URL'] = config['management_url']
 
-    rc = transmit_geojson(sourceID, provider_id, provider_auth, filename, config)
-    if rc is None:
-        sys.exit(f'Error: failed to transfer file {filename}')
-    else:
+    source = LocalSource(filename, filename, config)
+    data_item = source.nextSource()
+    controller = LocalController(config)
+    notifier = nt.LocalNotifier(config['notification']['uploaded'])
+    localname, source_info = controller.obtain(data_item)
+    # Override the sourceID from the file if the user insists ...
+    if sourceID:
+        source_info['sourceID'] = sourceID
+
+    rc = transmit_geojson(source_info, provider_id, provider_auth, localname, config)
+    if rc:
         print(f'Success: transmitted file {filename} with return {rc}.')
+        data_item.dest_size = data_item.source_size
+        notifier.notify(data_item)
+    else:
+        sys.exit(f'Error: failed to transfer file {filename}')

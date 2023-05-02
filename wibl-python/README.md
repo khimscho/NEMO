@@ -4,6 +4,8 @@
 
 ### Locally
 ```
+pip install csbschema==1.0.4
+pip install ./wibl-manager
 pip install .
 ```
 
@@ -149,7 +151,7 @@ optional arguments:
 Packaging up the software for the cloud segment, and deploying it, can be a little involved due to security concerns with the various cloud providers.  Detailed setup instructions, and automation scripts, are provided as described below.
 
 ### AWS
-There are a number of steps required to set up the AWS Lambdas, the S3 buckets, and associated triggers and permissions in order to make processing work in the cloud.  The steps are covered in detail in the [Setup Instructions](scripts/AWSCloudSetup.md), and a corresponding set of scripts are available in the `wibl-python/scripts/cloud/AWS` directory in the repository.  These scripts should *mostly* work, but will likely need some modification for a local configuration before being fully executable.  Consider the `configuration-parameters.sh` file first for this.
+There are a number of steps required to set up the AWS Lambdas, the S3 buckets, and associated triggers and permissions in order to make processing work in the cloud.  The steps are covered in detail in the [Setup Instructions](scripts/cloud/AWS/README.md), and a corresponding set of scripts are available in the [scripts](scripts/cloud/AWS) directory in the repository.  These scripts should *mostly* work, but will likely need some modification for a local configuration before being fully executable.  Consider the `configuration-parameters.sh` file first for this.
 
 ## Configuration for Local Use
 The ``wibl`` tool can be installed locally as above, but needs a configuration JSON file for some of the sub-commands (e.g., to send data to DCDB) rather than using environment variables as with the cloud-based processing.  Scripts in `wibl-python/scripts/desktop` will generate the `configure/json` required (configure `configuration-parameters.sh` and then run `configure-desktop.sh`).
