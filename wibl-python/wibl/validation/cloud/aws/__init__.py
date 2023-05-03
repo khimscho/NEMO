@@ -1,7 +1,5 @@
-# Magic numbers for services and status codes
-#
-# Encapsulate (as Enums) special codes for the REST API to return, and for other
-# code to indicate processing and upload status.
+# __init__.py
+# AWS lambda for validating metadata in GeoJSON data converted from WIBL files.
 #
 # Copyright 2023 Center for Coastal and Ocean Mapping & NOAA-UNH Joint
 # Hydrographic Center, University of New Hampshire.
@@ -25,21 +23,12 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
-from enum import Enum
+from pathlib import Path
 
-class ReturnCodes(Enum):
-    OK = 200
-    RECORD_CREATED = 201
-    RECORD_DELETED = 204
-    FILE_NOT_FOUND = 404
-    RECORD_CONFLICT = 409
+from wibl.core import config
 
-class ProcessingStatus(Enum):
-    PROCESSING_STARTED = 0
-    PROCESSING_SUCCESSFUL = 1
-    PROCESSING_FAILED = 2
+DEFAULT_CONFIG_RESOURCE_NAME = 'validation/cloud/aws/configure.json'
 
-class UploadStatus(Enum):
-    UPLOAD_STARTED = 0
-    UPLOAD_SUCCESSFUL = 1
-    UPLOAD_FAILED = 2
+
+def get_config_file() -> Path:
+    return config.get_config_file(DEFAULT_CONFIG_RESOURCE_NAME)

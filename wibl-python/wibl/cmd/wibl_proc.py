@@ -38,11 +38,14 @@ from wibl.core import getenv
 from wibl.processing.cloud.aws import get_config_file
 from wibl.processing.cloud.aws.lambda_function import process_item
 from wibl.core.datasource import LocalSource, LocalController
+from wibl.core.notification import LocalNotifier
 
 def wibl_proc():
     parser = arg.ArgumentParser(description="Process WIBL files into GeoJSON locally.",
                 prog=get_subcommand_prog())
-    parser.add_argument('-c', '--config', type=str, help='Specify configuration file for installation')
+    parser.add_argument('-c', '--config', type=str,
+                        required=False, default=get_config_file(),
+                        help='Specify configuration file for installation')
     parser.add_argument('input', help='WIBL format file to convert to GeoJSON.')
     parser.add_argument('output', help='Specify output GeoJSON file location')
 
@@ -52,21 +55,25 @@ def wibl_proc():
     outfilename = optargs.output
 
     try:
-        if hasattr(optargs, 'config'):
-            config_filename = optargs.config
-        else:
-            config_filename = get_config_file()
-        config = conf.read_config(config_filename)
+        config = conf.read_config(optargs.config)
+        if 'notification' not in config:
+            config['notification'] = {}
+        if 'converted' not in config['notification']:
+            config['notification']['converted'] = ''
+
     except conf.BadConfiguration:
         sys.exit('Error: bad configuration file.')
     
     # The cloud-based code uses environment variables to provide some of the configuration,
     # so we need to add this to the local environment to compensate.
     os.environ['PROVIDER_ID'] = config['provider_id']
+    if 'management_url' in config:
+        os.environ['MANAGEMENT_URL'] = config['management_url']
 
     source = LocalSource(infilename, outfilename, config)
     data_item = source.nextSource()
     controller = LocalController(config)
+    notifier = LocalNotifier(config['notification']['converted'])
 
-    if not process_item(data_item, controller, config):
+    if not process_item(data_item, controller, notifier, config):
         sys.exit('Error: failed to process data (try with verbose option for more information).')

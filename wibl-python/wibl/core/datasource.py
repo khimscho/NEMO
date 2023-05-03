@@ -42,14 +42,16 @@
 # WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
 # OR OTHER DEALINGS IN THE SOFTWARE.
+
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Tuple
-from urllib.parse import unquote_plus
-from shutil import copyfile
+from typing import Dict, Any, Tuple, Optional
+from urllib.parse import unquote_plus, urlencode
 import json
+import os
 
 import boto3
+import botocore
 
 from wibl.core import getenv
 
@@ -62,16 +64,20 @@ s3 = boto3.resource('s3')
 
 @dataclass
 class DataItem:
-    ## Source file's cloud store, typically the name of an S3 bucket
+    # Source file's cloud store, typically the name of an S3 bucket
     source_store:   str
-    ## Source file's key in the cloud store, typically the key in the S3 bucket
+    # Source file's key in the cloud store, typically the key in the S3 bucket
     source_key:     str
-    ## Name of the file to use in the local file system for downloading the cloud file for processing
-    localname:      str
-    ## Destination file's cloud store, typically the name of an S3 bucket
+    # Source file's size in bytes
+    source_size:    Optional[int]
+    # Name of the file to use in the local file system for downloading the cloud file for processing
+    localname:      Optional[str]
+    # Destination file's cloud store, typically the name of an S3 bucket
     dest_store:     str
-    ## Destination file's key in the cloud store, typically the key in the S3 bucket
+    # Destination file's key in the cloud store, typically the key in the S3 bucket
     dest_key:       str
+    # Destination file's size in bytes
+    dest_size:      Optional[int]
 
 ## Abstract base class for a collection of data items to be processed
 #
@@ -106,21 +112,104 @@ class AWSSource(DataSource):
     def __init__(self, event, config):
         self.items = []
         for record in event['Records']:
-            source_bucket = record['s3']['bucket']['name']
-            source_object = unquote_plus(record['s3']['object']['key'])
-            local_file = f'/tmp/{source_object}'
-            dest_bucket = getenv('STAGING_BUCKET')
-            if '.json' not in source_object:
-                dest_object = source_object + '.json'
+            if 'Sns' not in record:
+                print('error: no SNS notification in event.')
             else:
-                dest_object = source_object
-            self.items.append(DataItem(source_bucket, source_object, local_file, dest_bucket, dest_object))
+                message = json.loads(record['Sns']['Message'])
+                if 'bucket' not in message or 'filename' not in message:
+                    print('error: malformed SNS message packet: {message}.')
+                else:
+                    source_bucket = message['bucket']
+                    source_object = unquote_plus(message['filename'])
+                    source_size = message['size']
+                    local_file = f'/tmp/{source_object}'
+                    dest_bucket = getenv('STAGING_BUCKET')
+                    if '.wibl' in source_object:
+                        dest_object = source_object.replace('.wibl', '.json')
+                    else:
+                        dest_object = source_object
+                    dest_size = 0
+                    self.items.append(DataItem(source_bucket, source_object, source_size, local_file, dest_bucket, dest_object, dest_size))
         if config['verbose']:
             n_items = len(self.items)
             print(f'Total {n_items} input items to process:')
             for item in self.items:
                 print(f'Item: {item}')
     
+    ## Concrete implementation of S3 object specification return from AWS Lambda events
+    #
+    # Since the code converts all of the information about the S3 objects to be processed in the Lambda call
+    # into a list in the initialiser, this code simply pops the next item off the list and returns to the
+    # caller, or None if there are none left.
+    #
+    # \return Specification for the next S3 object to process
+    def nextSource(self) -> DataItem:
+        if self.items:
+            rc = self.items.pop()
+        else:
+            rc = None
+        return rc
+
+
+class AWSSourceSNSTrigger(DataSource):
+    ## Default constructor for AWS SNS event sources
+    #
+    # This parses out all of the S3 objects specified in the AWS SNS trigger event, and prepares
+    # them as \a DataItems to be returned to the user in sequence.
+    #
+    # \param event      AWS Lambda event to parse
+    # \param config     Configuration dictionary for the algorithm
+
+    def __init__(self, event, config):
+        self.items = []
+        for record in event['Records']:
+            if 'Sns' not in record:
+                print('error: no SNS notification in event.')
+            else:
+                sns_message = json.loads(record['Sns']['Message'])
+                if 'Records' not in sns_message:
+                    print(f'error: no records found in SNS message: {sns_message}. Event was: {event}.')
+                    # Skip to next record in event
+                    continue
+                for sns_record in sns_message['Records']:
+                    if 's3' not in sns_record:
+                        print(f'error: no s3 payload in sns_record: {sns_record}.')
+                        # Skip to next SNS record in SNS message
+                        continue
+                    s3_payload = sns_record['s3']
+                    if 'bucket' not in s3_payload or 'object' not in s3_payload:
+                        print(f'error: malformed S3 payload in SNS message record: {sns_record}.')
+                        # Skip to next SNS record in SNS message
+                        continue
+                    s3_bucket = s3_payload['bucket']
+                    if 'name' not in s3_bucket:
+                        print(f'error: no bucket name in S3 payload: {s3_payload}.')
+                        # Skip to next SNS record in SNS message
+                        continue
+                    s3_object = s3_payload['object']
+                    if 'key' not in s3_object or 'size' not in s3_object:
+                        print(f'error: malformed object definition in S3 payload: {s3_payload}.')
+                        # Skip to next SNS record in SNS message
+                        continue
+                    source_bucket = s3_bucket['name']
+                    source_object = unquote_plus(s3_object['key'])
+                    source_size = s3_object['size']
+                    local_file = f'/tmp/{source_object}'
+                    dest_bucket = getenv('STAGING_BUCKET')
+                    if '.wibl' in source_object:
+                        dest_object = source_object.replace('.wibl', '.json')
+                    else:
+                        dest_object = source_object
+                    dest_size = 0
+                    self.items.append(
+                        DataItem(source_bucket, source_object, source_size, local_file, dest_bucket, dest_object,
+                                 dest_size))
+        if config['verbose']:
+            n_items = len(self.items)
+            print(f'Total {n_items} input items to process:')
+            for item in self.items:
+                print(f'Item: {item}')
+
     ## Concrete implementation of S3 object specification return from AWS Lambda events
     #
     # Since the code converts all of the information about the S3 objects to be processed in the Lambda call
@@ -153,6 +242,7 @@ class LocalSource(DataSource):
     def __init__(self, input: str, output: str, config: Dict[str,Any]):
         self.inname = input
         self.outname = output
+        self.filesize = os.path.getsize(input)
         if config['verbose']:
             print(f'Configured for input file {self.inname} converting to {self.outname}.')
     
@@ -167,7 +257,7 @@ class LocalSource(DataSource):
         if self.inname is None:
             rc = None
         else:
-            rc: DataItem = DataItem(None, self.inname, self.inname, None, self.outname)
+            rc: DataItem = DataItem(None, self.inname, self.filesize, self.inname, None, self.outname, 0)
             self.inname = None
             self.outname = None
         return rc
@@ -188,15 +278,26 @@ class CloudController(ABC):
     @abstractmethod
     def __init__(self, config: Dict[str,Any]):
         pass
-    
+
+    ## Test whether a specified object exists in the provider's cloud store
+    #
+    # Test whether a local copy of the specified cloud object can be obtained.
+    #
+    # \param meta   Specification for the object to pull from the cloud object store
+    # \return Tuple[bool, Optional[int]] (True, size in bytes) if the specified object exists,
+    #   (False, None) if the specified object doesn't exist.
+    def exists(self, meta: DataItem) -> Tuple[bool, Optional[int]]:
+        pass
+
     ## Extract a specified object from the provider's cloud store
     #
     # Get a local copy of the specified cloud object so that it can be processed.
     #
     # \param meta   Specification for the object to pull from the cloud object store
-    # \return Tuple of two strings specifying the local filename at which the object was stored, and the uniqueID used for the object
+    # \return Tuple of a string and dictionary specifying the local filename at which
+    # the object was stored, and the tags used for the object
     @abstractmethod
-    def obtain(self, meta: DataItem) -> Tuple[str, str]:
+    def obtain(self, meta: DataItem) -> Tuple[str, Dict[str,Any]]:
         pass
         
     ## Send a local object to the cloud provider's object store
@@ -206,9 +307,11 @@ class CloudController(ABC):
     #
     # \param meta       Specification for the object destination
     # \param SourceID   UniqueID for the source data, to set on the object store
+    # \param Logger     Logger name for the source file
+    # \param Soundings  Number of soundings in the transmitted file
     # \param data       Data string to transmit to the cloud object store
     @abstractmethod
-    def transmit(self, meta: DataItem, SourceID: str, data: str) -> None:
+    def transmit(self, meta: DataItem, SourceID: str, Logger: str, Soundings: int, data: str) -> None:
         pass
 
 ## Concrete implementation of the CloudController model for AWS S3 buckets
@@ -228,28 +331,51 @@ class AWSController(CloudController):
     def __init__(self, config: Dict[str,Any]):
         self.destination = getenv('STAGING_BUCKET')
         self.verbose = config['verbose']
-    
+
+    ## Test whether a specified object exists in the provider's cloud store
+    #
+    # Test whether a local copy of the specified cloud object can be obtained.
+    #
+    # \param meta   Specification for the object to pull from the cloud object store
+    # \return Tuple[bool, Optional[int]] (True, size in bytes) if the specified object exists,
+    #   (False, None) if the specified object doesn't exist.
+    def exists(self, meta: DataItem) -> Tuple[bool, Optional[int]]:
+        cli = boto3.client('s3')
+        if self.verbose:
+            print(f'Testing existence of object {meta.source_key} from bucket {meta.source_store}')
+        try:
+            response = cli.head_object(Bucket=meta.source_store,
+                                       Key=meta.source_key)
+            return True, response['ContentLength']
+        except botocore.exceptions.ClientError as e:
+            if e.response['ResponseMetadata']['HTTPStatusCode'] == 404:
+                return False, None
+            else:
+                raise e
+
     ## Get an S3 object from a specified bucket
     #
     # This reads the specified S3 object from the given bucket, and then reads the associated tags to see whether there
     # is a "SourceID" key-value pair specified (which contains the UniqueID for the file).  Using the object key-value
-    # tags allows us to pass on the UniqueID without having to re-read the GeoJSON on transmission to DCDB.  In local
-    # mode, the code attempts to read the specified data in the current directory, and copies it into the working
-    # temporary store (typically in /tmp).
+    # tags allows us to pass on the UniqueID without having to re-read the GeoJSON on transmission to DCDB.
     #
     # \param meta   Specification for the object being transferred into the local environment
-    # \return Tuple[str,str]: local filename, uniqueID
-    def obtain(self, meta: DataItem) -> Tuple[str, str]:
-        sourceID = None
+    # \return Tuple[str,str]: local filename, dictionary of tags on the data
+    def obtain(self, meta: DataItem) -> Tuple[str, Dict[str,Any]]:
         if self.verbose:
             print(f'Downloading from bucket {meta.source_store} object {meta.source_key} to local file {meta.localname}')
         s3.Bucket(meta.source_store).download_file(meta.source_key, meta.localname)
         tags = boto3.client('s3').get_object_tagging(Bucket=meta.source_store, Key=meta.source_key)
+        info: Dict[str,Any] = {'sourceID': '', 'logger': '', 'soundings': -1}
         for tag in tags['TagSet']:
             if tag['Key'] == 'SourceID':
-                sourceID = tag['Value']
+                info['sourceID'] = tag['Value']
+            if tag['Key'] == 'Logger':
+                info['logger'] = tag['Value']
+            if tag['Key'] == 'Soundings':
+                info['soundings'] = int(tag['Value'])
 
-        return meta.localname, sourceID
+        return meta.localname, info
     
     ## Transmit a local data object to an AWS S3 bucket/key with key-value metadata tags
     #
@@ -261,11 +387,19 @@ class AWSController(CloudController):
     #
     # \param meta       Specification for the object being transferred into the cloud environment
     # \param sourceID   UniqueID associated with the data (for key-value metadata tag)
+    # \param logger     Logger name for the source file
+    # \param soundings  Number of soundings in the transmitted file
     # \param data       Data to transfer into the cloud store
-    def transmit(self, meta: DataItem, sourceID: str, data: str) -> None:
+    def transmit(self, meta: DataItem, sourceID: str, logger: str, soundings: int, data: str) -> None:
         if self.verbose:
             print(f'Transmitting {meta.localname} to bucket {self.destination}, key {meta.dest_key}, source ID {sourceID}')
-        s3.Bucket(self.destination).put_object(Key=meta.dest_key, Body=data, Tagging=f'SourceID={sourceID}')
+        tags = urlencode({
+            'SourceID': sourceID,
+            'Logger': logger,
+            'Soundings': soundings
+        })
+        s3.Bucket(self.destination).put_object(Key=meta.dest_key, Body=data,
+                                               Tagging=tags)
 
 ## \class LocalController
 #
@@ -281,7 +415,19 @@ class LocalController(CloudController):
     # \param config Dictionary of algorithm configuration parameters
     def __init__(self, config: Dict[str, Any]):
         self.verbose = config['verbose']
-    
+
+    ## Test whether a specified object exists as a local file
+    #
+    # \param meta   Specification for the object to pull from the local environment
+    # \return Tuple[bool, Optional[int]] (True, size in bytes) if the specified object exists,
+    #   (False, None) if the specified object doesn't exist.
+    def exists(self, meta: DataItem) -> Tuple[bool, Optional[int]]:
+        try:
+            stat = os.stat(meta.localname)
+            return True, stat.st_size
+        except FileNotFoundError:
+            return False, None
+
     ## Concrete implementation of the code to provide a local file
     #
     # Since the file is in the local filesystem and can be opened directly, there's
@@ -289,10 +435,43 @@ class LocalController(CloudController):
     # local filename of the input file.
     #
     # \param meta   Specification for the object being transferred into the local environment
-    # \return Tuple[str,str]: local filename, uniqueID
-    def obtain(self, meta: DataItem) -> Tuple[str, str]:
-        sourceID: str = "Unset"
-        return (meta.localname, sourceID)
+    # \return Tuple[str,str]: local filename, dictionary of tags
+    def obtain(self, meta: DataItem) -> Tuple[str, Dict[str,Any]]:
+        info: Dict[str,Any] = {'sourceID': '', 'logger': '', 'soundings': -1}
+        # To get the tagging information on a local file, we can't rely on the sort of key,value
+        # pairs that we have in S3, so we read the file, and find them directly (if the file is JSON)
+        if 'json' in meta.localname:
+            with open(meta.localname, 'r') as f:
+                data = json.load(f)
+                # We need to make sure that we get the source ID from the right location in the
+                # metadata --- it varies between V2 and V3 metadata (and possibly from others)
+                sourceID: str = ''
+                if 'trustedNode' in data['properties']:
+                    # This was added in V3.1 of the metadata specification
+                    if data['properties']['trustedNode']['convention'] == 'GeoJSON CSB 3.1':
+                        sourceID = data['properties']['trustedNode']['uniqueVesselID']
+                    else:
+                        # If we don't get a convention that we recognise, we can at least check to see
+                        # whether the vessel ID is still in the same place
+                        if 'uniqueVesselID' in data['properties']['trustedNode']:
+                            sourceID = data['properties']['trustedNode']['uniqueVesselID']
+                        else:
+                            if self.verbose:
+                                print('error: failed to find a unique vessel ID in metadata.')
+                else:
+                    if 'convention' in data['properties']:
+                        # This was the case in V2 and V3.0 metadata, but we should check that it's a version
+                        # that we understand.  This is more a nicety than anything else: there was
+                        # only one version, so this should always pass!
+                        if data['properties']['convention'] in ('CSB 2.0', 'GeoJSON CSB 3.0'):
+                            sourceID = data['properties']['platform']['uniqueID']
+                        else:
+                            if self.verbose:
+                                print('error: unrecognised CSB metadata convention.')
+                info['sourceID'] = sourceID
+                info['logger'] = data['properties']['platform']['IDNumber']
+                info['soundings'] = len(data['features'])
+        return meta.localname, info
 
     ## Concrete implementation of code to save converted GeoJSON data
     #
@@ -302,7 +481,7 @@ class LocalController(CloudController):
     # \param meta       Specification for the object being transferred into the cloud environment
     # \param sourceID   UniqueID associated with the data (for key-value metadata tag)
     # \param data       Data to transfer into the cloud store
-    def transmit(self, meta: DataItem, sourceID: str, data: str) -> None:
+    def transmit(self, meta: DataItem, sourceID: str, logger: str, soundings: int, data: str) -> None:
         if self.verbose:
             if len(data) > 1000:
                 prdata = str(data[0:1000]) + '...'

@@ -27,12 +27,16 @@
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
 from flask_restful import Resource
-from return_codes import ReturnCodes
+
+from wibl_manager import ReturnCodes
+
 
 class Heartbeat(Resource):
     """
     A simple check on whether the service is still running.  This returns a status code
     for the service, but no other information.
+
+    TODO: The heartbeat should import the DB and make sure it functions.
     """
     def get(self):
         return ReturnCodes.OK.value

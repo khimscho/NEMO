@@ -34,14 +34,19 @@
 import json
 import boto3
 from typing import Dict, Any
+from datetime import datetime
 
 # Local modules
 import wibl.core.config as conf
+import wibl.core.logger_file as lf
 import wibl.core.datasource as ds
+import wibl.core.notification as nt
+from wibl.core import getenv
 import wibl.core.timestamping as ts
 import wibl.core.geojson_convert as gj
 import wibl.processing.algorithms.deduplicate as dedup
 from wibl.processing.cloud.aws import get_config_file
+from wibl_manager import ManagerInterface, MetadataType, WIBLMetadata, ProcessingStatus
 
 s3 = boto3.resource('s3')
 
@@ -55,7 +60,8 @@ def read_local_event(event_file: str) -> Dict:
         event = json.load(f)
     return event
 
-def process_item(item: ds.DataItem, controller: ds.CloudController, config: Dict[str,Any]) -> bool:
+
+def process_item(item: ds.DataItem, controller: ds.CloudController, notifier: nt.Notifier, config: Dict[str,Any]) -> bool:
     """Implement the business logic to translate the file from WIBL binary into a GeoJSON file.  The
        file with metadata in 'item' is pulled from object store using 'controller.obtain()', run through
        the translation and time-stamping from the Timestamping module, and then converted to GeoJSON
@@ -64,48 +70,87 @@ def process_item(item: ds.DataItem, controller: ds.CloudController, config: Dict
        Note that this code does not clean up the input object, so all files being uploaded to the cloud
        might potentially stay in the input object store unless otherwise deleted.
     """
-    if config['verbose']:
+
+    verbose: bool = config['verbose']
+
+    meta: WIBLMetadata = WIBLMetadata()
+    meta.size = item.source_size/(1024.0*1024.0)
+    meta.status = ProcessingStatus.PROCESSING_FAILED.value  # Until further notice ...
+    manager: ManagerInterface = ManagerInterface(MetadataType.WIBL_METADATA, item.source_key, config['verbose'])
+    if not manager.register(meta.size):
+        print('error: failed to register file with REST management interface.')
+    
+    if verbose:
         print(f'Attempting to obtain item {item} from S3 ...')
 
-    (local_file, source_id) = controller.obtain(item)
+    local_file, source_info = controller.obtain(item)
     try:
-        if config['verbose']:
+        if verbose:
             print(f'Attempting file read/time interpolation on {local_file} ...')
         source_data = ts.time_interpolation(local_file, config['elapsed_time_quantum'], verbose = config['verbose'], fault_limit = config['fault_limit'])
+        meta.logger = source_data['loggername']
+        meta.platform = source_data['platform']
+        meta.observations = len(source_data['depth']['z'])
+        meta.soundings = meta.observations
+        meta.starttime = datetime.fromtimestamp(source_data['depth']['t'][0]).isoformat()
+        meta.endtime = datetime.fromtimestamp(source_data['depth']['t'][-1]).isoformat()
+    except lf.PacketTranscriptionError as e:
+        print(f"Error reading packet from WIBL file: {str(e)}")
     except ts.NoTimeSource:
-        print('Failed to convert data: no time source known.')
+        manager.logmsg(f'error: failed to convert data({local_file}): no time source known.')
+        manager.update(meta)
         return False
     except ts.NewerDataFile:
-        print('Failed to convert data: file data format is newer than latest version known to code.')
+        manager.logmsg(f'error: failed to convert data({local_file}): file data format is newer than latest version known to code.')
+        manager.update(meta)
         return False
     except ts.NoData:
-        print('Failed to convert data: no bathymetric data in file.')
+        manager.logmsg(f'error: failed to convert data({local_file}): no bathymetric data in file.')
+        manager.update(meta)
         return False
     
     # We now have the option to run any sub-algorithms on the data before converting to GeoJSON
     # and encoding for output to the staging area for upload.
-    if config['verbose']:
+    if verbose:
         print('Applying requested algorithms (if any) ...')
     
     for alg in source_data['algorithms']:
         algname = alg['name']
         if algname == 'deduplicate':
-            if config['verbose']:
+            if verbose:
                 print(f'Applying algorithm {algname}')
             source_data = dedup.deduplicate_depth(source_data, alg['params'], config)
+            meta.soundings = len(source_data['depth']['z'])
         else:
-            print(f'Warning: unknown algorithm {algname}')
+            manager.logmsg(f'Warning: unknown algorithm {algname} for {local_file}.')
     
-    if config['verbose']:
+    if verbose:
         print('Converting remaining data to GeoJSON format ...')
     submit_data = gj.translate(source_data, config)
+
+    try:
+        source_id = submit_data['properties']['trustedNode']['uniqueVesselID']
+    except KeyError as e:
+        print(f'error: KeyError while reading uniqueVesselID, submit_data was: {submit_data}')
+        raise e
+
     source_id = submit_data['properties']['trustedNode']['uniqueVesselID']
-    if config['verbose']:
+    if verbose:
         print('Converting GeoJSON to byte stream for transmission ...')
+
     encoded_data = json.dumps(submit_data).encode('utf-8')
-    if config['verbose']:
+    item.dest_size = len(encoded_data)
+    if verbose:
         print('Attempting to send encoded data to S3 staging bucket ...')
-    controller.transmit(item, source_id, encoded_data)
+    controller.transmit(item, source_id, meta.logger, meta.soundings, encoded_data)
+
+    meta.status = ProcessingStatus.PROCESSING_SUCCESSFUL.value
+    if verbose:
+        print('Attempting to update status via manager...')
+    manager.update(meta)
+    if verbose:
+        print('Attempting to notify SNS')
+    notifier.notify(item)
     return True
     
     
@@ -123,12 +168,16 @@ def lambda_handler(event, context):
     
     # We instantiate the AWS versions of DataSource and CloudController explicitly, since we can't be using anything
     # else given the rest of the infrastructure here, which is AWS specific.
+    # When using direct S3 triggers or custom WIBL lambda-generated SNS event payloads, use:
     source = ds.AWSSource(event, config)
+    # When using S3->SNS triggers, use:
+    # source = ds.AWSSourceSNSTrigger(event, config)
     controller = ds.AWSController(config)
+    notifier = nt.SNSNotifier(getenv('NOTIFICATION_ARN'))
     
     p = source.nextSource()
     while p is not None:
-        if not process_item(p, controller, config):
+        if not process_item(p, controller, notifier, config):
             print(f'Abandoning processing of {p.source_key} due to errors.')
         p = source.nextSource()
 

@@ -27,6 +27,7 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
+import os
 import json
 from typing import Dict, Any
 
@@ -37,7 +38,9 @@ import boto3
 from wibl.core import getenv
 import wibl.core.config as conf
 import wibl.core.datasource as ds
+import wibl.core.notification as nt
 from wibl.submission.cloud.aws import get_config_file
+from wibl_manager import ManagerInterface, MetadataType, GeoJSONMetadata, ReturnCodes, UploadStatus
 
 s3 = boto3.resource('s3')
 
@@ -60,32 +63,48 @@ def read_local_event(event_file: str) -> Dict:
     return event
 
 ## Send a specified GeoJSON dictionary to the user's specified end-point
-#
+# TODO: This should be moved outside of the cloud/aws package since it is used by non-AWS code (e.g., dcdb_upload)
 # Manage the process for formatting the POST request to DCDB's submission API, transmitting the file into
 # the DCDB incoming buffers.  Among other things, this makes sure that the provider identification is
 # embedded in the unique identifier (since DCDB uses this to work out where to route the data).  A local
 # mode is also provided so you can test the upload without having to be connected, or annoy DCDB.
 #
-# \param source_uniqueID    Unique ID encoded into the GeoJSON metadata
-# \param provider_id        DCDB recognition code for the person authorising the upload
-# \param provider_auth      DCDB authorisation key for upload
-# \param local_file         Filename for the local GeoJSON file to transmit
-# \param config             Configuration dictionary
+# \param source_info    Metadata for the current file (sourceID, logger name, soundings, etc.)
+# \param provider_id    DCDB recognition code for the person authorising the upload
+# \param provider_auth  DCDB authorisation key for upload
+# \param local_file     Filename for the local GeoJSON file to transmit
+# \param config         Configuration dictionary
 # \return True if the upload succeeded, otherwise False
 
-def transmit_geojson(source_uniqueID: str, provider_id: str, provider_auth: str, local_file: str, config: Dict[str,Any]) -> bool:
+def transmit_geojson(source_info: Dict[str,Any], provider_id: str, provider_auth: str, local_file: str,
+                     config: Dict[str,Any]) -> bool:
     headers = {
         'x-auth-token': provider_auth
     }
     # The unique ID that we provide to DCDB must be preceeded by our provider ID and a hyphen.
     # This should happen before the code gets to here, but just in case, we enforce this requirement.
-    if provider_id not in source_uniqueID:
-        dest_uniqueID = provider_id + '-' + source_uniqueID
+    if provider_id not in source_info['sourceID']:
+        dest_uniqueID = provider_id + '-' + source_info['sourceID']
     else:
-        dest_uniqueID = source_uniqueID
+        dest_uniqueID = source_info['sourceID']
 
+    filesize = os.path.getsize(local_file)/(1024.0*1024.0)
+    filename = os.path.split(local_file)[-1]
+    if filename == '':
+        # TODO: Should the upload fail if we can't report status to the manager?
+        print(f'warning: unable to determine of file to upload. local_file was: {local_file}.')
+    manager: ManagerInterface = ManagerInterface(MetadataType.GEOJSON_METADATA, filename, config['verbose'])
+    if not manager.register(filesize):
+        # TODO: Should the upload fail if we can't report status to the manager?
+        print('warning: failed to register file with REST management service.')
+    meta: GeoJSONMetadata = GeoJSONMetadata()
+    meta.size = filesize
+    meta.logger = source_info["logger"]
+    meta.soundings = source_info["soundings"]
+    meta.status = UploadStatus.UPLOAD_STARTED.value
+    
     if config['verbose']:
-        print(f'Source ID is: {source_uniqueID}; ' + 
+        print(f'Source ID is: {source_info["sourceID"]}; ' + 
               f'Destination object uniqueID is: {dest_uniqueID}; ' +
               f'Authorisation token is: {provider_auth}')
 
@@ -97,22 +116,32 @@ def transmit_geojson(source_uniqueID: str, provider_id: str, provider_auth: str,
     upload_point = getenv('UPLOAD_POINT')
 
     if config['local']:
-        print(f'Local mode: Transmitting to {upload_point} for source ID {source_uniqueID} with destination ID {dest_uniqueID}.')
+        print(f'Local mode: Transmitting to {upload_point} for source ID {source_info["sourceID"]} with destination ID {dest_uniqueID}.')
+        meta.status = UploadStatus.UPLOAD_SUCCESSFUL.value
         rc = True
     else:
-        upload_url = upload_point
         if config['verbose']:
-            print(f'Transmitting for source ID {source_uniqueID} to {upload_url} as destination ID {dest_uniqueID}.')
-        response = requests.post(upload_url, headers=headers, files=files)
+            print(f'Transmitting for source ID {source_info["sourceID"]} to {upload_point} as destination ID {dest_uniqueID}.')
+        response = requests.post(upload_point, headers=headers, files=files)
         json_response = response.json()
-        print(f'POST response is {json_response}')
+        if config['verbose']:
+            print(f'POST response is {json_response}')
         try:
-            rc = json_response['success']
-            if not rc:
-                rc = None
+            json_code = json_response['success']
+            if json_code:
+                rc = True
+                meta.status = UploadStatus.UPLOAD_SUCCESSFUL.value
+            else:
+                rc = False
+                meta.status = UploadStatus.UPLOAD_FAILED.value
+                manager.logmsg(f'error: DCDB responded {json_response}')
+                
         except json.decoder.JSONDecodeError:
-            rc = None
+            rc = False
+            meta.status = UploadStatus.UPLOAD_FAILED.value
+            manager.logmsg(f'error: DCDB responded {json_response}')
 
+    manager.update(meta)
     return rc
 
 
@@ -121,21 +150,25 @@ def lambda_handler(event, context):
         config = conf.read_config(get_config_file())
     except conf.BadConfiguration:
         return {
-            'statusCode':   400,
+            'statusCode':   ReturnCodes.FAILED.value,
             'body':         'Bad configuration file.'
             }
-    
-    # We need to find the provider's authorisation ID and identifier so that we can
-    # annotate the call to the DCDB upload point.  These are stored in a JSON file in
-    # the same directory as the Lambda source, with a well-known name
-    with open('credentials.json') as f:
-        creds = json.load(f)
     
     # Construct a data source to handle the input items, and a controller to manage the transmission of
     # data from buckets to local files.  We instanatiate the DataSource and CloudController sub-classes
     # explicitly, since this code is also specific to AWS.
+    # When using direct S3 triggers or custom WIBL lambda-generated SNS event payloads, use:
     source = ds.AWSSource(event, config)
+    # When using S3->SNS triggers, use:
+    #source = ds.AWSSourceSNSTrigger(event, config)
     controller = ds.AWSController(config)
+    notifier = nt.SNSNotifier(getenv('NOTIFICATION_ARN'))
+
+    # We obtain the DCDB provider uniqueID (i.e., the six-letter identifier for the Trusted Node) and
+    # authorisation string (the shared secret for authentication) from the environment; they should be
+    # stored there when the Lambda is created.
+    provider_id = getenv('PROVIDER_ID')
+    provider_auth = getenv('PROVIDER_AUTH')
     
     # Loop through all of the source files in the incoming bucket, attempting to upload each in turn, and
     # keeping track of those that succeed and fail.
@@ -143,30 +176,31 @@ def lambda_handler(event, context):
     succeeded = []
     failed = []
     while item is not None:
-        (local_file, source_id) = controller.obtain(item)
-        if source_id is None:
+        local_file, source_info = controller.obtain(item)
+        print(f'Source information is {source_info}.')
+        if not source_info['sourceID']:
             if config['verbose']:
                 print(f'Failed to transfer item {item} because it has no SourceID specified.')
             failed.append(item)
         else:
-            provider_id = getenv('PROVIDER_ID')
-            provider_auth = getenv('PROVIDER_AUTH')
-            rc = transmit_geojson(source_id, provider_id, provider_auth, local_file, config)
-            if rc is None:
-                if config['verbose']:
-                    print(f'Failed to transfer item {item}')
-                failed.append(item)
-            else:
+            rc = transmit_geojson(source_info, provider_id, provider_auth, local_file, config)
+            if rc:
                 if config['verbose']:
                     print(f'Succeeded in transferring item {item}')
                 succeeded.append(item)
+                item.dest_size = item.source_size
+                notifier.notify(item)
+            else:
+                if config['verbose']:
+                    print(f'Failed to transfer item {item}')
+                failed.append(item)
         item = source.nextSource()
     
     # Status report for the user
     if failed:
-        status_code = 400
+        status_code = ReturnCodes.FAILED.value
     else:
-        status_code = 200
+        status_code = ReturnCodes.OK.value
     n_succeed = len(succeeded)
     n_fail = len(failed)
     n_total = n_succeed + n_fail

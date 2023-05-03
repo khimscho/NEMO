@@ -4,23 +4,27 @@
 # sourced by code to set up lambdas, and another to set up the
 # buckets.
 
-# Set this to your AWS account number
-ACCOUNT_NUMBER=# Twelve-digit AWS account number
+# Set this to your AWS account number (twelve-digit AWS account number)
+ACCOUNT_NUMBER=$(aws sts get-caller-identity --query Account --output text)
 
 # DCDB will issue you with a unique provider ID to identify your uploads.  This is
 # used in many different places in the code; set it here.
-DCDB_PROVIDER_ID=# Six-character DCDB identifier
+DCDB_PROVIDER_ID=UNHJHC
+
+# Provide a trusted IP address limit SSH ingress to our public VPC
+TRUSTED_IP_ADDRESS=132.177.103.226
 
 # The script needs to know where to find the WIBL source code so that it can package
 # the Python library for upload to AWS.  It also needs a place to stash the resulting
 # package.  Set those locations here.
-WIBL_SRC_LOCATION=${HOME}/Projects/WIBL/wibl-python
-WIBL_BIN_LOCATION=${HOME}/Projects-Extras/WIBL/AWS-Setup
+WIBL_SRC_LOCATION=$(git rev-parse --show-toplevel)/wibl-python
+WIBL_BUILD_LOCATION=${WIBL_SRC_LOCATION}/awsbuild
+mkdir -p ${WIBL_BUILD_LOCATION} || exit $?
 
 # DCDB should provide you with a token to authorise you to upload; change this code
 # so that it can find where you've stashed it, and read it in to allow for setup of
 # the submission Lambda.
-AUTHKEY=`cat ../DCDB-Upload-Tokens/ingest-external-${DCDB_PROVIDER_ID}.txt`
+AUTHKEY=`cat ingest-external-${DCDB_PROVIDER_ID}.txt`
 
 # These parameters configure the AWS region and technical details of the Lambda runtime
 # that will be used.  If you change the region, you will also want to change the SciPy
@@ -32,20 +36,59 @@ ARCHITECTURE=x86_64
 PYTHONVERSION=3.8
 SCIPY_LAYER_NAME=arn:aws:lambda:us-east-2:259788987135:layer:AWSLambda-Python38-SciPy1x:107
 
+# $WIBL_PACKAGE is the absolute path of the zip file containing the lambda code
+WIBL_PACKAGE=${WIBL_BUILD_LOCATION}/wibl-package-py${PYTHONVERSION}-${ARCHITECTURE}.zip
+
 #---------------------------------------------------------------------------------------
 # Below here you probably don't need to change much
 
-DCDB_UPLOAD_URL=https://www.ngdc.noaa.gov/ingest-external/upload/csb/geojson/
+#DCDB_UPLOAD_URL=https://www.ngdc.noaa.gov/ingest-external/upload/csb/geojson/
+DCDB_UPLOAD_URL=https://www.ngdc.noaa.gov/ingest-external/upload/csb/test/geojson/
 
 PROVIDER_PREFIX=`echo ${DCDB_PROVIDER_ID} | tr '[:upper:]' '[:lower:]'`
 
-PROCESSING_LAMBDA=${PROVIDER_PREFIX}-wibl-processing
+CONVERSION_LAMBDA=${PROVIDER_PREFIX}-wibl-conversion
+VALIDATION_LAMBDA=${PROVIDER_PREFIX}-wibl-validation
 SUBMISSION_LAMBDA=${PROVIDER_PREFIX}-wibl-submission
-PROCESSING_LAMBDA_ROLE=${PROCESSING_LAMBDA}-lambda
+CONVERSION_START_LAMBDA=${PROVIDER_PREFIX}-wibl-conversion-start
+CONVERSION_LAMBDA_ROLE=${CONVERSION_LAMBDA}-lambda
+VALIDATION_LAMBDA_ROLE=${VALIDATION_LAMBDA}-lambda
 SUBMISSION_LAMBDA_ROLE=${SUBMISSION_LAMBDA}-lambda
+CONVERSION_START_LAMBDA_ROLE=${CONVERSION_START_LAMBDA}-lambda
 
 LAMBDA_TIMEOUT=30
 LAMBDA_MEMORY=2048
 
 INCOMING_BUCKET=${PROVIDER_PREFIX}-wibl-incoming
 STAGING_BUCKET=${PROVIDER_PREFIX}-wibl-staging
+
+# Topic for announcing the existance of files needing conversion
+TOPIC_NAME_CONVERSION=${PROVIDER_PREFIX}-wibl-conversion
+# Topic for announcing the existance of files needing validation
+TOPIC_NAME_VALIDATION=${PROVIDER_PREFIX}-wibl-validation
+# Topic for announcing the existance of files needing submission
+TOPIC_NAME_SUBMISSION=${PROVIDER_PREFIX}-wibl-submission
+# Topic for announcing the successful submission of a file to DCDB
+TOPIC_NAME_SUBMITTED=${PROVIDER_PREFIX}-wibl-submitted
+
+TOPIC_ARN_CONVERSION="arn:aws:sns:${AWS_REGION}:${ACCOUNT_NUMBER}:${TOPIC_NAME_CONVERSION}"
+TOPIC_ARN_VALIDATION="arn:aws:sns:${AWS_REGION}:${ACCOUNT_NUMBER}:${TOPIC_NAME_VALIDATION}"
+TOPIC_ARN_SUBMISSION="arn:aws:sns:${AWS_REGION}:${ACCOUNT_NUMBER}:${TOPIC_NAME_SUBMISSION}"
+TOPIC_ARN_SUBMITTED="arn:aws:sns:${AWS_REGION}:${ACCOUNT_NUMBER}:${TOPIC_NAME_SUBMITTED}"
+
+function exit_with_error () {
+  echo "Exiting with error:" $1
+  exit $?
+}
+
+function test_aws_cmd_success () {
+  # Test whether AWS CLI command fails if an entity exists
+  # Consider successful exit codes to be 0 or 254 (entity already exists)
+  if [[ $1 -ne 0 && $1 -ne  254 ]]
+  then
+    echo "AWS CMD was not successful (exit code was $1), exiting."
+    exit $1
+  else
+    echo "AWS CMD was successful."
+  fi
+}

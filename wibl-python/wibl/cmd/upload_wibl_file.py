@@ -60,7 +60,7 @@ def uploadwibl():
     if optargs.json:
         file_extension = '.json'
     else:
-        file_extension = ''
+        file_extension = '.wibl'
         
     sourceID = None
     if optargs.source:

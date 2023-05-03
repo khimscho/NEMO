@@ -27,7 +27,7 @@ from pathlib import Path
 
 from wibl.core import config
 
-DEFAULT_CONFIG_RESOURCE_NAME = 'defaults/submission/cloud/aws/configure.json'
+DEFAULT_CONFIG_RESOURCE_NAME = 'submission/cloud/aws/configure.json'
 
 
 def get_config_file() -> Path:

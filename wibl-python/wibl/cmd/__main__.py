@@ -33,6 +33,7 @@ from wibl.cmd.upload_wibl_file import uploadwibl
 from wibl.cmd.parse_wibl_file import parsewibl
 from wibl.cmd.dcdb_upload import dcdb_upload
 from wibl.cmd.wibl_proc import wibl_proc
+from wibl.cmd.validate import geojson_validate
 
 class WIBL:
     def __init__(self):
@@ -47,6 +48,7 @@ class WIBL:
         parsewibl   Read and report contents of a WIBL file.
         dcdbupload  Upload a GeoJSON file to DCDB direct.
         procwibl    Local processing from WIBL file to GeoJSON.
+        validate    Validate the metadata in a GeoJSON file.
         '''
         )
         parser.add_argument('--version', help='print version and exit',
@@ -80,6 +82,9 @@ class WIBL:
 
     def procwibl(self):
         wibl_proc()
+
+    def validate(self):
+        geojson_validate()
 
 def main():
     WIBL()

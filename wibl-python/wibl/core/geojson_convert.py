@@ -37,6 +37,7 @@ from typing import Dict, Any
 
 from wibl.core import getenv
 
+FMT_OBS_TIME='%Y-%m-%dT%H:%M:%S.%fZ'
 
 def translate(data: Dict[str,Any], config: Dict[str,Any]) -> Dict[str,Any]:
     """
@@ -59,29 +60,28 @@ def translate(data: Dict[str,Any], config: Dict[str,Any]) -> Dict[str,Any]:
     # based on https://ngdc.noaa.gov/ingest-external/#_testing_csb_data_submissions example geojson
 
     feature_lst = []
-    
-    FMT_OBS_TIME='%Y-%m-%dT%H:%M:%S.%fZ'
+
     for i in range(len(data['depth']['z'])):
         timestamp = datetime.fromtimestamp(data['depth']['t'][i], tz=timezone.utc).strftime(FMT_OBS_TIME)
         
         feature_dict = {
-        "type": "Feature",
-        "geometry": {
-            "type": "Point",
-            "coordinates": [
-            data['depth']['lon'][i],
-            data['depth']['lat'][i]
-            ]
-        },
-        "properties": {
-            "depth": data['depth']['z'][i],
-            "time": timestamp
-        }
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                data['depth']['lon'][i],
+                data['depth']['lat'][i]
+                ]
+            },
+            "properties": {
+                "depth": data['depth']['z'][i],
+                "time": timestamp
+            }
         }
 
         feature_lst.append(dict(feature_dict))
 
-    final_json_dict = {
+    final_json_dict: dict[str, Any] = {
         "type": "FeatureCollection",
         "crs": {
             "type": "name",
@@ -111,8 +111,7 @@ def translate(data: Dict[str,Any], config: Dict[str,Any]) -> Dict[str,Any]:
                 "soundSpeedDocumented":         False,
                 "positionOffsetsDocumented":    False,
                 "dataProcessed":                False
-            },
-            "processing": []
+            }
         },
         "features": feature_lst
     }
@@ -126,8 +125,11 @@ def translate(data: Dict[str,Any], config: Dict[str,Any]) -> Dict[str,Any]:
             for k,v in meta['trustedNode'].items():
                 final_json_dict['properties']['trustedNode'][k] = v
         if 'processing' in meta:
+            final_json_dict['properties']['processing'] = []
             for event in meta['processing']:
                 final_json_dict['properties']['processing'].append(event)
+        if 'processing' in final_json_dict['properties'] and len(final_json_dict['properties']['processing']) > 0:
+            final_json_dict['properties']['platform']['dataProcessed'] = True
     
     # The database requires that the unique ID contains the provider's ID, presumably to avoid
     # namespace clashes.  We therefore check now (after the platform metadata is finalised) to make
@@ -141,6 +143,8 @@ def translate(data: Dict[str,Any], config: Dict[str,Any]) -> Dict[str,Any]:
     final_json_dict['properties']['platform']['uniqueID'] = final_json_dict['properties']['trustedNode']['uniqueVesselID']
 
     if 'lineage' in data:
+        if 'processing' not in final_json_dict['properties']:
+            final_json_dict['properties']['processing'] = []
         final_json_dict['properties']['processing'] += data['lineage']
 
     return final_json_dict

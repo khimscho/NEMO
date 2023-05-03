@@ -13,6 +13,13 @@ cat >${CONFIG_FILE_DIR}/configure.json <<-HERE
     "elapsed_time_width":   32,
     "fault_limit":          10,
     "upload_point":         "${DCDB_UPLOAD_URL}",
+    "management_url":       "${MANAGEMENT_URL}",
+    "notification": {
+        "created":      "${PROVIDER_PREFIX}-wibl-${NOTE_CREATED}",
+        "converted":    "${PROVIDER_PREFIX}-wibl-${NOTE_CONVERTED}",
+        "validated":    "${PROVIDER_PREFIX}-wibl-${NOTE_VALIDATED}",
+        "uploaded":     "${PROVIDER_PREFIX}-wibl-${NOTE_UPLOADED}"
+    },
     "local":                true
 }
 HERE
