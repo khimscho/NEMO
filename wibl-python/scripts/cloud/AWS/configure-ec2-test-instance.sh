@@ -9,7 +9,7 @@ source configuration-parameters.sh
 aws --region $AWS_REGION ec2 authorize-security-group-ingress \
   --group-id "$(cat ${WIBL_BUILD_LOCATION}/create_security_group_public.json | jq -r '.GroupId')" \
   --ip-permissions "[{\"IpProtocol\": \"tcp\", \"FromPort\": 22, \"ToPort\": 22, \"IpRanges\": [{\"CidrIp\": \"${TRUSTED_IP_ADDRESS}/32\"}]}]" \
-  | tee ${WIBL_BUILD_LOCATION}/create_security_group_public_rule_vpc_ssh.json
+  | tee "${WIBL_BUILD_LOCATION}/create_security_group_public_rule_vpc_ssh.json"
 
 # Tag the SSH ingress rule with a name
 aws ec2 create-tags \
@@ -22,8 +22,8 @@ aws ec2 create-key-pair \
   --key-type rsa \
   --key-format pem \
   --query "KeyMaterial" \
-  --output text > wibl-manager-key.pem
-chmod 400 wibl-manager-key.pem
+  --output text > "${WIBL_BUILD_LOCATION}/wibl-manager-key.pem"
+chmod 400 "${WIBL_BUILD_LOCATION}/wibl-manager-key.pem"
 
 # Launch test EC2 instance with key, security group, in the public subnet
 # Note: This will be used as a "jump box" to access the EC2 instance running within the private subnet
