@@ -11,19 +11,18 @@ source configuration-parameters.sh
 # Create repo
 aws --region $AWS_REGION ecr create-repository \
   --repository-name wibl/manager | tee ${WIBL_BUILD_LOCATION}/create_ecr_repository.json
-```
 
 # `docker login` to the repo so that we can push to it
 aws --region $AWS_REGION ecr get-login-password | docker login \
   --username AWS \
   --password-stdin \
-  $(cat ${WIBL_BUILD_LOCATION}/create_ecr_repository.json | jq -r '.repository.repositoryUri')
+  "$(cat ${WIBL_BUILD_LOCATION}/create_ecr_repository.json | jq -r '.repository.repositoryUri')"
 # If `docker login` is successful, you should see `Login Succeeded` printed to STDOUT.
 
 # Build image and push to ECR repo
 docker build -t wibl/manager ../../../wibl-manager/
-docker tag wibl/manager:latest ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/wibl/manager:latest
-docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/wibl/manager:latest | tee "${WIBL_BUILD_LOCATION}/docker_push_to_ecr.txt"
+docker tag wibl/manager:latest "${ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/wibl/manager:latest"
+docker push "${ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/wibl/manager:latest" | tee "${WIBL_BUILD_LOCATION}/docker_push_to_ecr.txt"
 
 ####################
 # Phase 1: Create VPC, public and private subnets and route tables, as well as security groups for ECS Fargate
@@ -168,6 +167,9 @@ aws --region ${AWS_REGION} ec2 create-nat-gateway \
   --allocation-id "$(cat ${WIBL_BUILD_LOCATION}/alloc_nat_gw_eip.json | jq -r '.AllocationId')" \
   | tee "${WIBL_BUILD_LOCATION}/create_nat_gateway.json"
 
+echo $'\e[31mWaiting for 10 seconds to allow NAT gateway to propagate ...\e[0m'
+sleep 10
+
 # Update route table in private subnet to route to internet gateway
 aws --region ${AWS_REGION} ec2 create-route \
   --route-table-id "$(cat ${WIBL_BUILD_LOCATION}/create_route_table_private.txt)" \
@@ -271,7 +273,7 @@ aws elbv2 create-listener \
 
 # Using image pushed to ECR above, create task definition
 AWS_EFS_FS_ID=$(cat ${WIBL_BUILD_LOCATION}/create_efs_file_system.json | jq -r '.FileSystemId')
-sed "s|REPLACEME_AWS_ACCOUNT_ID|$ACCOUNT_NUMBER|g" manager/input/manager-task-definition.proto | \
+sed "s|REPLACEME_ACCOUNT_NUMBER|$ACCOUNT_NUMBER|g" manager/input/manager-task-definition.proto | \
   sed "s|REPLACEME_AWS_EFS_FS_ID|$AWS_EFS_FS_ID|g" | \
   sed "s|REPLECEME_AWS_REGION|$AWS_REGION|g" > ${WIBL_BUILD_LOCATION}/manager-task-definition.json
 aws --region $AWS_REGION ecs register-task-definition \
