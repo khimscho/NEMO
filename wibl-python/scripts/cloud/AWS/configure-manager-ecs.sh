@@ -190,6 +190,9 @@ aws --region $AWS_REGION efs create-file-system \
   --tags 'Key=Name,Value=wibl-manager-ecs-task-efs' \
   | tee ${WIBL_BUILD_LOCATION}/create_efs_file_system.json
 
+echo $'\e[31mWaiting for 10 seconds to allow EFS volume to propagate ...\e[0m'
+sleep 10
+
 # Create mount target for EFS volume within our VPC subnet
 aws --region $AWS_REGION efs create-mount-target \
   --file-system-id "$(cat ${WIBL_BUILD_LOCATION}/create_efs_file_system.json | jq -r '.FileSystemId')" \
@@ -272,7 +275,7 @@ aws elbv2 create-listener \
   | tee ${WIBL_BUILD_LOCATION}/create_elb_listener.json
 
 # Using image pushed to ECR above, create task definition
-AWS_EFS_FS_ID=$(cat ${WIBL_BUILD_LOCATION}/create_efs_file_system.json | jq -r '.FileSystemId')
+AWS_EFS_FS_ID="$(cat ${WIBL_BUILD_LOCATION}/create_efs_file_system.json | jq -r '.FileSystemId')"
 sed "s|REPLACEME_ACCOUNT_NUMBER|$ACCOUNT_NUMBER|g" manager/input/manager-task-definition.proto | \
   sed "s|REPLACEME_AWS_EFS_FS_ID|$AWS_EFS_FS_ID|g" | \
   sed "s|REPLECEME_AWS_REGION|$AWS_REGION|g" > ${WIBL_BUILD_LOCATION}/manager-task-definition.json
