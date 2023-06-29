@@ -86,5 +86,10 @@ class WIBL:
     def validate(self):
         geojson_validate()
 
+
 def main():
     WIBL()
+
+
+if __name__ == '__main__':
+    main()
