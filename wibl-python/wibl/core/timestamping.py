@@ -189,7 +189,7 @@ def time_interpolation(filename: str, elapsed_time_quantum: int, **kwargs) -> Di
         if isinstance(pkt, LoggerFile.GNSS):
             stats.Observed(pkt.name())
             if time_source == TimeSource.Time_GNSS:
-                time_table.add_point(pkt.elapsed + elapsed_offset, 'ref', pkt.date * seconds_per_day + pkt.timestamp)
+                time_table.add_point(pkt.elapsed + elapsed_offset, 'ref', pkt.msg_date * seconds_per_day + pkt.msg_timestamp)
             position_table.add_points(pkt.elapsed + elapsed_offset, ('lat', 'lon'), (pkt.latitude, pkt.longitude))
         if isinstance(pkt, LoggerFile.SerialString):
             try:
