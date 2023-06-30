@@ -147,6 +147,10 @@ optional arguments:
                         Specify configuration file for installation
 ```
 
+Configuration files suitable for uploading to both the test and production DCDB endpoints are available in the
+[examples](examples) directory; For test uploads, use [configure-submission-test.json](examples/configure-submission-test.json),
+and for production uploads use [configure-submission.json](examples/configure-submission.json).
+
 ## Packaging and Deploying Processing and Submission Code
 Packaging up the software for the cloud segment, and deploying it, can be a little involved due to security concerns with the various cloud providers.  Detailed setup instructions, and automation scripts, are provided as described below.
 
