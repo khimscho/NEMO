@@ -1,0 +1,40 @@
+a {
+    color: blue;
+    text-decoration: none;
+}
+
+h1 {
+    font-family: Verdana, Geneva, Tahoma, sans-serif;
+    font-size: 20px;
+}
+
+.main-wrapper {
+    font-family: Verdana, Geneva, Tahoma, sans-serif;
+    font-size: 18px;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 0px;
+}
+
+.primary_header {
+    width: 100%;
+    background-color: #03538D;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    padding-left: 10px;
+    padding-right: 10px;
+    clear: left;
+    border-bottom: 2px solid #2C9AB7;
+    display: inline-flex;
+    color: #FFFFFF;
+}
+
+.icon-row {
+    width: 100%;
+    display: flex;
+}
+
+img.logo {
+    width: 60px;
+    padding-right: 10px;
+}

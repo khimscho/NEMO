@@ -1,0 +1,10 @@
+input[type="button"] {
+    font-family: Verdana, Geneva, Tahoma, sans-serif;
+    font-size: 18px;
+    padding: 5px;
+}
+
+input[type="button"]:hover {
+    color: blue;
+    opacity: 0.8;
+}
