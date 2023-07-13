@@ -1,5 +1,8 @@
+:root {
+    --ccom-blue: #03538D;
+}
 a {
-    color: blue;
+    color: var(--ccom-blue);
     text-decoration: none;
 }
 
@@ -18,7 +21,7 @@ h1 {
 
 .primary_header {
     width: 100%;
-    background-color: #03538D;
+    background-color: var(--ccom-blue);
     padding-top: 10px;
     padding-bottom: 10px;
     padding-left: 10px;
