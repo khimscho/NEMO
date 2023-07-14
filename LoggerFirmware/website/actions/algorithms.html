@@ -18,6 +18,8 @@
             <fieldset class="algorithms">
                 <legend>Current Algorithm Requests</legend>
                 <div class="status-table-row">
+                    <!-- In practice, the code would poll the logger with the "algorithm" command,
+                         and fill out the table below with the results. -->
                     <table>
                         <tr><th>Name</th><th>Parameters</th></tr>
                         <tr><td>deduplicate</td><td>N/A</td></tr>
@@ -26,6 +28,8 @@
                 </div>
             </fieldset>
             <fieldset class="algorithms">
+                <!-- Adding a new algorithm can just generate a new entry in the table here,
+                     so that you don't round-trip a modification each time. -->
                 <legend>Add New Algorithm Request</legend>
                 <label for="alg-name">Name</label>
                 <input type="text" name="algname" id="alg-name"/>
@@ -34,8 +38,8 @@
                 <button>Add Algorithm</button>
             </fieldset>
             <div class="algorithms">
-                <button>Clear List</button>
-                <button>Upload</button>
+                <button>Clear List</button><!-- On click, send "algorithm none" command to clear list -->
+                <button>Upload</button><!-- On click, send "algorithms none" command, then one "algorithm" command per line in the table -->
             </div>
         </div>
     </body>

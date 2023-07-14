@@ -44,6 +44,9 @@
             </section>
         </div>
         <div class="status-table-row">
+            <!-- In implementation, the code would query the logger with the "status" command, and parse
+                 JSON returned for the versions, elapsed time, number of files, etc., and then fill them
+                 in here. -->
             <table>
                 <tr><th colspan="2">Versions</th></tr>
                 <tr><td>Command Processor</td><td>1.3.0</td></tr>
@@ -62,6 +65,7 @@
             </table>
         </div>
         <div class="refresh-button">
+            <!-- Click here re-runs the "status" command and updates the HTML above -->
             <input type="button" name="refresh" id="refresh" value="Refresh Statistics"/>
         </div>
     </body>

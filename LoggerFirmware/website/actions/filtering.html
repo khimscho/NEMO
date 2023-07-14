@@ -2,6 +2,7 @@
 <head>
     <title>NMEA0183 Message Filtering</title>
     <link rel="stylesheet" href="../css/main.css">
+    <link rel="stylesheet" href="../css/forms.css">
 </head>
 <html>
     <header class="primary-header">
@@ -13,11 +14,24 @@
     <body>
         <div class="main-wrapper">
             <h2>NMEA0183 Message Filtering</h2>
-            <p>Set up message filtering for packets received on
-                the NMEA0183 interface, ensuring that only the
-                important ones are retained in the SD card (mainly
-                to save space).
-            </p>
+            <fieldset>
+                <!-- In practice, the code would send the "accept" command and fill the list here from the results -->
+                <legend>Current List</legend>
+                <p>
+                    GGA, ZDA, GGL, RMC, VTG
+                </p>
+            </fieldset>
+            <fieldset class="algorithms">
+                <legend>Add New Message ID</legend>
+                <label for="add-item">Message ID:</label>
+                <!-- The input should be a three-letter message ID; should be canonicalised to uppercase before adding to the list -->
+                <input type="text" name="add" id="add-item"/>
+                <button>Add</button>
+            </fieldset>
+            <div class="algorithms">
+                <button>Clear List</button><!-- On click, send "accept all" command to clear list, and then refresh with "accept" -->
+                <button>Upload</button><!-- On click, send "accept all" command, then one "accept" command per element in the list -->
+            </div>
         </div>
     </body>
 </html>

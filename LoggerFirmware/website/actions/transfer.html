@@ -2,6 +2,7 @@
 <head>
     <title>Data Transfer</title>
     <link rel="stylesheet" href="../css/main.css">
+    <link rel="stylesheet" href="../css/forms.css">
 </head>
 <html>
     <header class="primary-header">
@@ -13,7 +14,14 @@
     <body>
         <div class="main-wrapper">
             <h2>Data Transfer</h2>
-            <p>Transfer data from the logger to local storage.</p>
+            <fieldset class="algorithms">
+                <legend>Transfer Data</legend>
+                <label for="file-id">ID Number:</label>
+                <input type="number" name="fileid" id="file-id"/>
+                <!-- On click, send "transfer" with the numerical ID in input, then pop-up "save as" box with
+                     filename manufactured from the ID number -->
+                <button>Transfer</button>
+            </fieldset>
         </div>
     </body>
 </html>

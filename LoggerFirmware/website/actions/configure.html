@@ -19,6 +19,7 @@
                         <legend>Metadata</legend>
                         <label for="unique-id">Unique Identifier</label>
                         <input type="text" name="uuid" id="unique-id" required placeholder="UNHJHC"/>
+                        <!-- On click, generate a UUID4, and populate the input above with "PREFIX-UUID4" -->
                         <button class="uuid-gen" type="button">Generate UUID</button>
                         <br>
                         <label for="ship-name">Ship Name</label>
@@ -101,10 +102,11 @@
                     </fieldset>
                 </div>
                 <div class="group-wrapper">
-                    <input type="button" value="Set Working Config">
-                    <input type="button" value="Set Default Config">
-                    <input type="button" value="Save to Disc">
-                    <input type="button" value="Load from Disc">
+                    <!-- In any click, generate JSON from the controls above first, and then ... -->
+                    <input type="button" value="Set Working Config"><!-- Send "setup" command with JSON -->
+                    <input type="button" value="Set Default Config"><!-- Send "lab defaults" command with JSON -->
+                    <input type="button" value="Save to Disc"><!-- Save JSON to local store -->
+                    <input type="button" value="Load from Disc"><!-- Load JSON from local store and populate form above -->
                 </div>
             </form>
         </div>

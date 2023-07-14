@@ -17,6 +17,8 @@
             <fieldset>
                 <legend>Current Metadata</legend>
                 <div class="metadata-display">
+                    <!-- In practice, query the logger with "metadata" command, and use returned JSON for display here.
+                         Syntax highlighting would be wonderful if it's possible. -->
                     <pre>
 {
     "provider_id":          "UNHJHC",
@@ -35,6 +37,7 @@
                 <legend>Configure Metadata</legend>
                 <div class="file-upload">
                     <input type="file" id="metadata" name="metadata" accept="text/json">
+                    <!-- On click, read the JSON from specified file, and send to logger with "metadata" command -->
                     <input type="button" id="upload" name="upload" value="Upload">
                 </div>
             </fieldset>

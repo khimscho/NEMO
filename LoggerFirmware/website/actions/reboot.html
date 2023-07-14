@@ -17,6 +17,9 @@
             <p>Note that this will reset the logger, and cause the WiFi connection
                 to disappear for a time.  This may cause errors in connection to be reported.
             </p>
+            <!-- On click, send "reset" command to logger.  Note that this will terminate the WiFi, and might
+                 potentially break the connection.  Having a timeout of a couple of seconds will stop the
+                 system from locking waiting on the response. -->
             <input type="button" name="reset-button" value="Reboot Now">
         </div>
     </body>
