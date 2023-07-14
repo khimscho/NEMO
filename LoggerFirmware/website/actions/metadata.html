@@ -2,26 +2,42 @@
 <head>
     <title>Metadata Configuration</title>
     <link rel="stylesheet" href="../css/main.css">
+    <link rel="stylesheet" href="../css/forms.css">
 </head>
 <html>
-    <header>
-        <div class="primary_header">
-            <a href="../index.html">
-                <img src="../images/WIBL-CoreWhite-125px.png" alt="The WIBL Project Logo" width="80" class="logo"/>
-            </a>
-            <h1 class="title">Wireless Inexpensive Bathymetry Logger</h1>
-        </div>
+    <header class="primary-header">
+        <a href="../index.html">
+            <img src="../images/WIBL-CoreWhite-125px.png" alt="The WIBL Project Logo" width="80" class="logo"/>
+        </a>
+        <h1 class="title">Wireless Inexpensive Bathymetry Logger</h1>
     </header>
     <body>
         <div class="main-wrapper">
             <h2>Metadata Configuration</h2>
-            <p>Configure the embedded JSON metadata associated with
-                the platform-secific configuration of the logger's
-                support platform.  This information is always saved
-                with each data file, and is retrieved from the data
-                stream by the post-processing software for inclusion
-                in the GeoJSON for archival.
-            </p>
+            <fieldset>
+                <legend>Current Metadata</legend>
+                <div class="metadata-display">
+                    <pre>
+{
+    "provider_id":          "UNHJHC",
+    "staging_bucket":       "unhjhc-wibl-staging",
+    "verbose":              true,
+    "elapsed_time_width":   32,
+    "fault_limit":          10,
+    "upload_point":         "https://www.ngdc.noaa.gov/ingest-external/upload/csb/geojson/",
+    "management_url":       "http://127.0.0.1:5000",
+    "local":                true
+}
+                    </pre>
+                </div>
+            </fieldset>
+            <fieldset style="margin-top: 20px;">
+                <legend>Configure Metadata</legend>
+                <div class="file-upload">
+                    <input type="file" id="metadata" name="metadata" accept="text/json">
+                    <input type="button" id="upload" name="upload" value="Upload">
+                </div>
+            </fieldset>
         </div>
     </body>
 </html>

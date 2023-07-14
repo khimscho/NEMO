@@ -2,23 +2,41 @@
 <head>
     <title>Algorithm Request Configuration</title>
     <link rel="stylesheet" href="../css/main.css">
+    <link rel="stylesheet" href="../css/forms.css">
+    <link rel="stylesheet" href="../css/status.css">
 </head>
 <html>
-    <header>
-        <div class="primary_header">
-            <a href="../index.html">
-                <img src="../images/WIBL-CoreWhite-125px.png" alt="The WIBL Project Logo" width="80" class="logo"/>
-            </a>
-            <h1 class="title">Wireless Inexpensive Bathymetry Logger</h1>
-        </div>
+    <header class="primary-header">
+        <a href="../index.html">
+            <img src="../images/WIBL-CoreWhite-125px.png" alt="The WIBL Project Logo" width="80" class="logo"/>
+        </a>
+        <h1 class="title">Wireless Inexpensive Bathymetry Logger</h1>
     </header>
     <body>
         <div class="main-wrapper">
             <h2>Algorithm Request Configuration</h2>
-            <p>Configuration for algorithms that the logger will include 
-                as requests for the post-processing system to apply to
-                each data file.
-            </p>
+            <fieldset class="algorithms">
+                <legend>Current Algorithm Requests</legend>
+                <div class="status-table-row">
+                    <table>
+                        <tr><th>Name</th><th>Parameters</th></tr>
+                        <tr><td>deduplicate</td><td>N/A</td></tr>
+                        <tr><td>uncertainty</td><td>0.25,0.013,0.95</td></tr>
+                    </table>
+                </div>
+            </fieldset>
+            <fieldset class="algorithms">
+                <legend>Add New Algorithm Request</legend>
+                <label for="alg-name">Name</label>
+                <input type="text" name="algname" id="alg-name"/>
+                <label for="alg-params">Parameters</label>
+                <input type="text" name="algparam" id="alg-params"/><br>
+                <button>Add Algorithm</button>
+            </fieldset>
+            <div class="algorithms">
+                <button>Clear List</button>
+                <button>Upload</button>
+            </div>
         </div>
     </body>
 </html>
