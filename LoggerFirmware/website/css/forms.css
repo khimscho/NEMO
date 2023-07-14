@@ -128,3 +128,9 @@ fieldset.algorithms {
     color: var(--ccom-blue);
     transition: all ease-in-out 200ms;
 }
+
+.commands textarea {
+    border: dashed;
+    border-width: 1px;
+    width: 100%;
+}
