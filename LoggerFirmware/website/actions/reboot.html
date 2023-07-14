@@ -12,15 +12,13 @@
         <h1 class="title">Wireless Inexpensive Bathymetry Logger</h1>
     </header>
     <body>
+        <script src="../js/common.js"></script>
         <div class="main-wrapper">
             <h2>Reboot Logger</h2>
             <p>Note that this will reset the logger, and cause the WiFi connection
                 to disappear for a time.  This may cause errors in connection to be reported.
             </p>
-            <!-- On click, send "reset" command to logger.  Note that this will terminate the WiFi, and might
-                 potentially break the connection.  Having a timeout of a couple of seconds will stop the
-                 system from locking waiting on the response. -->
-            <input type="button" name="reset-button" value="Reboot Now">
+            <input type="button" name="reset-button" value="Reboot Now" onclick = "rebootLogger()">
         </div>
     </body>
 </html>

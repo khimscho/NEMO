@@ -82,6 +82,14 @@ fieldset.baudrates {
     justify-content: center;
 }
 
+.metadata-output {
+    font-size: 12px;
+    width: 100%;
+    border: dashed;
+    border-width: 1px;
+    tab-size: 4;
+}
+
 fieldset.algorithms {
     display: block;
     margin-top: 15px;

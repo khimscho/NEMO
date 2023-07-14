@@ -12,6 +12,8 @@
         <h1 class="title">Wireless Inexpensive Bathymetry Logger</h1>
     </header>
     <body>
+        <script src="../js/common.js"></script>
+        <script src="../js/metadata.js"></script>
         <div class="main-wrapper">
             <h2>Metadata Configuration</h2>
             <fieldset>
@@ -19,18 +21,7 @@
                 <div class="metadata-display">
                     <!-- In practice, query the logger with "metadata" command, and use returned JSON for display here.
                          Syntax highlighting would be wonderful if it's possible. -->
-                    <pre>
-{
-    "provider_id":          "UNHJHC",
-    "staging_bucket":       "unhjhc-wibl-staging",
-    "verbose":              true,
-    "elapsed_time_width":   32,
-    "fault_limit":          10,
-    "upload_point":         "https://www.ngdc.noaa.gov/ingest-external/upload/csb/geojson/",
-    "management_url":       "http://127.0.0.1:5000",
-    "local":                true
-}
-                    </pre>
+                    <textarea id="metadata-output" class="metadata-output" rows="40" wrap="soft" placeholder="JSON Metadata"></textarea>
                 </div>
             </fieldset>
             <fieldset style="margin-top: 20px;">
@@ -38,7 +29,7 @@
                 <div class="file-upload">
                     <input type="file" id="metadata" name="metadata" accept="text/json">
                     <!-- On click, read the JSON from specified file, and send to logger with "metadata" command -->
-                    <input type="button" id="upload" name="upload" value="Upload">
+                    <input type="button" id="upload" name="upload" value="Upload" onclick="onUpload()">
                 </div>
             </fieldset>
         </div>
