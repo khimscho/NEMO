@@ -18,27 +18,17 @@
                 <legend>Command</legend>
                 <input type="text" name="command" id="command"/>
                 <!-- On click, read the command and send directly to the command endpoint on the logger -->
-                <button>Run</button>
+                <button onclick="runCommand()" id="command-run">Run</button>
             </fieldset>
             <fieldset class="commands">
                 <!-- In practice, when the command is run, the server responds with a string out output.  The
                      code should display this in the output space below.  Adding horizontal and vertical scroll
                      bars is probably a good idea. -->
                 <legend>Output</legend>
-                <textarea name="output" rows="20" readonly>
-Command Syntax (V1.3.0):
-  accept [NMEA0183ID | all]       Configure which NMEA0183 messages to accept.
-  algorithm [name params | none]  Add (or report) an algorithm request to the cloud processing.
-  configure [on|off logger-name]  Configure individual loggers on/off (or report config).
-  echo on|off                     Control character echo on serial line.
-  erase file-number|all           Remove a specific [file-number] or all log files.
-  filecount                       Report the number of log files currently available for transfer.
-  heap                            Report current free heap size.
-  help|syntax                     Generate this list.
-  invert 1|2                      Invert polarity of RS-422 input on port 1|2.
-  lab defaults [specification]    Report, or set, lab default configuration in JSON format.
-                </textarea>
+                <textarea name="output" id="command-output" rows="20" readonly placeholder="Command Output"></textarea>
             </fieldset>
         </div>
+        <script src="../js/common.js"></script>
+        <script src="../js/command.js"></script>
     </body>
 </html>

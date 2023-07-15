@@ -9,7 +9,19 @@ function onUpload() {
         console.log(contents.error);
     }
     contents.onload = function() {
-        document.getElementById("metadata-output").innerHTML = contents.result;
-        /* TODO: Send the contents of the read to the logger with "metadata ${contents.result}" */
+        let dict = JSON.parse(contents.result);
+        let mapDict = JSON.stringify(dict);
+        sendCommand('metadata ' + mapDict);
+        let data = sendCommand('metadata');
+        // Pretty-print the output
+        data = `{
+            "platform": {
+                "uniqueID": "UNHJHC-RVGS",
+                "shipname": "R/V Gulf Surveyor"
+            }
+        }`;
+        dict = JSON.parse(data);
+        mapDict = JSON.stringify(dict, null, 2);
+        document.getElementById("metadata-output").innerHTML = mapDict;
     }
 }

@@ -12,18 +12,19 @@
         <h1 class="title">Wireless Inexpensive Bathymetry Logger</h1>
     </header>
     <body>
+        <script src="../js/common.js"></script>
+        <script src="../js/configuration.js"></script>
         <div class="main-wrapper">
             <form action="#" method="post">
                 <div class="group-wrapper">
                     <fieldset class="metadata">
                         <legend>Metadata</legend>
                         <label for="unique-id">Unique Identifier</label>
-                        <input type="text" name="uuid" id="unique-id" required placeholder="UNHJHC"/>
-                        <!-- On click, generate a UUID4, and populate the input above with "PREFIX-UUID4" -->
-                        <button class="uuid-gen" type="button">Generate UUID</button>
+                        <input type="text" name="uuid" id="unique-id" required value="UNHJHC"/>
+                        <button class="uuid-gen" type="button" onclick="generateUniqueID()">Generate UUID</button>
                         <br>
                         <label for="ship-name">Ship Name</label>
-                        <input type="text" name="shipname" id=""ship-name" required placeholder="R/V Development"/>
+                        <input type="text" name="shipname" id="ship-name" required value="R/V Development"/>
                     </fieldset>
                 </div>
                 <div class="group-wrapper">
@@ -33,7 +34,7 @@
                         <label for="nmea0183">NMEA0183 Logger</label><br>
                         <input type="checkbox" name="nmea2000" id="nmea2000" value="on" checked/>
                         <label for="nmea2000">NMEA2000 Logger</label><br>
-                        <input type="checkbox" name="imu" id="imu value="on" checked/>
+                        <input type="checkbox" name="imu" id="imu" value="on" checked/>
                         <label for="nmea2000">IMU Logger</label><br>
                         <input type="checkbox" name="epower" id="epower" value="on"/>
                         <label for="nmea2000">Emergency Power Monitor</label><br>
@@ -57,28 +58,28 @@
                         <fieldset class="internal">
                             <legend>Station Join Configuration</legend>
                             <label for="retry-delay">Retry Delay (s)</label>
-                            <input type="number" name="retrydelay" id="retry-delay" placeholder="20"/>
+                            <input type="number" name="retrydelay" id="retry-delay" value="20"/>
                             <br>
                             <label for="retry-count">Retry Count</label>
-                            <input type="number" name="retrycount" id="retry-count" placeholder="5"/>
+                            <input type="number" name="retrycount" id="retry-count" value="5"/>
                             <br>
                             <label for="join-timeout">Join Timeout (s)</label>
-                            <input type="number" name="jointimeout" id="join-timeout" placeholder="5"/>
+                            <input type="number" name="jointimeout" id="join-timeout" value="5"/>
                             <br>
                         </fieldset>
                         <fieldset class="internal">
                             <legend>Identification</legend>
                             <label for="ap-ssid">AP SSID</label>
-                            <input type="text" name="apssid" id="ap-ssid" placeholder="wibl-dev-config"/>
+                            <input type="text" name="apssid" id="ap-ssid" value="wibl-dev-config"/>
                             <br>
                             <label for="ap-password">AP Password</label>
-                            <input type="text" name="appwd" id="ap-password" placeholder="wibl-config-password"/>
+                            <input type="text" name="appwd" id="ap-password" value="wibl-config-password"/>
                             <br>
                             <label for="station-ssid">Station SSID</label>
-                            <input type="text" name="stationssid" id="station-ssid" placeholder="wibl-dev-logger"/>
+                            <input type="text" name="stationssid" id="station-ssid" value="wibl-dev-logger"/>
                             <br>
                             <label for="station-password">Station Password</label>
-                            <input type="text" name="stationpwd" id="station-password" placeholder="wibl-logger-password"/>
+                            <input type="text" name="stationpwd" id="station-password" value="wibl-logger-password"/>
                             <br>
                         </fieldset>
                     </fieldset>
@@ -87,10 +88,10 @@
                     <fieldset class="baudrates">
                         <legend>NMEA0183 Baud Rates</legend>
                         <label for="port1-baud">Port 1 (Baud)</label>
-                        <input type="number" name="port1rate" id="port1-baud" placeholder="4800"/>
+                        <input type="number" name="port1rate" id="port1-baud" value="4800"/>
                         <br>
                         <label for="port2-baud">Port 2 (Baud)</label>
-                        <input type="number" name="port2rate" id="port2-baud" placeholder="4800"/>
+                        <input type="number" name="port2rate" id="port2-baud" value="4800"/>
                         <br>
                     </fieldset>
                 </div>
@@ -98,15 +99,14 @@
                     <fieldset>
                         <legend>UDP Bridge</legend>
                         <label for="bridge-port">Port</label>
-                        <input type="number" name="bridgeport" id="bridge-port" placeholder="12345"/>
+                        <input type="number" name="bridgeport" id="bridge-port" value="12345"/>
                     </fieldset>
                 </div>
                 <div class="group-wrapper">
-                    <!-- In any click, generate JSON from the controls above first, and then ... -->
-                    <input type="button" value="Set Working Config"><!-- Send "setup" command with JSON -->
-                    <input type="button" value="Set Default Config"><!-- Send "lab defaults" command with JSON -->
-                    <input type="button" value="Save to Disc"><!-- Save JSON to local store -->
-                    <input type="button" value="Load from Disc"><!-- Load JSON from local store and populate form above -->
+                    <input type="button" value="Set Working Config" onclick="uploadCurrentConfig()"/>
+                    <input type="button" value="Set Default Config" onclick="uploadDefaultConfig()"/>
+                    <input type="button" value="Save to Disc" onclick="saveConfigLocally()">
+                    <input type="button" value="Load from Disc" onclick="loadConfigLocally()">
                 </div>
             </form>
         </div>

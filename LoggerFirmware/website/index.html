@@ -13,6 +13,7 @@
         <h1 class="title">Wireless Inexpensive Bathymetry Logger</h1>
     </header>
     <body>
+        <script src="js/common.js"></script>
         <div class="main-wrapper">
             <section class="index-options">
                 <a href="actions/configure.html" class="index-options-box">
@@ -44,29 +45,14 @@
             </section>
         </div>
         <div class="status-table-row">
-            <!-- In implementation, the code would query the logger with the "status" command, and parse
-                 JSON returned for the versions, elapsed time, number of files, etc., and then fill them
-                 in here. -->
-            <table>
-                <tr><th colspan="2">Versions</th></tr>
-                <tr><td>Command Processor</td><td>1.3.0</td></tr>
-                <tr><td>NMEA0183</td><td>1.1.0</td></tr>
-                <tr><td>NMEA2000</td><td>1.0.1</td></tr>
-                <tr><td>IMU</td><td>1.0.0</td></tr>
-                <tr><td>Serialiser</td><td>1.3</td> </tr>
+            <table id="index-versions">
             </table>
-            <table>
-                <tr><th colspan="2">Status</th></tr>
-                <tr><td>Elapsed Time</td><td>49.342 s</td></tr>
-                <tr><td>Webserver Status Current</td><td>AP-Enabled</td></tr>
-                <tr><td>Webserver Status Boot</td><td>AP-Enabled</td></tr>
-                <tr><td>Files on Logger</td><td>5</td></tr>
-                <tr><td>Total Size</td><td>3.62 MB</td></tr>
+            <table id="index-stats">
             </table>
         </div>
         <div class="refresh-button">
-            <!-- Click here re-runs the "status" command and updates the HTML above -->
-            <input type="button" name="refresh" id="refresh" value="Refresh Statistics"/>
+            <input type="button" name="refresh" id="refresh" value="Refresh Statistics" onclick="updateIndexStatus()"/>
         </div>
+        <script>document.getElementById("refresh").click()</script>
     </body>
 </html>
