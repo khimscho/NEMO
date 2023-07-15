@@ -20,21 +20,21 @@
                     <fieldset class="metadata">
                         <legend>Metadata</legend>
                         <label for="unique-id">Unique Identifier</label>
-                        <input type="text" name="uuid" id="unique-id" required value="UNHJHC"/>
+                        <input type="text" name="uuid" id="unique-id" required/>
                         <button class="uuid-gen" type="button" onclick="generateUniqueID()">Generate UUID</button>
                         <br>
                         <label for="ship-name">Ship Name</label>
-                        <input type="text" name="shipname" id="ship-name" required value="R/V Development"/>
+                        <input type="text" name="shipname" id="ship-name" required/>
                     </fieldset>
                 </div>
                 <div class="group-wrapper">
                     <fieldset class="checkboxes">
                         <legend>Options</legend>
-                        <input type="checkbox" name="nmea0183" id="nmea0183" value="on" checked/>
+                        <input type="checkbox" name="nmea0183" id="nmea0183" value="on"/>
                         <label for="nmea0183">NMEA0183 Logger</label><br>
-                        <input type="checkbox" name="nmea2000" id="nmea2000" value="on" checked/>
+                        <input type="checkbox" name="nmea2000" id="nmea2000" value="on"/>
                         <label for="nmea2000">NMEA2000 Logger</label><br>
-                        <input type="checkbox" name="imu" id="imu" value="on" checked/>
+                        <input type="checkbox" name="imu" id="imu" value="on"/>
                         <label for="nmea2000">IMU Logger</label><br>
                         <input type="checkbox" name="epower" id="epower" value="on"/>
                         <label for="nmea2000">Emergency Power Monitor</label><br>
@@ -42,7 +42,7 @@
                         <label for="nmea2000">SD/MMC Memory Controller</label><br>
                         <input type="checkbox" name="bridge" id="nmeabridge" value="on"/>
                         <label for="nmea2000">UDP NMEA0183 Bridge</label><br>
-                        <input type="checkbox" name="webserver" id="webserveronboot" value="on" checked/>
+                        <input type="checkbox" name="webserver" id="webserveronboot" value="on"/>
                         <label for="webserveronboot">Webserver On Boot</label><br>
                     </fieldset>
                 </div>
@@ -58,28 +58,28 @@
                         <fieldset class="internal">
                             <legend>Station Join Configuration</legend>
                             <label for="retry-delay">Retry Delay (s)</label>
-                            <input type="number" name="retrydelay" id="retry-delay" value="20"/>
+                            <input type="number" name="retrydelay" id="retry-delay"/>
                             <br>
                             <label for="retry-count">Retry Count</label>
-                            <input type="number" name="retrycount" id="retry-count" value="5"/>
+                            <input type="number" name="retrycount" id="retry-count"/>
                             <br>
                             <label for="join-timeout">Join Timeout (s)</label>
-                            <input type="number" name="jointimeout" id="join-timeout" value="5"/>
+                            <input type="number" name="jointimeout" id="join-timeout"/>
                             <br>
                         </fieldset>
                         <fieldset class="internal">
                             <legend>Identification</legend>
                             <label for="ap-ssid">AP SSID</label>
-                            <input type="text" name="apssid" id="ap-ssid" value="wibl-dev-config"/>
+                            <input type="text" name="apssid" id="ap-ssid"/>
                             <br>
                             <label for="ap-password">AP Password</label>
-                            <input type="text" name="appwd" id="ap-password" value="wibl-config-password"/>
+                            <input type="text" name="appwd" id="ap-password"/>
                             <br>
                             <label for="station-ssid">Station SSID</label>
-                            <input type="text" name="stationssid" id="station-ssid" value="wibl-dev-logger"/>
+                            <input type="text" name="stationssid" id="station-ssid"/>
                             <br>
                             <label for="station-password">Station Password</label>
-                            <input type="text" name="stationpwd" id="station-password" value="wibl-logger-password"/>
+                            <input type="text" name="stationpwd" id="station-password"/>
                             <br>
                         </fieldset>
                     </fieldset>
@@ -88,10 +88,10 @@
                     <fieldset class="baudrates">
                         <legend>NMEA0183 Baud Rates</legend>
                         <label for="port1-baud">Port 1 (Baud)</label>
-                        <input type="number" name="port1rate" id="port1-baud" value="4800"/>
+                        <input type="number" name="port1rate" id="port1-baud"/>
                         <br>
                         <label for="port2-baud">Port 2 (Baud)</label>
-                        <input type="number" name="port2rate" id="port2-baud" value="4800"/>
+                        <input type="number" name="port2rate" id="port2-baud"/>
                         <br>
                     </fieldset>
                 </div>
@@ -99,7 +99,7 @@
                     <fieldset>
                         <legend>UDP Bridge</legend>
                         <label for="bridge-port">Port</label>
-                        <input type="number" name="bridgeport" id="bridge-port" value="12345"/>
+                        <input type="number" name="bridgeport" id="bridge-port"/>
                     </fieldset>
                 </div>
                 <div class="group-wrapper">
@@ -109,6 +109,9 @@
                     <input type="button" value="Load from Disc" onclick="loadConfigLocally()">
                 </div>
             </form>
+            <script>
+                populateConfig();
+            </script>
         </div>
     </body>
 </html>

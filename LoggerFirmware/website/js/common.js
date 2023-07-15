@@ -77,41 +77,42 @@ function assembleDetailRow(id, len, md5) {
 }
 
 function updateStatus(tablePrefix) {
-    //const data = sendCommand('status');
-    const data = {
-        version: {
-            commandproc: "1.2.0",
-            nmea0183: "0.0.1",
-            nmea2000: "0.0.1",
-            imu: "0.0.1",
-            serialiser: "0.1"
+    //const rawData = sendCommand('status');
+    const rawData = `{
+        "version": {
+            "commandproc": "1.2.0",
+            "nmea0183": "0.0.1",
+            "nmea2000": "0.0.1",
+            "imu": "0.0.1",
+            "serialiser": "0.1"
         },
-        elapsed: 12.345,
-        webserver: {
-            current: 'AP-Enabled',
-            boot: 'Station-Active'
+        "elapsed": 12.345,
+        "webserver": {
+            "current": "AP-Enabled",
+            "boot": "Station-Active"
         },
-        files: {
-            count: 3,
-            detail: [
+        "files": {
+            "count": 3,
+            "detail": [
                 {
-                    id: 0,
-                    len: 221023,
-                    md5: "1a05a697d5b021a43896ae103e391be4"
+                    "id": 0,
+                    "len": 221023,
+                    "md5": "1a05a697d5b021a43896ae103e391be4"
                 },
                 {
-                    id: 1,
-                    len: 10263234,
-                    md5: "eb9d54fb412e8f328aedaab7794275a2"
+                    "id": 1,
+                    "len": 10263234,
+                    "md5": "eb9d54fb412e8f328aedaab7794275a2"
                 },
                 {
-                    id: 2,
-                    len: 8956065,
-                    md5: "0b29903bc6fab962162132f7bc694192"
+                    "id": 2,
+                    "len": 8956065,
+                    "md5": "0b29903bc6fab962162132f7bc694192"
                 }
-            ],
+            ]
         }
-    }
+    }`;
+    const data = JSON.parse(rawData);
     const versionsTable = tablePrefix + '-versions';
     const statsTable = tablePrefix + '-stats';
     const detailTable = tablePrefix + '-detail';

@@ -12,26 +12,26 @@
         <h1 class="title">Wireless Inexpensive Bathymetry Logger</h1>
     </header>
     <body>
+        <script src="../js/common.js"></script>
+        <script src="../js/filtering.js"></script>
         <div class="main-wrapper">
             <h2>NMEA0183 Message Filtering</h2>
-            <fieldset>
-                <!-- In practice, the code would send the "accept" command and fill the list here from the results -->
+            <fieldset class="algorithms">
                 <legend>Current List</legend>
-                <p>
-                    GGA, ZDA, GGL, RMC, VTG
-                </p>
+                <p id="filter-list"></p>
             </fieldset>
             <fieldset class="algorithms">
                 <legend>Add New Message ID</legend>
                 <label for="add-item">Message ID:</label>
-                <!-- The input should be a three-letter message ID; should be canonicalised to uppercase before adding to the list -->
                 <input type="text" name="add" id="add-item"/>
-                <button>Add</button>
+                <button onclick="addFilter()">Add</button>
             </fieldset>
             <div class="algorithms">
-                <button>Clear List</button><!-- On click, send "accept all" command to clear list, and then refresh with "accept" -->
-                <button>Upload</button><!-- On click, send "accept all" command, then one "accept" command per element in the list -->
+                <button onclick="clearFilterList()">Clear List</button>
             </div>
         </div>
+        <script>
+            populateFilterTable();
+        </script>
     </body>
 </html>

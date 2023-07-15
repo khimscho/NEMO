@@ -13,34 +13,30 @@
         <h1 class="title">Wireless Inexpensive Bathymetry Logger</h1>
     </header>
     <body>
+        <script src="../js/common.js"></script>
+        <script src="../js/algorithms.js"></script>
         <div class="main-wrapper">
             <h2>Algorithm Request Configuration</h2>
             <fieldset class="algorithms">
                 <legend>Current Algorithm Requests</legend>
                 <div class="status-table-row">
-                    <!-- In practice, the code would poll the logger with the "algorithm" command,
-                         and fill out the table below with the results. -->
-                    <table>
-                        <tr><th>Name</th><th>Parameters</th></tr>
-                        <tr><td>deduplicate</td><td>N/A</td></tr>
-                        <tr><td>uncertainty</td><td>0.25,0.013,0.95</td></tr>
-                    </table>
+                    <table id="alg-table"></table>
                 </div>
             </fieldset>
             <fieldset class="algorithms">
-                <!-- Adding a new algorithm can just generate a new entry in the table here,
-                     so that you don't round-trip a modification each time. -->
                 <legend>Add New Algorithm Request</legend>
                 <label for="alg-name">Name</label>
                 <input type="text" name="algname" id="alg-name"/>
                 <label for="alg-params">Parameters</label>
-                <input type="text" name="algparam" id="alg-params"/><br>
-                <button>Add Algorithm</button>
+                <input type="text" name="algparam" id="alg-params"/>
+                <button onclick="addAlgorithm()">Add Algorithm</button>
             </fieldset>
             <div class="algorithms">
-                <button>Clear List</button><!-- On click, send "algorithm none" command to clear list -->
-                <button>Upload</button><!-- On click, send "algorithms none" command, then one "algorithm" command per line in the table -->
+                <button onclick="clearAlgList()">Clear List</button>
             </div>
         </div>
+        <script>
+            populateAlgTable();
+        </script>
     </body>
 </html>

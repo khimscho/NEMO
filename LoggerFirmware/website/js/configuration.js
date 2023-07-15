@@ -137,7 +137,6 @@ function loadConfigLocally() {
     let input = document.createElement('input');
     input.type = 'file';
     updateText = function() {
-        console.log('Files selected = ' + input.files.length);
         let reader = new FileReader();
         reader.readAsText(input.files[0]);
         reader.onload = function() {
@@ -148,4 +147,46 @@ function loadConfigLocally() {
         updateText();
     }
     input.click();
+}
+
+function populateConfig() {
+    //const rawData = sendCommand('setup');
+    const rawData = `{
+        "version": {
+            "commandproc": "1.3.0"
+        },
+        "uniqueID": "UNHJHC-1c3af96b-dbc7-43fc-9054-aa8c09cae671",
+        "shipname": "Anonymous",
+        "udpbridge": 12345,
+        "enable": {
+            "nmea0183": true,
+            "nmea2000": true,
+            "imu": false,
+            "powermonitor": false,
+            "sdmmc": false,
+            "udpbridge": false,
+            "webserver": true
+        },
+        "wifi": {
+            "mode": "AP",
+            "station": {
+                "delay": 20,
+                "retries": 5,
+                "timeout": 5
+            },
+            "ssids": {
+                "ap": "wibl-config",
+                "station": "wibl-logger"
+            },
+            "passwords": {
+                "ap": "wibl-config-password",
+                "station": "wibl-logger-password"
+            }
+        },
+        "baudrate": {
+            "port1": 4800,
+            "port2": 4800
+        }
+    }`;
+    parseConfigJSON(rawData);
 }

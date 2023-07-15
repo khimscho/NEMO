@@ -45,14 +45,12 @@
             </section>
         </div>
         <div class="status-table-row">
-            <table id="index-versions">
-            </table>
-            <table id="index-stats">
-            </table>
+            <table id="index-versions"></table>
+            <table id="index-stats"></table>
         </div>
         <div class="refresh-button">
             <input type="button" name="refresh" id="refresh" value="Refresh Statistics" onclick="updateIndexStatus()"/>
         </div>
-        <script>document.getElementById("refresh").click()</script>
+        <script>updateIndexStatus()</script>
     </body>
 </html>
