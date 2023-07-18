@@ -1,0 +1,45 @@
+{
+    "trustedNode": {
+        "providerOrganizationName": "",
+        "providerEmail": "",
+        "uniqueVesselID": "",
+        "providerLogger": "",
+        "providerLoggerVersion": "",
+        "verticalReferenceOfDepth": "",
+        "verticalPositionReferencePoint": ""
+    },
+    "platform": {
+        "length":   0,
+        "IDType":   "",
+        "IDNumber": "",
+        "soundSpeedDocumented":     false,
+        "postionOffsetsDocumented": false,
+        "dataProcessed":            false,
+        "sensors": [
+            {
+                "type": "",
+                "make": "",
+                "model":    "",
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "version": 0,
+                "draft": 0.0,
+                "draftUncert": 0.0,
+                "frequency": 0.0
+            }
+        ],
+        "contributorComments": ""
+    },
+    "processing": [
+        {
+            "type": "",
+            "timestamp": "",
+            "method": "",
+            "source": "",
+            "algorithm": ""
+        }
+    ]
+}
