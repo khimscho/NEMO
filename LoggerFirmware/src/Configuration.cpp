@@ -83,6 +83,17 @@ Config::~Config(void)
     delete m_params;
 }
 
+bool Config::IsValid(void)
+{
+    String logger_uuid;
+    GetConfigString(CONFIG_MODULEID_S, logger_uuid);
+    if (logger_uuid == "") {
+        return false;
+    } else {
+        return true;
+    }
+}
+
 /// Extact a configuration string from the parameter store, if it exists (see ParamStore
 /// for details).
 ///
@@ -162,7 +173,7 @@ Config LoggerConfig;    ///< Static parameter to use for lookups (rather than ma
 
 String ConfigJSON::ExtractConfig(bool indent, bool secure)
 {
-    using namespace ARDUINOJSON_NAMESPACE;
+    using namespace ArduinoJson;
     StaticJsonDocument<1024> params;
     params["version"]["commandproc"] = SerialCommand::SoftwareVersion();
     params["version"]["nmea0183"] = nmea::N0183::Logger::SoftwareVersion();
@@ -307,6 +318,18 @@ bool ConfigJSON::SetConfig(String const& json_string)
         return false;
     }
     return true;
+}
+
+static const char* stable_config = "{\"version\": {\"commandproc\": \"1.3.0\"}, \"enable\": {\"nmea0183\": true, \"nmea2000\": true, \"imu\": false, \"powermonitor\": false, \"sdmmc\": false, \"udpbridge\": false, \"webserver\": true}, \"wifi\": {\"mode\": \"AP\", \"address\": \"192.168.4.1\", \"station\": {\"delay\": 20, \"retries\": 5, \"timeout\": 5}, \"ssids\": {\"ap\": \"wibl-config\", \"station\": \"wibl-logger\"}, \"passwords\": {\"ap\": \"wibl-config-password\", \"station\": \"wibl-logger-password\"}}, \"uniqueID\": \"wibl-logger\", \"shipname\": \"Anonymous\", \"baudrate\": {\"port1\": 4800, \"port2\": 4800}, \"udpbridge\": 12345}";
+
+bool ConfigJSON::SetStableConfig(void)
+{
+    if (LoggerConfig.IsValid()) {
+        return true;
+    } else {
+        Serial.println("INF: Configuration not valid; setting default configuration for first boot/bad config.");
+        return SetConfig(String(stable_config));
+    }
 }
 
 }

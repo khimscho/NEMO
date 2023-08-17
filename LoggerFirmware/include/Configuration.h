@@ -53,6 +53,9 @@ class Config {
         /// \brief Default destructor
         ~Config(void);
 
+        /// \brief Checks whether the configuration is valid
+        bool IsValid(void);
+
         /// \enum ConfigParam
         /// \brief Provide a list of configuration parameters supported by the module
         enum ConfigParam {
@@ -117,6 +120,8 @@ public:
     static String ExtractConfig(bool indent = false, bool secure = false);
     /// @brief Configure the logger from a serialsed JSON dictionary of the configuration parameters
     static bool SetConfig(String const& json_string);
+    /// \brief Establish a "known stable" configuration if the current configuration is not valid
+    static bool SetStableConfig(void);
 };
 
 }

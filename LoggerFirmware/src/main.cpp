@@ -94,9 +94,21 @@ void setup()
 
     Serial.println("Setting up LED indicator for initialising ...");
     LEDs->SetStatus(StatusLED::Status::sINITIALISING);
-
     Serial.printf("DBG: After LED start and configuration, free heap = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
 
+    Serial.println("Checking for stable configuration ...");
+    if (!logger::ConfigJSON::SetStableConfig()) {
+        Serial.println("ERR: Failed to set stable configuration ... halting.");
+        LEDs->SetStatus(StatusLED::Status::sFATAL_ERROR);
+        while (1) {
+            LEDs->ProcessFlash(); /* Busy loop to make sure the LED flashes */
+            delay(100);
+        }
+    } else {
+        Serial.println("INF: Configuration is now:");
+        Serial.println(logger::ConfigJSON::ExtractConfig(true, true));
+    }
+    
     Serial.println("Bringing up Storage Controller ...");
     memController = mem::MemControllerFactory::Create();
     
@@ -116,7 +128,6 @@ void setup()
     #endif
 
     Serial.printf("DBG: After memory interface start, free heap = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
-
     Serial.println("Configuring logger manager ...");
     logManager = new logger::Manager(LEDs);
     Serial.printf("DBG: After log manager start, free heap = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
