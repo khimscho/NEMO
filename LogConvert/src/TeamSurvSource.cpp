@@ -77,7 +77,7 @@ bool TeamSurvSource::NextPacket(uint32_t& elapsed_time, std::string& sentence)
                     chk ^= m_buffer[i];
                 }
                 char checksum[3];
-                sprintf(checksum, "%02X", chk);
+                snprintf(checksum, 3, "%02X", chk);
                 if (m_buffer[len-2] == checksum[0] && m_buffer[len-1] == checksum[1])
                     complete = true;
             }

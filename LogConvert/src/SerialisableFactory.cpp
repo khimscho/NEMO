@@ -25,6 +25,11 @@
 
 #include "SerialisableFactory.h"
 #include "N2kMessages.h"
+#include "nlohmann/json.hpp"
+#include <fstream>
+#include <cstdint>
+
+using namespace nlohmann;
 
 /// \class DummyTimestamp
 /// \brief Helper class to provide serialisation services for timestamp information
@@ -406,5 +411,17 @@ std::shared_ptr<Serialisable> SerialisableFactory::Convert(uint32_t elapsed_time
     *rtn += nmea_string.c_str();
     
     payload_id = Pkt_NMEAString;
+    return rtn;
+}
+
+std::shared_ptr<Serialisable> SerialisableFactory::Convert(std::string const& metadata_filename, PayloadID& payload_id)
+{
+    std::ifstream metadata(metadata_filename);
+    json params = json::parse(metadata);
+    std::string encoded = params.dump();
+    std::shared_ptr<Serialisable> rtn(new Serialisable(encoded.length() + 4));
+    *rtn += static_cast<uint32_t>(encoded.length());
+    *rtn += encoded.c_str();
+    payload_id = Pkt_JSONMetadata;
     return rtn;
 }
