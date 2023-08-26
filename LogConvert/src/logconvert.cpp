@@ -305,9 +305,11 @@ int main(int argc, char **argv)
     std::map<uint32_t, uint32_t> packet_counts, packet_counts_by_source, source_count;
     std::set<uint32_t> product_info;
     
-    Version n2k(1, 0, 0);
+    Version n2k(1, 1, 0);
     Version n1k(1, 0, 1);
     Version imu(1, 0, 0);
+
+    bool noDataReject_done = false;
     
     StdSerialiser ser(out, n2k, n1k, imu, logger_name, logger_id);
     if (!metadata.empty()) {
@@ -341,7 +343,20 @@ int main(int argc, char **argv)
             
             if (reject_sources.find((uint32_t)msg.Source) == reject_sources.end()) {
                 PayloadID payload_id;
-                std::shared_ptr<Serialisable> pkt = SerialisableFactory::Convert(msg, payload_id);
+                bool no_data_detected = false;
+                std::shared_ptr<Serialisable> pkt = SerialisableFactory::Convert(msg, payload_id, no_data_detected);
+                if (no_data_detected && !noDataReject_done) {
+                    std::cerr << "warning: generating algorithm request for 'nodatareject' due to bad data." << std::endl;
+                    std::shared_ptr<Serialisable> alg_req = std::make_shared<Serialisable>(255);
+                    std::string alg("nodatareject");
+                    std::string params("phase=raw");
+                    *alg_req += (uint32_t)alg.length();
+                    *alg_req += alg.c_str();
+                    *alg_req += (uint32_t)params.length();
+                    *alg_req += params.c_str();
+                    ser.Process(Pkt_AlgorithmRequest, alg_req);
+                    noDataReject_done = true;
+                }
                 if (pkt) {
                     ++n_conversions;
                     if (!ser.Process(payload_id, pkt)) {
