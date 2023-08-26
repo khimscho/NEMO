@@ -165,6 +165,8 @@ public:
     void MakeJSON(String& s);
     /// \brief Write the list of all requested algorithms to the log file associated with \a Serialiser
     void SerialiseAlgorithms(Serialiser *s);
+    /// \brief Generate and emit a single algorithm by name
+    void SerialiseSingleAlgorithm(String const& algorithm, String const& parameters, Serialiser *s);
 
 private:
     String  m_algoBackingStore;     ///< Name of the backing file for algorithm names
