@@ -139,6 +139,18 @@ std::string NamePacket(uint32_t pgn, bool is_nmea2000)
     return rtn;
 }
 
+std::string NameOutputPacket(uint32_t packet_id)
+{
+    std::vector<std::string> names {"Version", "SystemTime", "Attitude", "Depth", "Course Over Ground", "GNSS", "Environment", "Temperature", "Humidity", "Pressure", "NMEA-0183 Sentence", "Local IMU Data", "Base Metadata", "Algorithm Request", "JSON Metadata Definition", "NMEA-0183 Sentence Filters", "Sensor Scales", "Raw IMU Data", "Setup Configuration"};
+    std::string rtn;
+    if (packet_id >= names.size()) {
+        rtn = std::string("Not Known");
+    } else {
+        rtn = names[packet_id];
+    }
+    return rtn;
+}
+
 /// Report to the user the syntax for the conversion tool
 ///
 /// \param cmdopt   Boost command-line options structure with parameter settings
@@ -310,6 +322,8 @@ int main(int argc, char **argv)
     Version imu(1, 0, 0);
 
     bool noDataReject_done = false;
+    uint32_t no_data_packets = 0;
+    std::map<uint32_t, uint32_t> noData_packet_by_type;
     
     StdSerialiser ser(out, n2k, n1k, imu, logger_name, logger_id);
     if (!metadata.empty()) {
@@ -345,17 +359,21 @@ int main(int argc, char **argv)
                 PayloadID payload_id;
                 bool no_data_detected = false;
                 std::shared_ptr<Serialisable> pkt = SerialisableFactory::Convert(msg, payload_id, no_data_detected);
-                if (no_data_detected && !noDataReject_done) {
-                    std::cerr << "warning: generating algorithm request for 'nodatareject' due to bad data." << std::endl;
-                    std::shared_ptr<Serialisable> alg_req = std::make_shared<Serialisable>(255);
-                    std::string alg("nodatareject");
-                    std::string params("phase=raw");
-                    *alg_req += (uint32_t)alg.length();
-                    *alg_req += alg.c_str();
-                    *alg_req += (uint32_t)params.length();
-                    *alg_req += params.c_str();
-                    ser.Process(Pkt_AlgorithmRequest, alg_req);
-                    noDataReject_done = true;
+                if (no_data_detected) {
+                    ++no_data_packets;
+                    noData_packet_by_type[pkt_tag]++;
+                    if (!noDataReject_done) {
+                        std::cerr << "warning: generating algorithm request for 'nodatareject' due to bad data." << std::endl;
+                        std::shared_ptr<Serialisable> alg_req = std::make_shared<Serialisable>(255);
+                        std::string alg("nodatareject");
+                        std::string params("phase=raw");
+                        *alg_req += (uint32_t)alg.length();
+                        *alg_req += alg.c_str();
+                        *alg_req += (uint32_t)params.length();
+                        *alg_req += params.c_str();
+                        ser.Process(Pkt_AlgorithmRequest, alg_req);
+                        noDataReject_done = true;
+                    }
                 }
                 if (pkt) {
                     ++n_conversions;
@@ -397,6 +415,16 @@ int main(int argc, char **argv)
     printf(")\n");
     printf("Conversions:\t%8d packets attempted, %d failed to write\n", n_conversions, n_bad_packets);
     printf("Unique packets:\t%8lu\n", packet_counts.size());
+    if (no_data_packets > 0) {
+        printf("NoData Packets:\t%8d consisting of:\n", no_data_packets);
+        printf("       Packet ID   Sender ID  Count Packet Name\n");
+        printf("    -------------- --------- ------ ------------------\n");
+        for (auto it = noData_packet_by_type.begin(); it != noData_packet_by_type.end(); ++it) {
+            uint32_t sender = it->first & 0xFF;
+            uint32_t pgn = (it->first >> 8) & 0xFFFFF;
+            printf("    %05X [%06u] %9d %6d %s\n", pgn, pgn, sender, it->second, NamePacket(pgn, true).c_str());
+        }
+    }
     
     if (show_statistics) {
         printf("\nTotal Packet Counts (All Senders):\n");
