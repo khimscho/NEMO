@@ -29,13 +29,16 @@
 # WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
 # OR OTHER DEALINGS IN THE SOFTWARE.
-
-import numpy as np
-from wibl import __version__ as wiblversion
-from wibl.processing.algorithms.common import lineage
 from typing import Dict, Any
 
+import numpy as np
+
+from wibl import __version__ as wiblversion
+from wibl.processing.algorithms.common import lineage, WiblAlgorithm, AlgorithmPhase
+
+
 __version__ = '1.0.0'
+
 
 def find_duplicates(source: Dict, config: Dict[str,Any]) -> np.ndarray:
     current_depth = 0
@@ -67,3 +70,11 @@ def deduplicate_depth(source: Dict[str,Any], params: str, config: Dict[str,Any])
     source['lineage'] = actions.export()
     
     return source
+
+
+class Deduplicate(WiblAlgorithm):
+    def __init__(self, params: str, config: Dict[str, Any]):
+        super().__init__(AlgorithmPhase.AFTER_TIME_INTERP, params, config)
+
+    def run_after_time_interp(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        return deduplicate_depth(data, self.params, self.config)
