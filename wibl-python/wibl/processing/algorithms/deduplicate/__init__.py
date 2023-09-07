@@ -73,8 +73,9 @@ def deduplicate_depth(source: Dict[str,Any], params: str, config: Dict[str,Any])
 
 
 class Deduplicate(WiblAlgorithm):
-    def __init__(self, params: str, config: Dict[str, Any]):
-        super().__init__(AlgorithmPhase.AFTER_TIME_INTERP, params, config)
+    phases: AlgorithmPhase = AlgorithmPhase.AFTER_TIME_INTERP
 
-    def run_after_time_interp(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        return deduplicate_depth(data, self.params, self.config)
+    @classmethod
+    def run_after_time_interp(cls, data: Dict[str, Any],
+                              params: str, config: Dict[str, Any]) -> Dict[str, Any]:
+        return deduplicate_depth(data, params, config)

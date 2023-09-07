@@ -41,10 +41,11 @@ import wibl.core.config as conf
 import wibl.core.logger_file as lf
 import wibl.core.datasource as ds
 import wibl.core.notification as nt
+from wibl.processing.algorithms import ALGORITHMS
+from wibl.processing.algorithms.common import AlgorithmPhase
 from wibl.core import getenv
 import wibl.core.timestamping as ts
 import wibl.core.geojson_convert as gj
-import wibl.processing.algorithms.deduplicate as dedup
 from wibl.processing.cloud.aws import get_config_file
 from wibl_manager import ManagerInterface, MetadataType, WIBLMetadata, ProcessingStatus
 
@@ -116,10 +117,11 @@ def process_item(item: ds.DataItem, controller: ds.CloudController, notifier: nt
     
     for alg in source_data['algorithms']:
         algname = alg['name']
-        if algname == 'deduplicate':
+        if algname in ALGORITHMS:
             if verbose:
                 print(f'Applying algorithm {algname}')
-            source_data = dedup.deduplicate_depth(source_data, alg['params'], config)
+            source_data = ALGORITHMS[algname].run(AlgorithmPhase.AFTER_TIME_INTERP,
+                                                  source_data, alg['params'], config)
             meta.soundings = len(source_data['depth']['z'])
         else:
             manager.logmsg(f'Warning: unknown algorithm {algname} for {local_file}.')
