@@ -41,7 +41,7 @@ import wibl.core.config as conf
 import wibl.core.logger_file as lf
 import wibl.core.datasource as ds
 import wibl.core.notification as nt
-from wibl.processing.algorithms import ALGORITHMS
+from wibl.processing import algorithms
 from wibl.processing.algorithms.common import AlgorithmPhase
 from wibl.core import getenv
 import wibl.core.timestamping as ts
@@ -84,6 +84,7 @@ def process_item(item: ds.DataItem, controller: ds.CloudController, notifier: nt
     if verbose:
         print(f'Attempting to obtain item {item} from S3 ...')
 
+    source_data: Dict = {}
     local_file, source_info = controller.obtain(item)
     try:
         if verbose:
@@ -114,17 +115,13 @@ def process_item(item: ds.DataItem, controller: ds.CloudController, notifier: nt
     # and encoding for output to the staging area for upload.
     if verbose:
         print('Applying requested algorithms (if any) ...')
-    
-    for alg in source_data['algorithms']:
-        algname = alg['name']
-        if algname in ALGORITHMS:
-            if verbose:
-                print(f'Applying algorithm {algname}')
-            source_data = ALGORITHMS[algname].run(AlgorithmPhase.AFTER_TIME_INTERP,
-                                                  source_data, alg['params'], config)
-            meta.soundings = len(source_data['depth']['z'])
-        else:
-            manager.logmsg(f'Warning: unknown algorithm {algname} for {local_file}.')
+    for algorithm, alg_name, params in algorithms.iterate(source_data['algorithms'],
+                                                          AlgorithmPhase.AFTER_TIME_INTERP,
+                                                          manager, local_file):
+        if verbose:
+            print(f'Applying algorithm {alg_name}')
+        source_data = algorithm(source_data, params, config)
+        meta.soundings = len(source_data['depth']['z'])
     
     if verbose:
         print('Converting remaining data to GeoJSON format ...')

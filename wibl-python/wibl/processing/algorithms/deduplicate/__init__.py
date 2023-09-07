@@ -73,6 +73,7 @@ def deduplicate_depth(source: Dict[str,Any], params: str, config: Dict[str,Any])
 
 
 class Deduplicate(WiblAlgorithm):
+    name: str = 'deduplicate'
     phases: AlgorithmPhase = AlgorithmPhase.AFTER_TIME_INTERP
 
     @classmethod
