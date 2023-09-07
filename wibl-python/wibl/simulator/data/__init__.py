@@ -294,13 +294,15 @@ class DataGenerator:
     data source.
     """
     def __init__(self, emit_nmea0183: bool = True, emit_nmea2000: bool = True, *,
-                 use_data_constructor: bool = True):
+                 use_data_constructor: bool = True,
+                 duplicate_depth_prob: float = 0.0):
         """
         Default constructor, given the NMEA2000 object that's doing the data capture
         :param emit_nmea0183:
         :param emit_nmea2000:
         :param use_data_constructor: When True, use data constructor for data packets. When False,
             use buffer constructor for data packets.
+        :param duplicate_depth_prob: Probability of generating duplicate depth values
         :return:
         """
         # Flag for verbose debug output
@@ -312,6 +314,7 @@ class DataGenerator:
         # Emit binary data for NMEA2000
         self._m_binary: bool = emit_nmea2000
         self._use_data_constructor = use_data_constructor
+        self._duplicate_depth_prob = duplicate_depth_prob
 
         if not emit_nmea0183 and not emit_nmea2000:
             logger.warning('User asked for neither NMEA0183 or NMEA2000; defaulting to generating NMEA2000')
@@ -528,6 +531,10 @@ class DataGenerator:
             pkt: lf.DataPacket = lf.Depth(buffer=buffer)
 
         output.record(pkt)
+        if self._duplicate_depth_prob > 0.0 and \
+                random.random() <= self._duplicate_depth_prob:
+            # Duplicate the packet
+            output.record(pkt)
 
     def generate_zda(self, state: State, output: Writer) -> None:
         """
@@ -647,6 +654,10 @@ class DataGenerator:
             pkt: lf.DataPacket = lf.SerialString(buffer=buffer)
 
         output.record(pkt)
+        if self._duplicate_depth_prob > 0.0 and \
+                random.random() <= self._duplicate_depth_prob:
+            # Duplicate the packet
+            output.record(pkt)
 
     @staticmethod
     def compute_checksum(msg: str) -> int:
