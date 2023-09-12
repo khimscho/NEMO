@@ -24,7 +24,7 @@
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
 import math
-from typing import NamedTuple, NoReturn
+from typing import NamedTuple, NoReturn, Union, TypeVar
 from datetime import datetime, date, timedelta
 import binascii
 import struct
@@ -46,6 +46,9 @@ MAX_RAD = math.pi * 2
 DUMMY_YAW = random.random() * MAX_RAD
 DUMMY_PITCH = random.random() * MAX_RAD
 DUMMY_ROLL = random.random() * MAX_RAD
+NA_DATA_DOUBLE: float = -1e9
+NA_DATA_UINT16: int = 0xffff
+
 
 def unit_uniform() -> float:
     return random.uniform(0, MAX_RAND) / MAX_RAND
@@ -295,7 +298,8 @@ class DataGenerator:
     """
     def __init__(self, emit_nmea0183: bool = True, emit_nmea2000: bool = True, *,
                  use_data_constructor: bool = True,
-                 duplicate_depth_prob: float = 0.0):
+                 duplicate_depth_prob: float = 0.0,
+                 na_data_prob: float = 0.0):
         """
         Default constructor, given the NMEA2000 object that's doing the data capture
         :param emit_nmea0183:
@@ -315,10 +319,19 @@ class DataGenerator:
         self._m_binary: bool = emit_nmea2000
         self._use_data_constructor = use_data_constructor
         self._duplicate_depth_prob = duplicate_depth_prob
+        self._na_data_prob = na_data_prob
 
         if not emit_nmea0183 and not emit_nmea2000:
             logger.warning('User asked for neither NMEA0183 or NMEA2000; defaulting to generating NMEA2000')
             self._m_binary = True
+
+    V = TypeVar('V', bound=Union[float, int])
+    def _get_possible_na_value(self, na_value: V, valid_value: V) -> V:
+        if self._na_data_prob > 0.0 and \
+                random.random() <= self._na_data_prob:
+            return na_value
+        else:
+            return valid_value
 
     def emit_time(self, state: State, output: Writer) -> None:
         """
@@ -501,12 +514,15 @@ class DataGenerator:
         :param output: Output writer to use for serialisation of the simulated depth report
         :return:
         """
+        # Simulate random generation of no-data values
+        depth = self._get_possible_na_value(NA_DATA_DOUBLE, state.current_depth)
+
         if self._use_data_constructor:
             data = {
                 'date': state.sim_time.days_since_epoch(),
                 'timestamp': state.sim_time.seconds_in_day(),
                 'elapsed_time': state.sim_time.tick_count_to_milliseconds(),
-                'depth': state.current_depth,
+                'depth': depth,
                 'offset': 0.0,
                 'range': 200.0
             }
@@ -524,7 +540,7 @@ class DataGenerator:
                                  state.sim_time.days_since_epoch(),
                                  state.sim_time.seconds_in_day(),
                                  state.sim_time.tick_count_to_milliseconds(),
-                                 state.current_depth,
+                                 depth,
                                  0.0, # offset hard-coded to 0
                                  200.0 # range hard-coded to 200
                                  )
