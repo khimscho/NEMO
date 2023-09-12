@@ -115,13 +115,18 @@ def process_item(item: ds.DataItem, controller: ds.CloudController, notifier: nt
     # and encoding for output to the staging area for upload.
     if verbose:
         print('Applying requested algorithms (if any) ...')
-    for algorithm, alg_name, params in algorithms.iterate(source_data['algorithms'],
-                                                          AlgorithmPhase.AFTER_TIME_INTERP,
-                                                          manager, local_file):
-        if verbose:
-            print(f'Applying algorithm {alg_name}')
-        source_data = algorithm(source_data, params, config)
-        meta.soundings = len(source_data['depth']['z'])
+    try:
+        for algorithm, alg_name, params in algorithms.iterate(source_data['algorithms'],
+                                                              AlgorithmPhase.AFTER_TIME_INTERP,
+                                                              local_file):
+            if verbose:
+                print(f'Applying algorithm {alg_name}')
+            source_data = algorithm(source_data, params, config)
+            meta.soundings = len(source_data['depth']['z'])
+    except algorithms.UnknownAlgorithm as e:
+        manager.logmsg(str(e))
+        print(f"Aborting pocessing due to error: {str(e)}")
+        return False
     
     if verbose:
         print('Converting remaining data to GeoJSON format ...')

@@ -12,6 +12,10 @@ ALGORITHMS = {
 }
 
 
+class UnknownAlgorithm(Exception):
+    pass
+
+
 def _get_run_func_for_phase(algorithm: WiblAlgorithm, phase: AlgorithmPhase) -> \
         Callable[
             [Union[DataPacket, Dict[str, Any]]],
@@ -27,7 +31,6 @@ def _get_run_func_for_phase(algorithm: WiblAlgorithm, phase: AlgorithmPhase) -> 
 
 def iterate(algorithm_descriptors: List[Dict[str, str]],
             phase: AlgorithmPhase,
-            manager: ManagerInterface,
             wibl_file_name: str) -> \
         Generator[
             Tuple[
@@ -52,6 +55,8 @@ def iterate(algorithm_descriptors: List[Dict[str, str]],
         ``run_after_time_interp`` class method if ``phase`` is ``AlgorithmPhase.AFTER_TIME_INTERP``
         ``run_after_geojson_conversion`` class method if ``phase`` is ``AlgorithmPhase.AFTER_GEOJSON_CONVERSION``
         The second and third values of the yielded tuple will always be: algorithm name, algorithm parameters.
+    :raises:
+        UnknownAlgorithm: If an unknown algorithm is encountered.
     """
     for alg_desc in algorithm_descriptors:
         alg_name = alg_desc['name']
@@ -60,4 +65,4 @@ def iterate(algorithm_descriptors: List[Dict[str, str]],
             if phase in alg.phases:
                 yield _get_run_func_for_phase(alg, phase), alg.name, alg_desc['params']
         else:
-            manager.logmsg(f"Warning: unknown algorithm {alg_name} for {wibl_file_name}.")
+            raise UnknownAlgorithm(f"Warning: unknown algorithm '{alg_name}' for {wibl_file_name}.")
