@@ -34,13 +34,15 @@ from typing import Dict, Any
 import numpy as np
 
 from wibl import __version__ as wiblversion
-from wibl.processing.algorithms.common import lineage, WiblAlgorithm, AlgorithmPhase
+from wibl.core.algorithm import AlgorithmPhase, WiblAlgorithm, Lineage
 
 
 __version__ = '1.0.0'
 
+ALG_NAME = 'deduplicate'
 
-def find_duplicates(source: Dict, config: Dict[str,Any]) -> np.ndarray:
+
+def find_duplicates(source: Dict, verbose: bool) -> np.ndarray:
     current_depth = 0
     d = []
     for n in range(len(source['depth']['z'])):
@@ -48,16 +50,17 @@ def find_duplicates(source: Dict, config: Dict[str,Any]) -> np.ndarray:
             d.append(n)
             current_depth = source['depth']['z'][n]
     rtn = np.array(d)
-    if config['verbose']:
+    if verbose:
         n_ip_points = len(source['depth']['z'])
         n_op_points = len(rtn)
         print(f'After deduplication, total {n_op_points} points selected from {n_ip_points}')
     return rtn
 
-def deduplicate_depth(source: Dict[str,Any], params: str, config: Dict[str,Any]) -> Dict[str,Any]:
-    actions = lineage.Lineage(source)
+
+def deduplicate_depth(source: Dict[str,Any], params: str, verbose: bool) -> Dict[str,Any]:
+    actions = Lineage(source)
     n_ip_points = len(source['depth']['z'])
-    index = find_duplicates(source, config)
+    index = find_duplicates(source, verbose)
     source['depth']['t'] = source['depth']['t'][index]
     source['depth']['lat'] = source['depth']['lat'][index]
     source['depth']['lon'] = source['depth']['lon'][index]
@@ -66,17 +69,17 @@ def deduplicate_depth(source: Dict[str,Any], params: str, config: Dict[str,Any])
     # To memorialise that we did something, we add an entry to the lineage segment of
     # the metadata headers in the data.
     n_op_points = len(source['depth']['z'])
-    actions.add_algorithm(name='deduplicate', parameters=None, source='WIBL-'+wiblversion, version=__version__, comment=f'Selected {n_op_points} non-duplicate depths from {n_ip_points} in input.')
+    actions.add_algorithm(name=ALG_NAME, parameters=None, source='WIBL-'+wiblversion, version=__version__, comment=f'Selected {n_op_points} non-duplicate depths from {n_ip_points} in input.')
     source['lineage'] = actions.export()
     
     return source
 
 
 class Deduplicate(WiblAlgorithm):
-    name: str = 'deduplicate'
+    name: str = ALG_NAME
     phases: AlgorithmPhase = AlgorithmPhase.AFTER_TIME_INTERP
 
     @classmethod
     def run_after_time_interp(cls, data: Dict[str, Any],
-                              params: str, config: Dict[str, Any]) -> Dict[str, Any]:
-        return deduplicate_depth(data, params, config)
+                              params: str, verbose: bool) -> Dict[str, Any]:
+        return deduplicate_depth(data, params, verbose)

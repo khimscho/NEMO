@@ -1,25 +1,18 @@
 from typing import Tuple, List, Dict, Generator, Callable, Union, Any, Optional
 
-from wibl_manager import ManagerInterface
-
 from wibl.core.logger_file import DataPacket
-from .common import WiblAlgorithm, AlgorithmPhase
-from .deduplicate import Deduplicate
+from wibl.core.algorithm import WiblAlgorithm, AlgorithmPhase, AlgorithmDescriptor, UnknownAlgorithm
+from wibl.core.algorithm.deduplicate import Deduplicate
 
 
 ALGORITHMS = {
     'deduplicate': Deduplicate
 }
 
-
-class UnknownAlgorithm(Exception):
-    pass
-
-
 def _get_run_func_for_phase(algorithm: WiblAlgorithm, phase: AlgorithmPhase) -> \
         Callable[
-            [Union[DataPacket, Dict[str, Any]]],
-            Union[Optional[DataPacket], Dict[str, Any]]
+            [Union[List[DataPacket], Dict[str, Any]], str, bool],
+            Union[List[DataPacket], Dict[str, Any]]
         ]:
     if phase is AlgorithmPhase.ON_LOAD:
         return algorithm.run_on_load
@@ -29,14 +22,14 @@ def _get_run_func_for_phase(algorithm: WiblAlgorithm, phase: AlgorithmPhase) -> 
         return algorithm.run_after_geojson_conversion
 
 
-def iterate(algorithm_descriptors: List[Dict[str, str]],
+def iterate(algorithm_descriptors: List[AlgorithmDescriptor],
             phase: AlgorithmPhase,
             wibl_file_name: str) -> \
         Generator[
             Tuple[
                 Callable[
-                    [Union[DataPacket, Dict[str, Any]], str, Dict[str, Any]],
-                    Union[Optional[DataPacket], Dict[str, Any]]
+                    [Union[List[DataPacket], Dict[str, Any]], str, bool],
+                    Union[List[DataPacket], Dict[str, Any]]
                 ],
                 str,
                 str
@@ -59,10 +52,10 @@ def iterate(algorithm_descriptors: List[Dict[str, str]],
         UnknownAlgorithm: If an unknown algorithm is encountered.
     """
     for alg_desc in algorithm_descriptors:
-        alg_name = alg_desc['name']
+        alg_name = alg_desc.name
         if alg_name in ALGORITHMS:
             alg: WiblAlgorithm = ALGORITHMS[alg_name]
             if phase in alg.phases:
-                yield _get_run_func_for_phase(alg, phase), alg.name, alg_desc['params']
+                yield _get_run_func_for_phase(alg, phase), alg.name, alg_desc.params
         else:
-            raise UnknownAlgorithm(f"Warning: unknown algorithm '{alg_name}' for {wibl_file_name}.")
+            raise UnknownAlgorithm(f"Unknown algorithm '{alg_name}' for {wibl_file_name}.")

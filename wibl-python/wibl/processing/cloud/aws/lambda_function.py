@@ -41,8 +41,8 @@ import wibl.core.config as conf
 import wibl.core.logger_file as lf
 import wibl.core.datasource as ds
 import wibl.core.notification as nt
+from wibl.core.algorithms import AlgorithmPhase, UnknownAlgorithm
 from wibl.processing import algorithms
-from wibl.processing.algorithms.common import AlgorithmPhase
 from wibl.core import getenv
 import wibl.core.timestamping as ts
 import wibl.core.geojson_convert as gj
@@ -108,6 +108,10 @@ def process_item(item: ds.DataItem, controller: ds.CloudController, notifier: nt
         return False
     except ts.NoData:
         manager.logmsg(f'error: failed to convert data({local_file}): no bathymetric data in file.')
+        manager.update(meta)
+        return False
+    except UnknownAlgorithm as e:
+        manager.logmsg(f'error: failed to convert data({local_file}): {str(e)}')
         manager.update(meta)
         return False
     

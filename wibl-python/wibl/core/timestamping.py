@@ -42,6 +42,7 @@ import pynmea2 as nmea
 import wibl.core.logger_file as LoggerFile
 from wibl.core.fileloader import TimeSource, load_file
 from wibl.core.fileloader import NoTimeSource as flNoTimeSource
+from wibl.core.algorithm import UnknownAlgorithm
 from wibl.core.interpolation import InterpTable
 from wibl.core.statistics import PktStats, PktFaults
 
@@ -115,11 +116,15 @@ def time_interpolation(filename: str, elapsed_time_quantum: int, **kwargs) -> Di
     
     # Pull all of the packets out of the file, and fix up any preliminary problems
     try:
-        stats, time_source, packets = load_file(filename, verbose, fault_limit)
+        stats, time_source, packets, algorithms = load_file(filename, verbose, fault_limit)
     except flNoTimeSource as e:
         if verbose:
             print(f'Failed to determine a valid time source from file: {e}')
         raise NoTimeSource()
+    except UnknownAlgorithm as e:
+        if verbose:
+            print(f'Unable to load file due to unknown algorithm encountered: {str(e)}')
+        raise e
     
     if verbose:
         print(stats)
@@ -134,7 +139,6 @@ def time_interpolation(filename: str, elapsed_time_quantum: int, **kwargs) -> Di
     logger_name = None      # Name of the logger (usually the identification)
     platform_name = None    # Name of the platform doing the logging
     metadata = None         # Any JSON metadata string provided in the WIBL file
-    algorithms = []         # List of required processing algorithm name/parameter pairs provided in the WIBL file
 
     seconds_per_day = 24.0 * 60.0 * 60.0
 
@@ -159,13 +163,6 @@ def time_interpolation(filename: str, elapsed_time_quantum: int, **kwargs) -> Di
         if isinstance(pkt, LoggerFile.JSONMetadata):
             stats.Observed(pkt.name())
             metadata = pkt.metadata_element.decode('UTF-8')
-        if isinstance(pkt, LoggerFile.AlgorithmRequest):
-            stats.Observed(pkt.name())
-            algo = {
-                "name": pkt.algorithm.decode('UTF-8'),
-                "params": pkt.parameters.decode('UTF-8')
-            }
-            algorithms.append(algo)
         
         # After this point, any packet that we're interested in has to have an elapsed time assigned
         if pkt.elapsed is None:
