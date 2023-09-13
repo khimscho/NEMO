@@ -59,6 +59,10 @@ def datasim():
     parser.add_argument('--duplicate_depth_prob',
                         help='Probability of generating duplicate depth values. Default: 0.0',
                         type=type_probability_float, default=0.0)
+    parser.add_argument('--no_data_prob',
+                        help=('Probability of generating no-data values for system time, position, and depth packets. '
+                              'Default: 0.0'),
+                        type=type_probability_float, default=0.0)
     parser.add_argument('-v', '--verbose', help='Produce verbose output.',
                         action='store_true', default=False)
     args = parser.parse_args(sys.argv[2:])
@@ -74,7 +78,8 @@ def datasim():
     gen: DataGenerator = DataGenerator(emit_nmea0183=args.emit_serial,
                                        emit_nmea2000=args.emit_binary,
                                        use_data_constructor=use_data_constructor,
-                                       duplicate_depth_prob=args.duplicate_depth_prob)
+                                       duplicate_depth_prob=args.duplicate_depth_prob,
+                                       no_data_prob=args.no_data_prob)
     writer: Writer = FileWriter(args.filename, 'Gulf Surveyor', 'WIBL-Simulator')
     engine: Engine = Engine(gen)
 
