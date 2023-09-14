@@ -38,6 +38,7 @@ import datetime as dt
 
 import pynmea2 as nmea
 
+from wibl.core import Lineage
 from wibl.core.statistics import PktStats, PktFaults
 import wibl.core.logger_file as LoggerFile
 from wibl.core.algorithm import runner, AlgorithmPhase, UnknownAlgorithm, AlgorithmDescriptor
@@ -114,7 +115,7 @@ def determine_time_source(stats: PktStats) -> TimeSource:
 # \param verbose        Flag: set True to report more information on parsing.
 # \param maxreports     Limit on how many errors should be reported before suppressing and summarising
 # \return Tuple of PktStats, TimeSource, a list of DataPacket, and a list of AlgorithmDescriptor entries from the file
-def load_file(filename: str, verbose: bool, maxreports: int) -> \
+def load_file(filename: str, lineage: Lineage, verbose: bool, maxreports: int) -> \
         Tuple[PktStats, TimeSource, List[LoggerFile.DataPacket], List[AlgorithmDescriptor]]:
     """Load the entirety of a WIBL binary file into memory, in the process determining the type of time
        source that can be used to add timestamps to the data, and fixing up any messages that don't have
@@ -124,6 +125,7 @@ def load_file(filename: str, verbose: bool, maxreports: int) -> \
 
        Inputs:
             filename        Local filesystem name of the WIBL file to open and read
+            lineage         `wibl.core.Lineage` instance used to track any processing done on data from `filename`
             verbose         Flag: set True to extra information on the process
             maxreports      Maximum number of errors per packet to report before summarising
 
@@ -138,7 +140,7 @@ def load_file(filename: str, verbose: bool, maxreports: int) -> \
     alg_desc: List[AlgorithmDescriptor]
 
     # First read all packets into packets_raw so that we can find algorithm packets
-    packets_raw = []
+    packets_raw: List[LoggerFile.DataPacket] = []
     algorithms_raw = []
     with open(filename, 'rb') as file:
         source = LoggerFile.PacketFactory(file)
@@ -164,7 +166,7 @@ def load_file(filename: str, verbose: bool, maxreports: int) -> \
                                                           filename):
             if verbose:
                 print(f'Applying algorithm {alg_name}')
-            packets = algorithm(packets, params, verbose)
+            packets_raw = algorithm(packets_raw, params, lineage, verbose)
     except UnknownAlgorithm as e:
         raise e
 
@@ -189,7 +191,7 @@ def load_file(filename: str, verbose: bool, maxreports: int) -> \
             print(f'Reading file: passing {packet_count} packets ...')
         packets.append(pkt)
     del packets_raw
-    
+
     # We need some form of connection from elapsed time stamps (i.e., when the packet is received
     # at the logger) and a real time, so that we can interpolate to real-time information for all
     # of the data.  There are a number of potential sources, including (in descending order of

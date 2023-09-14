@@ -29,12 +29,12 @@
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
 from dataclasses import dataclass
-from datetime import datetime
 from enum import Flag, auto
 
 from abc import ABC
 from typing import List, Dict, Any
 
+from wibl.core import Lineage
 from wibl.core.logger_file import DataPacket
 
 
@@ -61,42 +61,25 @@ class WiblAlgorithm(ABC):
     phases: AlgorithmPhase
 
     @classmethod
-    def run_on_load(cls, data: List[DataPacket],
-                    params: str, verbose: bool) -> List[DataPacket]:
+    def run_on_load(cls,
+                    data: List[DataPacket],
+                    params: str,
+                    lineage: Lineage,
+                    verbose: bool) -> List[DataPacket]:
         pass
 
     @classmethod
-    def run_after_time_interp(cls, data: Dict[str, Any],
-                              params: str, verbose: bool) -> Dict[str, Any]:
+    def run_after_time_interp(cls,
+                              data: Dict[str, Any],
+                              params: str,
+                              lineage: Lineage,
+                              verbose: bool) -> Dict[str, Any]:
         pass
 
     @classmethod
-    def run_after_geojson_conversion(cls, data: Dict[str, Any],
-                                     params: str, verbose: bool) -> Dict[str,Any]:
+    def run_after_geojson_conversion(cls,
+                                     data: Dict[str, Any],
+                                     params: str,
+                                     lineage: Lineage,
+                                     verbose: bool) -> Dict[str, Any]:
         pass
-
-
-## \brief Algorithm support for lineage metadata manipulation
-# As we apply algorithms to the data, we need to make sure that we provide some record
-# that we did.  This code provides a "lineage" section in the JSON metadata associated
-# with the data, adding elements as required.
-class Lineage:
-    def __init__(self, source: Dict[str,Any]) -> None:
-        if 'lineage' in source:
-            self.lineage = source['lineage']
-        else:
-            self.lineage = []
-
-    def add_algorithm(self, name: str, **kwargs) -> None:
-        timestamp = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%fZ')
-        element = {
-            "type":         "Algorithm",
-            "timestamp":    timestamp,
-            "name":         name
-        }
-        for key in kwargs:
-            element[key] = kwargs[key]
-        self.lineage.append(element)
-
-    def export(self) -> List[Dict]:
-        return self.lineage

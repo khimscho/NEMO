@@ -43,6 +43,7 @@ import wibl.core.logger_file as LoggerFile
 from wibl.core.fileloader import TimeSource, load_file
 from wibl.core.fileloader import NoTimeSource as flNoTimeSource
 from wibl.core.algorithm import UnknownAlgorithm
+from core import Lineage
 from wibl.core.interpolation import InterpTable
 from wibl.core.statistics import PktStats, PktFaults
 
@@ -104,9 +105,10 @@ maximum_version = protocol_version(protocol_version_major, protocol_version_mino
 #
 # \param filename               Local filename for the source WIBL file
 # \param elapsed_time_quantum   Maximum value that can be represented by the elapsed times in the packets
+# \param lineage                `wibl.core.Lineage` instance used to track any processing done on data from `filename`
 # \param kwargs                 Keyword dictionary for 'verbose' (bool) and 'fault_limit' (int)
 # \return Dictionary mapping identification names for the various datasets to the interpolated data arrays
-def time_interpolation(filename: str, elapsed_time_quantum: int, **kwargs) -> Dict[str, Any]:
+def time_interpolation(filename: str, lineage: Lineage, elapsed_time_quantum: int, **kwargs) -> Dict[str, Any]:
     verbose = False
     fault_limit = 10
     if 'verbose' in kwargs:
@@ -116,7 +118,7 @@ def time_interpolation(filename: str, elapsed_time_quantum: int, **kwargs) -> Di
     
     # Pull all of the packets out of the file, and fix up any preliminary problems
     try:
-        stats, time_source, packets, algorithms = load_file(filename, verbose, fault_limit)
+        stats, time_source, packets, algorithms = load_file(filename, lineage, verbose, fault_limit)
     except flNoTimeSource as e:
         if verbose:
             print(f'Failed to determine a valid time source from file: {e}')

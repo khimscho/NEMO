@@ -1,4 +1,4 @@
-##\file deduplicate.py
+##\module deduplicate
 # \brief Algorithm for deplicating depth values in the provided data
 #
 # On some systems, it's possible to get duplicated depths from the echosounder or control
@@ -8,7 +8,7 @@
 # indication whether the depth is valid (True) or can be dropped (False).  The original data
 # is not modified.
 #
-# Copyright 2021 Center for Coastal and Ocean Mapping & NOAA-UNH Joint
+# Copyright 2023 Center for Coastal and Ocean Mapping & NOAA-UNH Joint
 # Hydrographic Center, University of New Hampshire.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -34,12 +34,13 @@ from typing import Dict, Any
 import numpy as np
 
 from wibl import __version__ as wiblversion
-from wibl.core.algorithm import AlgorithmPhase, WiblAlgorithm, Lineage
-
+from wibl.core.algorithm import AlgorithmPhase, WiblAlgorithm
+from core import Lineage
 
 __version__ = '1.0.0'
 
 ALG_NAME = 'deduplicate'
+SOURCE = f"WIBL-{wiblversion}"
 
 
 def find_duplicates(source: Dict, verbose: bool) -> np.ndarray:
@@ -57,8 +58,7 @@ def find_duplicates(source: Dict, verbose: bool) -> np.ndarray:
     return rtn
 
 
-def deduplicate_depth(source: Dict[str,Any], params: str, verbose: bool) -> Dict[str,Any]:
-    actions = Lineage(source)
+def deduplicate_depth(source: Dict[str,Any], params: str,  lineage: Lineage, verbose: bool) -> Dict[str,Any]:
     n_ip_points = len(source['depth']['z'])
     index = find_duplicates(source, verbose)
     source['depth']['t'] = source['depth']['t'][index]
@@ -69,9 +69,9 @@ def deduplicate_depth(source: Dict[str,Any], params: str, verbose: bool) -> Dict
     # To memorialise that we did something, we add an entry to the lineage segment of
     # the metadata headers in the data.
     n_op_points = len(source['depth']['z'])
-    actions.add_algorithm(name=ALG_NAME, parameters=None, source='WIBL-'+wiblversion, version=__version__, comment=f'Selected {n_op_points} non-duplicate depths from {n_ip_points} in input.')
-    source['lineage'] = actions.export()
-    
+    lineage.add_algorithm_element(name=ALG_NAME, parameters=params, source=SOURCE, version=__version__,
+                                  comment=f'Selected {n_op_points} non-duplicate depths from {n_ip_points} in input.')
+
     return source
 
 
@@ -80,6 +80,9 @@ class Deduplicate(WiblAlgorithm):
     phases: AlgorithmPhase = AlgorithmPhase.AFTER_TIME_INTERP
 
     @classmethod
-    def run_after_time_interp(cls, data: Dict[str, Any],
-                              params: str, verbose: bool) -> Dict[str, Any]:
-        return deduplicate_depth(data, params, verbose)
+    def run_after_time_interp(cls,
+                              data: Dict[str, Any],
+                              params: str,
+                              lineage: Lineage,
+                              verbose: bool) -> Dict[str, Any]:
+        return deduplicate_depth(data, params, lineage, verbose)

@@ -1,17 +1,20 @@
 from typing import Tuple, List, Dict, Generator, Callable, Union, Any, Optional
 
+from wibl.core import Lineage
 from wibl.core.logger_file import DataPacket
 from wibl.core.algorithm import WiblAlgorithm, AlgorithmPhase, AlgorithmDescriptor, UnknownAlgorithm
 from wibl.core.algorithm.deduplicate import Deduplicate
+from wibl.core.algorithm.nodatareject import NoDataReject
 
 
 ALGORITHMS = {
-    'deduplicate': Deduplicate
+    'deduplicate': Deduplicate,
+    'nodatareject': NoDataReject
 }
 
 def _get_run_func_for_phase(algorithm: WiblAlgorithm, phase: AlgorithmPhase) -> \
         Callable[
-            [Union[List[DataPacket], Dict[str, Any]], str, bool],
+            [Union[List[DataPacket], Dict[str, Any]], str, Lineage, bool],
             Union[List[DataPacket], Dict[str, Any]]
         ]:
     if phase is AlgorithmPhase.ON_LOAD:
@@ -28,7 +31,7 @@ def iterate(algorithm_descriptors: List[AlgorithmDescriptor],
         Generator[
             Tuple[
                 Callable[
-                    [Union[List[DataPacket], Dict[str, Any]], str, bool],
+                    [Union[List[DataPacket], Dict[str, Any]], str, Lineage, bool],
                     Union[List[DataPacket], Dict[str, Any]]
                 ],
                 str,
