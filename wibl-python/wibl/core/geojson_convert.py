@@ -36,14 +36,15 @@ from datetime import datetime, timezone
 from typing import Dict, Any
 
 from wibl.core import getenv, Lineage
-from wibl.core.algorithm import runner, AlgorithmPhase, UnknownAlgorithm
+from wibl.core.algorithm import AlgorithmPhase
+from wibl.core.algorithm.runner import run_algorithms
 
 
 FMT_OBS_TIME='%Y-%m-%dT%H:%M:%S.%fZ'
 
 
 def translate(data: Dict[str,Any], lineage: Lineage, filename: str, config: Dict[str,Any], *,
-              process_algorithms: bool = True) -> Dict[str,Any]:
+              process_algorithms: bool = False) -> Dict[str,Any]:
     """
     Translate from the internal working data dictionary to the GeoJSON structure required by
     DCDB for upload.  This forms the structure for the metadata in addition to re-structuring the
@@ -151,14 +152,12 @@ def translate(data: Dict[str,Any], lineage: Lineage, filename: str, config: Dict
     final_json_dict['properties']['platform']['uniqueID'] = final_json_dict['properties']['trustedNode']['uniqueVesselID']
 
     if process_algorithms:
-        if verbose:
-            print(f"Applying requested algorithms for phase {AlgorithmPhase.AFTER_GEOJSON_CONVERSION.name} (if any) ...")
-        for algorithm, alg_name, params in runner.iterate(data['algorithms'],
-                                                          AlgorithmPhase.AFTER_GEOJSON_CONVERSION,
-                                                          filename):
-            if verbose:
-                print(f'Applying algorithm {alg_name}')
-            final_json_dict = algorithm(final_json_dict, params, lineage, verbose)
+        run_algorithms(final_json_dict,
+                       data['algorithms'],
+                       AlgorithmPhase.AFTER_GEOJSON_CONVERSION,
+                       filename,
+                       lineage,
+                       verbose)
 
     # The last phase of algorithms has been run, finalize lineage into a list of dicts that can easily be
     # serialized into the GeoJSON output

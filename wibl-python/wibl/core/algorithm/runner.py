@@ -1,4 +1,4 @@
-from typing import Tuple, List, Dict, Generator, Callable, Union, Any, Optional
+from typing import Tuple, List, Dict, Generator, Callable, Union, Any
 
 from wibl.core import Lineage
 from wibl.core.logger_file import DataPacket
@@ -11,6 +11,7 @@ ALGORITHMS = {
     'deduplicate': Deduplicate,
     'nodatareject': NoDataReject
 }
+
 
 def _get_run_func_for_phase(algorithm: WiblAlgorithm, phase: AlgorithmPhase) -> \
         Callable[
@@ -62,3 +63,28 @@ def iterate(algorithm_descriptors: List[AlgorithmDescriptor],
                 yield _get_run_func_for_phase(alg, phase), alg.name, alg_desc.params
         else:
             raise UnknownAlgorithm(f"Unknown algorithm '{alg_name}' for {wibl_file_name}.")
+
+
+def run_algorithms(data: Union[List[DataPacket], Dict[str, Any]],
+                   algorithms: List[AlgorithmDescriptor],
+                   phase: AlgorithmPhase,
+                   filename: str,
+                   lineage: Lineage,
+                   verbose: bool) -> None:
+    """
+    Run all algorithms defined in ``algorithms`` applicable to ``phase`` passing ``data``
+    to each algorithm sequentially. ``data`` will be modified in place.
+    :param data: Data to be processed.
+    :param algorithms: Algorithms with which to process data.
+    :param phase: WIBL processing phase to run algorithms for.
+    :param filename: WIBL filename.
+    :param lineage: Lineage object to record processing details.
+    :param verbose: Verbose flag.
+    :return:
+    """
+    if verbose:
+        print(f"Applying requested algorithms for phase {phase} (if any) ...")
+        for algorithm, alg_name, params in iterate(algorithms, phase, filename):
+            if verbose:
+                print(f'Applying algorithm {alg_name}')
+                data = algorithm(data, params, lineage, verbose)

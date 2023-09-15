@@ -41,7 +41,8 @@ import pynmea2 as nmea
 from wibl.core import Lineage
 from wibl.core.statistics import PktStats, PktFaults
 import wibl.core.logger_file as LoggerFile
-from wibl.core.algorithm import runner, AlgorithmPhase, UnknownAlgorithm, AlgorithmDescriptor
+from wibl.core.algorithm import AlgorithmPhase, AlgorithmDescriptor
+from wibl.core.algorithm.runner import run_algorithms
 
 
 ## Exception to report that no adequate source of real-world time information is available
@@ -163,14 +164,12 @@ def load_file(filename: str, lineage: Lineage, verbose: bool, maxreports: int, *
     del algorithms_raw
 
     if process_algorithms:
-        if verbose:
-            print(f"Applying requested algorithms for phase {AlgorithmPhase.ON_LOAD.name} (if any) ...")
-        for algorithm, alg_name, params in runner.iterate(alg_desc,
-                                                          AlgorithmPhase.ON_LOAD,
-                                                          filename):
-            if verbose:
-                print(f'Applying algorithm {alg_name}')
-            packets_raw = algorithm(packets_raw, params, lineage, verbose)
+        run_algorithms(packets_raw,
+                       alg_desc,
+                       AlgorithmPhase.ON_LOAD,
+                       filename,
+                       lineage,
+                       verbose)
 
     # Now iterate over stored packets to record stats needed for timestamp interpolation
     needs_elapsed_time_fixup = False

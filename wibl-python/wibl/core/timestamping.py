@@ -42,7 +42,8 @@ import pynmea2 as nmea
 import wibl.core.logger_file as LoggerFile
 from wibl.core.fileloader import TimeSource, load_file
 from wibl.core.fileloader import NoTimeSource as flNoTimeSource
-from wibl.core.algorithm import runner, AlgorithmPhase, UnknownAlgorithm
+from wibl.core.algorithm import AlgorithmPhase, UnknownAlgorithm
+from wibl.core.algorithm.runner import run_algorithms
 from core import Lineage
 from wibl.core.interpolation import InterpTable
 from wibl.core.statistics import PktStats, PktFaults
@@ -330,13 +331,11 @@ def time_interpolation(filename: str, lineage: Lineage, elapsed_time_quantum: in
     }
 
     if process_algorithms:
-        if verbose:
-            print(f"Applying requested algorithms for phase {AlgorithmPhase.AFTER_TIME_INTERP.name} (if any) ...")
-        for algorithm, alg_name, params in runner.iterate(source_data['algorithms'],
-                                                          AlgorithmPhase.AFTER_TIME_INTERP,
-                                                          filename):
-            if verbose:
-                print(f'Applying algorithm {alg_name}')
-            source_data = algorithm(source_data, params, lineage, verbose)
+        run_algorithms(source_data,
+                       source_data['algorithms'],
+                       AlgorithmPhase.AFTER_TIME_INTERP,
+                       filename,
+                       lineage,
+                       verbose)
 
     return source_data
