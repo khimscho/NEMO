@@ -87,4 +87,4 @@ def run_algorithms(data: Union[List[DataPacket], Dict[str, Any]],
         for algorithm, alg_name, params in iterate(algorithms, phase, filename):
             if verbose:
                 print(f'Applying algorithm {alg_name}')
-                data = algorithm(data, params, lineage, verbose)
+            data = algorithm(data, params, lineage, verbose)
