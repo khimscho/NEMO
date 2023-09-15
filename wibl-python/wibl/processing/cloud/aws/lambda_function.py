@@ -41,7 +41,7 @@ import wibl.core.config as conf
 import wibl.core.logger_file as lf
 import wibl.core.datasource as ds
 import wibl.core.notification as nt
-from wibl.core.algorithm import runner, AlgorithmPhase, UnknownAlgorithm
+from wibl.core.algorithm import UnknownAlgorithm
 from wibl.core import getenv, Lineage
 import wibl.core.timestamping as ts
 import wibl.core.geojson_convert as gj
@@ -115,23 +115,6 @@ def process_item(item: ds.DataItem, controller: ds.CloudController, notifier: nt
         manager.logmsg(f'error: failed to convert data({local_file}): {str(e)}')
         manager.update(meta)
         return False
-    
-    # We now have the option to run any sub-algorithms on the data before converting to GeoJSON
-    # and encoding for output to the staging area for upload.
-    if verbose:
-        print('Applying requested algorithms (if any) ...')
-    try:
-        for algorithm, alg_name, params in runner.iterate(source_data['algorithms'],
-                                                          AlgorithmPhase.AFTER_TIME_INTERP,
-                                                          local_file):
-            if verbose:
-                print(f'Applying algorithm {alg_name}')
-            source_data = algorithm(source_data, params, lineage, config['verbose'])
-            meta.soundings = len(source_data['depth']['z'])
-    except UnknownAlgorithm as e:
-        manager.logmsg(str(e))
-        print(f"Aborting pocessing due to error: {str(e)}")
-        return False
 
     if verbose:
         print('Converting remaining data to GeoJSON format ...')
@@ -139,6 +122,7 @@ def process_item(item: ds.DataItem, controller: ds.CloudController, notifier: nt
         submit_data = gj.translate(source_data, lineage, local_file, config)
     except UnknownAlgorithm as e:
         manager.logmsg(str(e))
+        manager.update(meta)
         print(f"Aborting pocessing due to error: {str(e)}")
         return False
 

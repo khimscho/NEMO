@@ -42,7 +42,8 @@ from wibl.core.algorithm import runner, AlgorithmPhase, UnknownAlgorithm
 FMT_OBS_TIME='%Y-%m-%dT%H:%M:%S.%fZ'
 
 
-def translate(data: Dict[str,Any], lineage: Lineage, filename: str, config: Dict[str,Any]) -> Dict[str,Any]:
+def translate(data: Dict[str,Any], lineage: Lineage, filename: str, config: Dict[str,Any], *,
+              process_algorithms: bool = True) -> Dict[str,Any]:
     """
     Translate from the internal working data dictionary to the GeoJSON structure required by
     DCDB for upload.  This forms the structure for the metadata in addition to re-structuring the
@@ -57,6 +58,7 @@ def translate(data: Dict[str,Any], lineage: Lineage, filename: str, config: Dict
     :poram filename: str representing name of original WIBL file being translated to GeoJSON
     :param config:   Configuration parameters from defaults file for instasll
     :type config:    Dict[str,Any] (see config.py for details)
+    :param process_algorithms: Bool set True to enable execution of algorithms for `AlgorithmPhase.AFTER_GEOJSON_CONVERSION`
     :return:         Data dictionary with tags required for conversion to GeoJSON for DCDB
     :rtype:          Dict[str,Any]
     :raises:         UnknownAlgorithm if an unknown processing algorithm is encountered
@@ -64,7 +66,7 @@ def translate(data: Dict[str,Any], lineage: Lineage, filename: str, config: Dict
     # Original comment was:
     # geojson formatting - Taylor Roy
     # based on https://ngdc.noaa.gov/ingest-external/#_testing_csb_data_submissions example geojson
-
+    verbose = config.get('verbose', False)
     feature_lst = []
 
     for i in range(len(data['depth']['z'])):
@@ -148,13 +150,15 @@ def translate(data: Dict[str,Any], lineage: Lineage, filename: str, config: Dict
     # to make sure that any changes to the /properties/trustedNode are propagated
     final_json_dict['properties']['platform']['uniqueID'] = final_json_dict['properties']['trustedNode']['uniqueVesselID']
 
-    # Apply any algorithms that were found that are applicable to the AFTER_GEOJSON_CONVERSION phase
-    for algorithm, alg_name, params in runner.iterate(data['algorithms'],
-                                                      AlgorithmPhase.AFTER_GEOJSON_CONVERSION,
-                                                      filename):
-        if config['verbose']:
-            print(f'Applying algorithm {alg_name}')
-        final_json_dict = algorithm(final_json_dict, params, lineage, config['verbose'])
+    if process_algorithms:
+        if verbose:
+            print(f"Applying requested algorithms for phase {AlgorithmPhase.AFTER_GEOJSON_CONVERSION.name} (if any) ...")
+        for algorithm, alg_name, params in runner.iterate(data['algorithms'],
+                                                          AlgorithmPhase.AFTER_GEOJSON_CONVERSION,
+                                                          filename):
+            if verbose:
+                print(f'Applying algorithm {alg_name}')
+            final_json_dict = algorithm(final_json_dict, params, lineage, verbose)
 
     # The last phase of algorithms has been run, finalize lineage into a list of dicts that can easily be
     # serialized into the GeoJSON output

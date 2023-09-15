@@ -42,7 +42,7 @@ import pynmea2 as nmea
 import wibl.core.logger_file as LoggerFile
 from wibl.core.fileloader import TimeSource, load_file
 from wibl.core.fileloader import NoTimeSource as flNoTimeSource
-from wibl.core.algorithm import UnknownAlgorithm
+from wibl.core.algorithm import runner, AlgorithmPhase, UnknownAlgorithm
 from core import Lineage
 from wibl.core.interpolation import InterpTable
 from wibl.core.statistics import PktStats, PktFaults
@@ -101,12 +101,15 @@ maximum_version = protocol_version(protocol_version_major, protocol_version_mino
 # in the packets, and then assigning real-world times to all of the recorded observable data packets,
 # interpolating the positioning information at those points to give a (time, position, observation) set
 # for each observation data set.  The data are encoded into a dictionary with auxiliary information
-# such as metadata identifying the logger, required processing algorithms, etc.
+# such as metadata identifying the logger, required processing algorithms, etc. If kwarg 'process_algorithms'
+# is set to True, execution of any algorithms defined in WIBL file `filename` will be enabled for phases
+# `AlgorithmPhase.ON_LOAD` and `AlgorithmPhase.AFTER_TIME_INTERP`.
 #
 # \param filename               Local filename for the source WIBL file
 # \param elapsed_time_quantum   Maximum value that can be represented by the elapsed times in the packets
 # \param lineage                `wibl.core.Lineage` instance used to track any processing done on data from `filename`
-# \param kwargs                 Keyword dictionary for 'verbose' (bool) and 'fault_limit' (int)
+# \param kwargs                 Keyword dictionary for 'verbose' (bool), 'fault_limit' (int),
+#   and 'process_algorithms' (bool).
 # \return Dictionary mapping identification names for the various datasets to the interpolated data arrays
 def time_interpolation(filename: str, lineage: Lineage, elapsed_time_quantum: int, **kwargs) -> Dict[str, Any]:
     verbose = False
@@ -115,10 +118,14 @@ def time_interpolation(filename: str, lineage: Lineage, elapsed_time_quantum: in
         verbose = kwargs['verbose']
     if 'fault_limit' in kwargs:
         fault_limit = kwargs['fault_limit']
+    process_algorithms: bool = True
+    if 'process_algorithms' in kwargs:
+        process_algorithms = kwargs['process_algorithms']
     
     # Pull all of the packets out of the file, and fix up any preliminary problems
     try:
-        stats, time_source, packets, algorithms = load_file(filename, lineage, verbose, fault_limit)
+        stats, time_source, packets, algorithms = load_file(filename, lineage, verbose, fault_limit,
+                                                            process_algorithms=process_algorithms)
     except flNoTimeSource as e:
         if verbose:
             print(f'Failed to determine a valid time source from file: {e}')
@@ -289,7 +296,7 @@ def time_interpolation(filename: str, lineage: Lineage, elapsed_time_quantum: in
     wind_times = time_table.interpolate(['ref'], wind_timepoints)[0]
     wind_lat, wind_lon  = position_table.interpolate(['lat', 'lon'], wind_timepoints)
 
-    return {
+    source_data = {
         'loggername': logger_name,
         'platform': platform_name,
         'loggerversion': logger_version,
@@ -321,3 +328,15 @@ def time_interpolation(filename: str, lineage: Lineage, elapsed_time_quantum: in
             'speed': wind_table.var('spd')
         }
     }
+
+    if process_algorithms:
+        if verbose:
+            print(f"Applying requested algorithms for phase {AlgorithmPhase.AFTER_TIME_INTERP.name} (if any) ...")
+        for algorithm, alg_name, params in runner.iterate(source_data['algorithms'],
+                                                          AlgorithmPhase.AFTER_TIME_INTERP,
+                                                          filename):
+            if verbose:
+                print(f'Applying algorithm {alg_name}')
+            source_data = algorithm(source_data, params, lineage, verbose)
+
+    return source_data

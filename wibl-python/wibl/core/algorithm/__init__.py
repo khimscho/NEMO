@@ -34,9 +34,12 @@ from enum import Flag, auto
 from abc import ABC
 from typing import List, Dict, Any
 
+from wibl import __version__ as wiblversion
 from wibl.core import Lineage
 from wibl.core.logger_file import DataPacket
 
+
+SOURCE = f"WIBL-{wiblversion}"
 
 
 class UnknownAlgorithm(Exception):

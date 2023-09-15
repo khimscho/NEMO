@@ -33,14 +33,12 @@ from typing import Dict, Any
 
 import numpy as np
 
-from wibl import __version__ as wiblversion
-from wibl.core.algorithm import AlgorithmPhase, WiblAlgorithm
+from wibl.core.algorithm import SOURCE, AlgorithmPhase, WiblAlgorithm
 from core import Lineage
 
 __version__ = '1.0.0'
 
 ALG_NAME = 'deduplicate'
-SOURCE = f"WIBL-{wiblversion}"
 
 
 def find_duplicates(source: Dict, verbose: bool) -> np.ndarray:

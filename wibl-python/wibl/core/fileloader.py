@@ -114,8 +114,10 @@ def determine_time_source(stats: PktStats) -> TimeSource:
 # \param filename       Filename to load for WIBL data
 # \param verbose        Flag: set True to report more information on parsing.
 # \param maxreports     Limit on how many errors should be reported before suppressing and summarising
+# \param process_algorithms Flag: set to True to enable execution of algorithms for phase `AlgorithmPhase.ON_LOAD`
 # \return Tuple of PktStats, TimeSource, a list of DataPacket, and a list of AlgorithmDescriptor entries from the file
-def load_file(filename: str, lineage: Lineage, verbose: bool, maxreports: int) -> \
+def load_file(filename: str, lineage: Lineage, verbose: bool, maxreports: int, *,
+              process_algorithms: bool = True) -> \
         Tuple[PktStats, TimeSource, List[LoggerFile.DataPacket], List[AlgorithmDescriptor]]:
     """Load the entirety of a WIBL binary file into memory, in the process determining the type of time
        source that can be used to add timestamps to the data, and fixing up any messages that don't have
@@ -128,6 +130,7 @@ def load_file(filename: str, lineage: Lineage, verbose: bool, maxreports: int) -
             lineage         `wibl.core.Lineage` instance used to track any processing done on data from `filename`
             verbose         Flag: set True to extra information on the process
             maxreports      Maximum number of errors per packet to report before summarising
+            process_algorithms Flag: set to True to enable execution of algorithms for phase `AlgorithmPhaseON_LOAD`
 
         Outputs:
             stats           (PktStats) Statistics on which packets have been seen, and any problems
@@ -159,16 +162,15 @@ def load_file(filename: str, lineage: Lineage, verbose: bool, maxreports: int) -
     alg_desc = list(dict.fromkeys(algorithms_raw))
     del algorithms_raw
 
-    # Apply any algorithms that were found that are applicable to the ON_LOAD phase
-    try:
+    if process_algorithms:
+        if verbose:
+            print(f"Applying requested algorithms for phase {AlgorithmPhase.ON_LOAD.name} (if any) ...")
         for algorithm, alg_name, params in runner.iterate(alg_desc,
                                                           AlgorithmPhase.ON_LOAD,
                                                           filename):
             if verbose:
                 print(f'Applying algorithm {alg_name}')
             packets_raw = algorithm(packets_raw, params, lineage, verbose)
-    except UnknownAlgorithm as e:
-        raise e
 
     # Now iterate over stored packets to record stats needed for timestamp interpolation
     needs_elapsed_time_fixup = False

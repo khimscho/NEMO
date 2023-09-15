@@ -21,32 +21,39 @@ class TestAlgorithms(unittest.TestCase):
         local_file = str(Path(self.fixtures_dir, 'test-algo-dedup.wibl'))
         config = conf.read_config(config_file)
         self.assertIsNotNone(config)
-
-        # Load data
         lineage: Lineage = Lineage()
+
+        # First load data without processing algorithms to include data from all packets
         source_data = ts.time_interpolation(local_file, lineage, config['elapsed_time_quantum'],
-                                            verbose=config['verbose'], fault_limit=config['fault_limit'])
+                                            verbose=config['verbose'], fault_limit=config['fault_limit'],
+                                            process_algorithms=False)
         self.assertIsNotNone(source_data)
 
-        # Check algorithm information
+        # Verify number of depth values in test data
+        self.assertEqual(277, len(source_data['depth']['z']))
+
+        # Next load data with processing enabled
+        source_data = ts.time_interpolation(local_file, lineage, config['elapsed_time_quantum'],
+                                            verbose=config['verbose'], fault_limit=config['fault_limit'])
+
+        # Verify number of depth values after deduplication
+        self.assertEqual(234, len(source_data['depth']['z']))
+
+        # Examine algorithm metadata
         self.assertEqual(1, len(source_data['algorithms']))
         alg: AlgorithmDescriptor = source_data['algorithms'][0]
         self.assertEqual('deduplicate', alg.name)
         self.assertEqual('', alg.params)
 
-        # TODO: Check lineage for deduplication
-
-        # Verify number of depth values in test data
-        self.assertEqual(277, len(source_data['depth']['z']))
-
-        # Apply algorithms (i.e., just deduplication)
-        for algorithm, alg_name, params in runner.iterate(source_data['algorithms'],
-                                                          AlgorithmPhase.AFTER_TIME_INTERP,
-                                                          local_file):
-            source_data = algorithm(source_data, params, lineage, config['verbose'])
-
-        # Verify number of depth values after deduplication
-        self.assertEqual(234, len(source_data['depth']['z']))
+        # Examine lineage metadata
+        self.assertEqual(1, len(lineage.lineage))
+        l: dict = lineage.lineage[0]
+        self.assertEqual('Algorithm', l['type'])
+        self.assertEqual('deduplicate', l['name'])
+        self.assertEqual('', l['parameters'])
+        self.assertTrue(l['source'].startswith('WIBL-'))
+        self.assertEqual('1.0.0', l['version'])
+        self.assertEqual('Selected 234 non-duplicate depths from 277 in input.', l['comment'])
 
     def test_algo_unknown(self):
         # Initialize
@@ -72,9 +79,41 @@ class TestAlgorithms(unittest.TestCase):
         local_file = str(Path(self.fixtures_dir, 'test-bin-algo-nodatafilter.wibl'))
         config = conf.read_config(config_file)
         self.assertIsNotNone(config)
-
-        # Load data
         lineage: Lineage = Lineage()
+
+        # First load data without processing algorithms to include data from all packets
+        source_data = ts.time_interpolation(local_file, lineage, config['elapsed_time_quantum'],
+                                            verbose=config['verbose'], fault_limit=config['fault_limit'],
+                                            process_algorithms=False)
+        self.assertIsNotNone(source_data)
+        num_data_unfiltered: int = len(source_data['depth']['z'])
+        self.assertEqual(246, num_data_unfiltered)
+
+        # Next load data with processing enabled
         source_data = ts.time_interpolation(local_file, lineage, config['elapsed_time_quantum'],
                                             verbose=config['verbose'], fault_limit=config['fault_limit'])
         self.assertIsNotNone(source_data)
+        num_data_filtered: int = len(source_data['depth']['z'])
+        self.assertEqual(218, num_data_filtered)
+        # There should be less data when algorithm processing is enabled
+        self.assertTrue(num_data_filtered < num_data_unfiltered)
+
+        # Examine algorithm metadata
+        self.assertEqual(1, len(source_data['algorithms']))
+        alg: AlgorithmDescriptor = source_data['algorithms'][0]
+        self.assertEqual('nodatareject', alg.name)
+        self.assertEqual('', alg.params)
+
+        # Examine lineage metadata
+        self.assertEqual(1, len(lineage.lineage))
+        l: dict = lineage.lineage[0]
+        self.assertEqual('Algorithm', l['type'])
+        self.assertEqual('nodatareject', l['name'])
+        self.assertEqual('', l['parameters'])
+        self.assertTrue(l['source'].startswith('WIBL-'))
+        self.assertEqual('1.0.0', l['version'])
+        self.assertEqual(('Filtered 174 packets of 801 total. '
+                          'Filtered 16.02% of GNSS packets. '
+                          'Filtered 23.39% of Depth packets. '
+                          'Filtered 64.09% of SystemTime packets.'),
+                         l['comment'])
