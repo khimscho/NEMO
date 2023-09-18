@@ -62,7 +62,7 @@ class TestAlgorithms(unittest.TestCase):
         config = conf.read_config(config_file)
         self.assertIsNotNone(config)
 
-        # Try to load data (which will fail because of the unknown algorithm
+        # Try to load data (which will fail because of the unknown algorithm)
         lineage: Lineage = Lineage()
         exception_raised: bool = False
         try:
@@ -112,8 +112,8 @@ class TestAlgorithms(unittest.TestCase):
         self.assertEqual('', l['parameters'])
         self.assertTrue(l['source'].startswith('WIBL-'))
         self.assertEqual('1.0.0', l['version'])
-        self.assertEqual(('Filtered 174 packets of 801 total. '
-                          'Filtered 16.02% of GNSS packets. '
-                          'Filtered 23.39% of Depth packets. '
-                          'Filtered 64.09% of SystemTime packets.'),
+        self.assertEqual(('Filtered 97 packets of 975 total. '
+                          'Filtered 29 of 181 GNSS packets. '
+                          'Filtered 29 of 124 Depth packets. '
+                          'Filtered 39 of 181 SystemTime packets.'),
                          l['comment'])

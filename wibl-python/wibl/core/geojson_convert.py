@@ -152,12 +152,12 @@ def translate(data: Dict[str,Any], lineage: Lineage, filename: str, config: Dict
     final_json_dict['properties']['platform']['uniqueID'] = final_json_dict['properties']['trustedNode']['uniqueVesselID']
 
     if process_algorithms:
-        run_algorithms(final_json_dict,
-                       data['algorithms'],
-                       AlgorithmPhase.AFTER_GEOJSON_CONVERSION,
-                       filename,
-                       lineage,
-                       verbose)
+        final_json_dict = run_algorithms(final_json_dict,
+                                         data['algorithms'],
+                                         AlgorithmPhase.AFTER_GEOJSON_CONVERSION,
+                                         filename,
+                                         lineage,
+                                         verbose)
 
     # The last phase of algorithms has been run, finalize lineage into a list of dicts that can easily be
     # serialized into the GeoJSON output

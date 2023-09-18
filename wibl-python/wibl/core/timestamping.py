@@ -331,11 +331,11 @@ def time_interpolation(filename: str, lineage: Lineage, elapsed_time_quantum: in
     }
 
     if process_algorithms:
-        run_algorithms(source_data,
-                       source_data['algorithms'],
-                       AlgorithmPhase.AFTER_TIME_INTERP,
-                       filename,
-                       lineage,
-                       verbose)
+        source_data = run_algorithms(source_data,
+                                     source_data['algorithms'],
+                                     AlgorithmPhase.AFTER_TIME_INTERP,
+                                     filename,
+                                     lineage,
+                                     verbose)
 
     return source_data

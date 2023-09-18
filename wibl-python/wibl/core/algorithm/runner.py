@@ -70,7 +70,7 @@ def run_algorithms(data: Union[List[DataPacket], Dict[str, Any]],
                    phase: AlgorithmPhase,
                    filename: str,
                    lineage: Lineage,
-                   verbose: bool) -> None:
+                   verbose: bool) -> Union[List[DataPacket], Dict[str, Any]]:
     """
     Run all algorithms defined in ``algorithms`` applicable to ``phase`` passing ``data``
     to each algorithm sequentially. ``data`` will be modified in place.
@@ -84,7 +84,8 @@ def run_algorithms(data: Union[List[DataPacket], Dict[str, Any]],
     """
     if verbose:
         print(f"Applying requested algorithms for phase {phase} (if any) ...")
-        for algorithm, alg_name, params in iterate(algorithms, phase, filename):
-            if verbose:
-                print(f'Applying algorithm {alg_name}')
-            data = algorithm(data, params, lineage, verbose)
+    for algorithm, alg_name, params in iterate(algorithms, phase, filename):
+        if verbose:
+            print(f'Applying algorithm {alg_name}')
+        data = algorithm(data, params, lineage, verbose)
+    return data

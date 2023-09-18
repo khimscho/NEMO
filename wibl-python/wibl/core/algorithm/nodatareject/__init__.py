@@ -26,6 +26,9 @@
 # OR OTHER DEALINGS IN THE SOFTWARE.
 from typing import List
 from datetime import datetime, timezone
+from itertools import filterfalse
+from collections import Counter
+from functools import partial
 
 import wibl.core.logger_file as LoggerFile
 from wibl.core.algorithm import SOURCE, AlgorithmPhase, WiblAlgorithm
@@ -43,58 +46,57 @@ def get_days_since_epoch() -> int:
     return (datetime.utcnow().replace(tzinfo=timezone.utc) - EPOCH_START).days
 
 
+def reject_predicate(pkt: LoggerFile.DataPacket, *,
+                     counters: Counter,
+                     days_since_epoch: int,
+                     verbose: bool = False) -> bool:
+    counters['num_packets'] += 1
+    if isinstance(pkt, LoggerFile.GNSS):
+        counters['num_packets_gnss'] += 1
+        if pkt.longitude == NA_DATA_DOUBLE or pkt.latitude == NA_DATA_DOUBLE:
+            if verbose:
+                print(f"Filtering out packet {str(pkt)}")
+            counters['num_filtered_gnss'] += 1
+            return True
+
+    if isinstance(pkt, LoggerFile.Depth):
+        counters['num_packets_depth'] += 1
+        if pkt.depth == NA_DATA_DOUBLE:
+            if verbose:
+                print(f"Filtering out packet {str(pkt)}")
+            counters['num_filtered_depth'] += 1
+            return True
+
+    if isinstance(pkt, LoggerFile.SystemTime):
+        counters['num_packets_systime'] += 1
+        if pkt.date > days_since_epoch or pkt.timestamp > SECONDS_PER_DAY:
+            if verbose:
+                print(f"Filtering out packet {str(pkt)}")
+            counters['num_filtered_systime'] += 1
+            return True
+
+    # Don't filter out this packet
+    return False
+
+
 def reject_nodata(data: List[LoggerFile.DataPacket],
                   params: str,
                   lineage: Lineage,
                   verbose: bool) -> List[LoggerFile.DataPacket]:
     days_since_epoch: int = get_days_since_epoch()
-    num_packets: int = 0
-    num_packets_gnss: int = 0
-    num_filtered_gnss: int = 0
-    num_packets_depth: int = 0
-    num_filtered_depth: int = 0
-    num_packets_systime: int = 0
-    num_filtered_systime: int = 0
-    for i, pkt in enumerate(data):
-        num_packets += 1
-        if isinstance(pkt, LoggerFile.GNSS):
-            num_packets_gnss += 1
-            if pkt.longitude == NA_DATA_DOUBLE or pkt.latitude == NA_DATA_DOUBLE:
-                if verbose:
-                    print(f"Filtering out packet {str(pkt)}")
-                num_filtered_gnss += 1
-                del data[i]
-                continue
-        if isinstance(pkt, LoggerFile.Depth):
-            num_packets_depth += 1
-            if pkt.depth == NA_DATA_DOUBLE:
-                if verbose:
-                    print(f"Filtering out packet {str(pkt)}")
-                num_filtered_depth += 1
-                del data[i]
-                continue
-        if isinstance(pkt, LoggerFile.SystemTime):
-            num_packets_systime += 1
-            if pkt.date > days_since_epoch or pkt.elapsed > SECONDS_PER_DAY:
-                if verbose:
-                    print(f"Filtering out packet {str(pkt)}")
-                num_filtered_systime += 1
-                del data[i]
-                continue
+    c: Counter = Counter()
+    predicate = partial(reject_predicate, counters=c, days_since_epoch=days_since_epoch, verbose=verbose)
+    data = [pkt for pkt in filterfalse(predicate, data)]
 
-    num_filtered: int = num_filtered_gnss + num_filtered_depth + num_filtered_systime
-    pct_filt_gnss = num_filtered_gnss / num_packets_gnss
-    pct_filt_depth = num_filtered_depth / num_packets_depth
-    pct_filt_systime = num_filtered_systime / num_packets_systime
+    num_filtered: int = c['num_filtered_gnss'] + c['num_filtered_depth'] + c['num_filtered_systime']
     lineage.add_algorithm_element(name=ALG_NAME, parameters=params, source=SOURCE, version=__version__,
                                   comment=
-                                  (f"Filtered {num_filtered} packets of {num_packets} total. "
-                                   f"Filtered {pct_filt_gnss:.2%} of GNSS packets. "
-                                   f"Filtered {pct_filt_depth:.2%} of Depth packets. "
-                                   f"Filtered {pct_filt_systime:.2%} of SystemTime packets."
+                                  (f"Filtered {num_filtered} packets of {c['num_packets']} total. "
+                                   f"Filtered {c['num_filtered_gnss']} of {c['num_packets_gnss']} GNSS packets. "
+                                   f"Filtered {c['num_filtered_depth']} of {c['num_packets_depth']} Depth packets. "
+                                   f"Filtered {c['num_filtered_systime']} of {c['num_packets_systime']} SystemTime packets."
                                    )
                                   )
-
     return data
 
 

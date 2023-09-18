@@ -164,12 +164,12 @@ def load_file(filename: str, lineage: Lineage, verbose: bool, maxreports: int, *
     del algorithms_raw
 
     if process_algorithms:
-        run_algorithms(packets_raw,
-                       alg_desc,
-                       AlgorithmPhase.ON_LOAD,
-                       filename,
-                       lineage,
-                       verbose)
+        packets_raw = run_algorithms(packets_raw,
+                                     alg_desc,
+                                     AlgorithmPhase.ON_LOAD,
+                                     filename,
+                                     lineage,
+                                     verbose)
 
     # Now iterate over stored packets to record stats needed for timestamp interpolation
     needs_elapsed_time_fixup = False
