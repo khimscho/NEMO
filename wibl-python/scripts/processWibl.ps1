@@ -13,7 +13,7 @@ Get-ChildItem -Path $wiblPath -Filter *.wibl -File -Recurse |
     Write-Output "Running command: 'wibl editwibl -m $metadataFile $_ $editedName'..."
     wibl editwibl -m $metadataFile $_ $editedName
     if ( -not ($LASTEXITCODE -eq 0) ) {
-      Write-Error "Error running wibl 'editwibl', exiting..."
+      Write-Error "Error running 'wibl editwibl', exiting..."
       exit -1
     }
     # Run wibl procwibl to create GeoJSON output
