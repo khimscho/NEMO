@@ -4,7 +4,7 @@
 
 ### Locally
 ```
-pip install csbschema==1.0.4
+pip install csbschema==1.1.1
 pip install ./wibl-manager
 pip install .
 ```

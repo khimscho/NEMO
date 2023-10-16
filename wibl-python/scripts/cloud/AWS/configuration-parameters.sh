@@ -32,9 +32,9 @@ AUTHKEY=`cat ingest-external-${DCDB_PROVIDER_ID}.txt`
 # version, but note that not all combinations of these will result in a Lambda that can
 # both get the SciPy later that it needs, and boot successfully.
 AWS_REGION=us-east-2
-ARCHITECTURE=x86_64
-PYTHONVERSION=3.8
-SCIPY_LAYER_NAME=arn:aws:lambda:us-east-2:259788987135:layer:AWSLambda-Python38-SciPy1x:107
+ARCHITECTURE=arm64
+PYTHONVERSION=3.11
+NUMPY_LAYER_NAME=arn:aws:lambda:us-east-2:336392948345:layer:AWSSDKPandas-Python311-Arm64:1
 
 # $WIBL_PACKAGE is the absolute path of the zip file containing the lambda code
 WIBL_PACKAGE=${WIBL_BUILD_LOCATION}/wibl-package-py${PYTHONVERSION}-${ARCHITECTURE}.zip
