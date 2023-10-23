@@ -149,7 +149,7 @@ aws --region ${AWS_REGION} lambda create-function \
 	--handler wibl.processing.cloud.aws.lambda_function.lambda_handler \
 	--zip-file fileb://${WIBL_PACKAGE} \
 	--architectures ${ARCHITECTURE} \
-	--layers ${SCIPY_LAYER_NAME} \
+	--layers ${NUMPY_LAYER_NAME} \
 	--vpc-config "SubnetIds=${LAMBDA_SUBNETS},SecurityGroupIds=${LAMBDA_SECURITY_GROUP}" \
 	--environment "Variables={NOTIFICATION_ARN=${TOPIC_ARN_VALIDATION},PROVIDER_ID=${DCDB_PROVIDER_ID},STAGING_BUCKET=${STAGING_BUCKET},UPLOAD_POINT=${DCDB_UPLOAD_URL},MANAGEMENT_URL=${MANAGEMENT_URL}}" \
 	| tee "${WIBL_BUILD_LOCATION}/create_lambda_conversion.json"
@@ -226,7 +226,7 @@ aws --region ${AWS_REGION} lambda create-function \
 	--handler wibl.validation.cloud.aws.lambda_function.lambda_handler \
 	--zip-file fileb://${WIBL_PACKAGE} \
 	--architectures ${ARCHITECTURE} \
-	--layers ${SCIPY_LAYER_NAME} \
+	--layers ${NUMPY_LAYER_NAME} \
 	--vpc-config "SubnetIds=${LAMBDA_SUBNETS},SecurityGroupIds=${LAMBDA_SECURITY_GROUP}" \
 	--environment "Variables={NOTIFICATION_ARN=${TOPIC_ARN_SUBMISSION},PROVIDER_ID=${DCDB_PROVIDER_ID},STAGING_BUCKET=${STAGING_BUCKET},UPLOAD_POINT=${DCDB_UPLOAD_URL},MANAGEMENT_URL=${MANAGEMENT_URL}}" \
 	| tee "${WIBL_BUILD_LOCATION}/create_lambda_validation.json"
@@ -358,7 +358,7 @@ aws --region ${AWS_REGION} lambda create-function \
 	--handler wibl.upload.cloud.aws.lambda_function.lambda_handler \
 	--zip-file fileb://${WIBL_PACKAGE} \
 	--architectures ${ARCHITECTURE} \
-	--layers ${SCIPY_LAYER_NAME} \
+	--layers ${NUMPY_LAYER_NAME} \
 	--vpc-config "SubnetIds=${LAMBDA_SUBNETS},SecurityGroupIds=${LAMBDA_SECURITY_GROUP}" \
 	--environment "Variables={NOTIFICATION_ARN=${TOPIC_ARN_CONVERSION},INCOMING_BUCKET=${INCOMING_BUCKET},STAGING_BUCKET=${STAGING_BUCKET},MANAGEMENT_URL=${MANAGEMENT_URL}}" \
 	| tee "${WIBL_BUILD_LOCATION}/create_lambda_conversion_start.json"

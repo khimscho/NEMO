@@ -40,6 +40,8 @@ public:
     static std::shared_ptr<Serialisable> Convert(tN2kMsg& msg, PayloadID& payload_id);
     /// \brief Convert from a NMEA0183 sentence string into a \a Serialisable packet
     static std::shared_ptr<Serialisable> Convert(uint32_t elapsed_time, std::string& nmea_string, PayloadID& payload_id);
+    /// \brief Convert from a JSON metadata filename to a \a Serialisable packet
+    static std::shared_ptr<Serialisable> Convert(std::string const& filename, PayloadID& payload_id);
 };
 
 #endif

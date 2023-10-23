@@ -221,6 +221,7 @@ int main(int argc, char **argv)
         ("output,o",        po::value<std::string>(),           "Specify output WIBL file")
         ("name,n",          po::value<std::string>(),           "Specify logger name string")
         ("id",              po::value<std::string>(),           "Specify logger unique ID string")
+        ("metadata,m",      po::value<std::string>(),           "Provide a JSON-formatted metadata for the platform")
         ("format,f",        po::value<std::string>(),           "Specify the format of the input file")
         ("stats,s",                                             "Show detailed packet statistics")
         ("ignore",          po::value<std::vector<uint32_t>>(), "Ignore one or more data source senders")
@@ -274,11 +275,15 @@ int main(int argc, char **argv)
     std::string log_format(optvals["format"].as<std::string>().c_str());
     
     std::string logger_name("UNKNOWN"), logger_id("UNKNOWN");
+    std::string metadata;
     if (optvals.count("name") != 0) {
         logger_name = optvals["name"].as<std::string>();
     }
     if (optvals.count("id") != 0) {
         logger_id = optvals["id"].as<std::string>();
+    }
+    if (optvals.count("metadata") != 0) {
+        metadata = optvals["metadata"].as<std::string>();
     }
     
     PacketSource *source = GeneratePacketSource(log_format, in);
@@ -305,6 +310,14 @@ int main(int argc, char **argv)
     Version imu(1, 0, 0);
     
     StdSerialiser ser(out, n2k, n1k, imu, logger_name, logger_id);
+    if (!metadata.empty()) {
+        PayloadID metadata_id;
+        std::shared_ptr<Serialisable> metadata_payload = SerialisableFactory::Convert(metadata, metadata_id);
+        if (!ser.Process(metadata_id, metadata_payload)) {
+            std::cout << "error: could not generate metadata packet on output." << std::endl;
+            exit(1);
+        }
+    }
     
     if (source->IsN2k()) {
         while (source->NextPacket(msg)) {

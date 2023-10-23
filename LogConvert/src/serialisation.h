@@ -111,19 +111,25 @@ public:
 /// mechanism to enforce this.  Very Bad Things (TM) will happen if this is not the case.
 
 enum PayloadID {
-    Pkt_Version = 0,        ///< Versioning information for the serialiser and NMEA handlers
-    Pkt_SystemTime = 1,     ///< NMEA2000 SystemTime packets
-    Pkt_Attitude = 2,       ///< NMEA2000 Attitude (roll, pitch, yaw) packets
-    Pkt_Depth = 3,          ///< NMEA2000 Depth packets
-    Pkt_COG = 4,            ///< NMEA2000 Course over Ground packets
-    Pkt_GNSS = 5,           ///< NMEA2000 Primary navigation (GNSS) packets
-    Pkt_Environment = 6,    ///< NMEA2000 Environmental (temperature, humidity, pressure) packets
-    Pkt_Temperature = 7,    ///< NMEA2000 Temperature packets
-    Pkt_Humidity = 8,       ///< NMEA2000 Humidity packets
-    Pkt_Pressure = 9,       ///< NMEA2000 Pressure packets
-    Pkt_NMEAString = 10,    ///< NMEA1083 sentences (of any kind)
-    Pkt_LocalIMU = 11,      ///< Motion data from the local IMU on the logger
-    Pkt_Metadata = 12       ///< Identification (name, ID) metadata for the logger
+    Pkt_Version = 0,            ///< Versioning information for the serialiser and NMEA handlers
+    Pkt_SystemTime = 1,         ///< NMEA2000 SystemTime packets
+    Pkt_Attitude = 2,           ///< NMEA2000 Attitude (roll, pitch, yaw) packets
+    Pkt_Depth = 3,              ///< NMEA2000 Depth packets
+    Pkt_COG = 4,                ///< NMEA2000 Course over Ground packets
+    Pkt_GNSS = 5,               ///< NMEA2000 Primary navigation (GNSS) packets
+    Pkt_Environment = 6,        ///< NMEA2000 Environmental (temperature, humidity, pressure) packets
+    Pkt_Temperature = 7,        ///< NMEA2000 Temperature packets
+    Pkt_Humidity = 8,           ///< NMEA2000 Humidity packets
+    Pkt_Pressure = 9,           ///< NMEA2000 Pressure packets
+    Pkt_NMEAString = 10,        ///< NMEA1083 sentences (of any kind)
+    Pkt_LocalIMU = 11,          ///< Motion data from the local IMU on the logger
+    Pkt_Metadata = 12,          ///< Identification (name, ID) metadata for the logger
+    Pkt_AlgorithmRequest = 13,  ///< List of algorithms that the logger would like the processing to run
+    Pkt_JSONMetadata = 14,      ///< Arbitrary JSON-structured metadata to B.12 standard to add to the output
+    Pkt_NMEA0183Filter = 15,    ///< List of packets to record from NMEA0183 inputs (by default all)
+    Pkt_SensorScales = 16,      ///< Scale factors to apply to RawIMU values (and other sensors)
+    Pkt_RawIMU = 17,            ///< Raw measurements from local IMU (needs scaling factors applied)
+    Pkt_Setup = 18              ///< JSON-format string with the active configuration when the file was started
 };
 
 /// \class Serialiser

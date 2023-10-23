@@ -1,0 +1,38 @@
+{
+    "version": {
+        "commandproc":  "1.3.0"
+    },
+    "enable": {
+        "nmea0183":     true,
+        "nmea2000":     true,
+        "imu":          false,
+        "powermonitor": false,
+        "sdmmc":        false,
+        "udpbridge":    false,
+        "webserver":    true
+    },
+    "wifi": {
+        "mode":         "AP",
+        "address":      "192.168.4.1",
+        "station": {
+            "delay":    20,
+            "retries":  5,
+            "timeout":  5
+        },
+        "ssids": {
+            "ap":       "wibl-config",
+            "station":  "wibl-logger"
+        },
+        "passwords": {
+            "ap":       "wibl-config-password",
+            "station":  "wibl-logger-password"
+        }
+    },
+    "uniqueID": "wibl-logger",
+    "shipname": "Anonymous",
+    "baudrate": {
+        "port1":    4800,
+        "port2":    4800
+    },
+    "udpbridge":    12345
+}

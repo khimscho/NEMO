@@ -64,6 +64,10 @@ def dcdb_upload():
         else:
             config_filename = get_config_file()
         config = conf.read_config(config_filename)
+        if 'notification' not in config:
+            config['notification'] = {}
+        if 'uploaded' not in config['notification']:
+            config['notification']['uploaded'] = ''
     except conf.BadConfiguration:
         sys.exit('Error: bad configuration file.')
     

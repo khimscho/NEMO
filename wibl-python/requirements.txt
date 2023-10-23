@@ -3,4 +3,4 @@ boto3>=1.20
 requests>=2
 numpy>=1.20
 pynmea2>=1.18
-csbschema~=1.0.4
+csbschema~=1.1.1
