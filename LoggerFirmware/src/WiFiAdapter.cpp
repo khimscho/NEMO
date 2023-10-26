@@ -29,6 +29,7 @@
 #include <WiFi.h>
 #include <WiFIAP.h>
 #include <WebServer.h>
+#include <SPIFFS.h>
 
 #include "LogManager.h"
 #include "WiFiAdapter.h"
@@ -351,6 +352,7 @@ private:
             // Configure the endpoints served by the server
             m_server->on("/heartbeat", HTTPMethod::HTTP_GET, std::bind(&ESP32WiFiAdapter::heartbeat, this));
             m_server->on("/command", HTTPMethod::HTTP_POST, std::bind(&ESP32WiFiAdapter::handleCommand, this));
+            m_server->serveStatic("/", SPIFFS, "/website");
         }
         //m_state.Verbose(true);
         m_state.Start();
