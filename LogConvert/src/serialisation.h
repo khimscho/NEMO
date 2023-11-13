@@ -33,6 +33,10 @@
 #include <string>
 #include <memory>
 
+// GNU G++ defines these as macros, but we can undef them: https://bugzilla.redhat.com/show_bug.cgi?id=130601
+#undef major
+#undef minor
+
 const int SerialiserVersionMajor = 1; ///< Major version number for the serialiser
 const int SerialiserVersionMinor = 3; ///< Minor version number for the serialiser
 
