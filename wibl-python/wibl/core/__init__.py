@@ -26,6 +26,7 @@
 import os
 from datetime import datetime
 from typing import List, Dict
+from copy import deepcopy
 
 
 class EnvVarUndefinedException(Exception):
@@ -66,7 +67,13 @@ class Lineage:
         self.lineage.append(Lineage.create_algorithm_element(name, **kwargs))
 
     def export(self) -> List[Dict]:
-        return self.lineage
+        lin_exp: List[Dict] = deepcopy(self.lineage)
+        for e in lin_exp:
+            if 'parameters' in e:
+                # Convert parameters from a string of comma-separated key-value pairs to a dict
+                # for export to JSON
+                e['parameters'] = dict([kvp.split('=') for kvp in e['parameters'].split(',')])
+        return lin_exp
 
     def empty(self) -> bool:
         return len(self.lineage) == 0
