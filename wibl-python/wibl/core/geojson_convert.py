@@ -35,11 +35,16 @@ import json
 from datetime import datetime, timezone
 from typing import Dict, Any
 
-from wibl.core import getenv
+from wibl.core import getenv, Lineage
+from wibl.core.algorithm import AlgorithmPhase
+from wibl.core.algorithm.runner import run_algorithms
+
 
 FMT_OBS_TIME='%Y-%m-%dT%H:%M:%S.%fZ'
 
-def translate(data: Dict[str,Any], config: Dict[str,Any]) -> Dict[str,Any]:
+
+def translate(data: Dict[str,Any], lineage: Lineage, filename: str, config: Dict[str,Any], *,
+              process_algorithms: bool = False) -> Dict[str,Any]:
     """
     Translate from the internal working data dictionary to the GeoJSON structure required by
     DCDB for upload.  This forms the structure for the metadata in addition to re-structuring the
@@ -48,17 +53,21 @@ def translate(data: Dict[str,Any], config: Dict[str,Any]) -> Dict[str,Any]:
     Bathymetry Working Group document B.12 v 3.0.0 (2022-10-01) available at
     https://iho.int/uploads/user/pubs/bathy/B_12_CSB-Guidance_Document-Edition_3.0.0_Final.pdf
 
-    :param data:    Data dictionary from time-interpolation and clean-up
-    :type data:     Dict[str,Any] with at least 'depth', 'loggername', 'platform', and 'loggerversion'
-    :param config:  Configuration parameters from defaults file for instasll
-    :type config:   Dict[str,Any] (see config.py for details)
-    :return:        Data dictionary with tags required for conversion to GeoJSON for DCDB
-    :rtype:         Dict[str,Any]
+    :param data:     Data dictionary from time-interpolation and clean-up
+    :type data:      Dict[str,Any] with at least 'depth', 'loggername', 'platform', and 'loggerversion'
+    :param lineage:  `wibl.core.Lineage` instance used to track any processing done on `data`
+    :poram filename: str representing name of original WIBL file being translated to GeoJSON
+    :param config:   Configuration parameters from defaults file for instasll
+    :type config:    Dict[str,Any] (see config.py for details)
+    :param process_algorithms: Bool set True to enable execution of algorithms for `AlgorithmPhase.AFTER_GEOJSON_CONVERSION`
+    :return:         Data dictionary with tags required for conversion to GeoJSON for DCDB
+    :rtype:          Dict[str,Any]
+    :raises:         UnknownAlgorithm if an unknown processing algorithm is encountered
     """
     # Original comment was:
     # geojson formatting - Taylor Roy
     # based on https://ngdc.noaa.gov/ingest-external/#_testing_csb_data_submissions example geojson
-
+    verbose = config.get('verbose', False)
     feature_lst = []
 
     for i in range(len(data['depth']['z'])):
@@ -141,6 +150,19 @@ def translate(data: Dict[str,Any], config: Dict[str,Any]) -> Dict[str,Any]:
     # data ingestion platform can find this without stress.  It's also a requirement of the schema validator!  We do this last
     # to make sure that any changes to the /properties/trustedNode are propagated
     final_json_dict['properties']['platform']['uniqueID'] = final_json_dict['properties']['trustedNode']['uniqueVesselID']
+
+    if process_algorithms:
+        final_json_dict = run_algorithms(final_json_dict,
+                                         data['algorithms'],
+                                         AlgorithmPhase.AFTER_GEOJSON_CONVERSION,
+                                         filename,
+                                         lineage,
+                                         verbose)
+
+    # The last phase of algorithms has been run, finalize lineage into a list of dicts that can easily be
+    # serialized into the GeoJSON output
+    if not lineage.empty():
+        data['lineage'] = lineage.export()
 
     if 'lineage' in data:
         if 'processing' not in final_json_dict['properties']:

@@ -413,6 +413,16 @@ void AlgoRequestStore::SerialiseAlgorithms(Serialiser *s)
     }
 }
 
+void AlgoRequestStore::SerialiseSingleAlgorithm(String const& algo, String const& params, Serialiser *s)
+{
+    Serialisable ser(255);
+    ser += algo.length();
+    ser += algo.c_str();
+    ser += params.length();
+    ser += params.c_str();
+    s->Process(logger::Manager::PacketIDs::Pkt_Algorithms, ser);
+}
+
 /// Instantiate a new interface to the list of NMEA0183 sentence message IDs that are expected to
 /// be logged to the output data files on reception.
 

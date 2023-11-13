@@ -366,7 +366,7 @@ void Manager::TransferLogFile(int file_num, Stream& output)
 /// \param led  Pointer to the LED controller for the logger (external owner)
 
 Manager::Manager(StatusLED *led)
-: m_led(led), m_inventory(nullptr)
+: m_led(led), m_inventory(nullptr), m_noDataAlgEmitted(false)
 {
     m_storage = mem::MemControllerFactory::Create();
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
@@ -429,6 +429,7 @@ void Manager::StartNewLog(void)
     }
     
     m_consoleLog.flush();
+    ResetDynamicAlgorithms();
     
     Serial.println("New log file initialisation complete.");
 }
@@ -580,6 +581,23 @@ void Manager::HashFile(uint32_t file_num, MD5Hash& filehash)
 void Manager::AddInventory(bool verbose)
 {
     m_inventory = new Inventory(this, verbose);
+}
+
+/// Reset all indicators used to ensure that any dynamic algorithms are only emitted once
+/// into the output data stream.
+///
+
+void Manager::ResetDynamicAlgorithms(void)
+{
+    m_noDataAlgEmitted = false;
+}
+
+void Manager::EmitNoDataReject(void)
+{
+    if (m_noDataAlgEmitted) return;
+    logger::AlgoRequestStore store;
+    store.SerialiseSingleAlgorithm("nodatareject", "phase=raw", m_serialiser);
+    m_noDataAlgEmitted = true;
 }
 
 /// Generate a logical file number for the next log file to be written.  This operates

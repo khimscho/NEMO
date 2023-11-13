@@ -41,10 +41,10 @@ import wibl.core.config as conf
 import wibl.core.logger_file as lf
 import wibl.core.datasource as ds
 import wibl.core.notification as nt
-from wibl.core import getenv
+from wibl.core.algorithm import UnknownAlgorithm
+from wibl.core import getenv, Lineage
 import wibl.core.timestamping as ts
 import wibl.core.geojson_convert as gj
-import wibl.processing.algorithms.deduplicate as dedup
 from wibl.processing.cloud.aws import get_config_file
 from wibl_manager import ManagerInterface, MetadataType, WIBLMetadata, ProcessingStatus
 
@@ -74,6 +74,7 @@ def process_item(item: ds.DataItem, controller: ds.CloudController, notifier: nt
     verbose: bool = config['verbose']
 
     meta: WIBLMetadata = WIBLMetadata()
+    lineage: Lineage = Lineage()
     meta.size = item.source_size/(1024.0*1024.0)
     meta.status = ProcessingStatus.PROCESSING_FAILED.value  # Until further notice ...
     manager: ManagerInterface = ManagerInterface(MetadataType.WIBL_METADATA, item.source_key, config['verbose'])
@@ -83,11 +84,13 @@ def process_item(item: ds.DataItem, controller: ds.CloudController, notifier: nt
     if verbose:
         print(f'Attempting to obtain item {item} from S3 ...')
 
+    source_data: Dict = {}
     local_file, source_info = controller.obtain(item)
     try:
         if verbose:
             print(f'Attempting file read/time interpolation on {local_file} ...')
-        source_data = ts.time_interpolation(local_file, config['elapsed_time_quantum'], verbose = config['verbose'], fault_limit = config['fault_limit'])
+        source_data = ts.time_interpolation(local_file, lineage,
+                                            config['elapsed_time_quantum'], verbose = config['verbose'], fault_limit = config['fault_limit'])
         meta.logger = source_data['loggername']
         meta.platform = source_data['platform']
         meta.observations = len(source_data['depth']['z'])
@@ -108,25 +111,20 @@ def process_item(item: ds.DataItem, controller: ds.CloudController, notifier: nt
         manager.logmsg(f'error: failed to convert data({local_file}): no bathymetric data in file.')
         manager.update(meta)
         return False
-    
-    # We now have the option to run any sub-algorithms on the data before converting to GeoJSON
-    # and encoding for output to the staging area for upload.
-    if verbose:
-        print('Applying requested algorithms (if any) ...')
-    
-    for alg in source_data['algorithms']:
-        algname = alg['name']
-        if algname == 'deduplicate':
-            if verbose:
-                print(f'Applying algorithm {algname}')
-            source_data = dedup.deduplicate_depth(source_data, alg['params'], config)
-            meta.soundings = len(source_data['depth']['z'])
-        else:
-            manager.logmsg(f'Warning: unknown algorithm {algname} for {local_file}.')
-    
+    except UnknownAlgorithm as e:
+        manager.logmsg(f'error: failed to convert data({local_file}): {str(e)}')
+        manager.update(meta)
+        return False
+
     if verbose:
         print('Converting remaining data to GeoJSON format ...')
-    submit_data = gj.translate(source_data, config)
+    try:
+        submit_data = gj.translate(source_data, lineage, local_file, config)
+    except UnknownAlgorithm as e:
+        manager.logmsg(str(e))
+        manager.update(meta)
+        print(f"Aborting pocessing due to error: {str(e)}")
+        return False
 
     try:
         source_id = submit_data['properties']['trustedNode']['uniqueVesselID']

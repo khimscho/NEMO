@@ -131,6 +131,7 @@ public:
 
     void HashFile(uint32_t file_num, MD5Hash& hash);
     void AddInventory(bool verbose = false);
+    void EmitNoDataReject(void);
 
 private:
     /// \class Inventory
@@ -169,6 +170,8 @@ private:
     Serialiser  *m_serialiser;      ///< Object to handle serialisation of data
     StatusLED   *m_led;             ///< Pointer for status (data event) handling
     Inventory   *m_inventory;       ///< Cache for file information, if available
+
+    bool m_noDataAlgEmitted;    ///< Flag for whether the "NoDataReject" algorithm packet has been emitted
     
     /// \brief Find the next log number in sequence that doesn't already exist
     uint32_t GetNextLogNumber(void);
@@ -180,6 +183,8 @@ private:
     void enumerate(uint32_t lognumber, String& filename, uint32_t& filesize);
     /// \brief Generate a hash for a given file 
     void hash(String const& filename, MD5Hash& hash);
+    /// \brief Reset the indicators for dynamic algorithm requests
+    void ResetDynamicAlgorithms(void);
 };
 
 }
