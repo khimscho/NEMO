@@ -34,7 +34,7 @@ from typing import Dict, Any
 import numpy as np
 
 from wibl.core.algorithm import SOURCE, AlgorithmPhase, WiblAlgorithm
-from core import Lineage
+from wibl.core import Lineage
 
 __version__ = '1.0.0'
 

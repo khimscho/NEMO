@@ -44,7 +44,7 @@ from wibl.core.fileloader import TimeSource, load_file
 from wibl.core.fileloader import NoTimeSource as flNoTimeSource
 from wibl.core.algorithm import AlgorithmPhase, UnknownAlgorithm
 from wibl.core.algorithm.runner import run_algorithms
-from core import Lineage
+from wibl.core import Lineage
 from wibl.core.interpolation import InterpTable
 from wibl.core.statistics import PktStats, PktFaults
 
