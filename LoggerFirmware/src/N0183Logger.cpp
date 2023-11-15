@@ -31,6 +31,7 @@
 #include "N0183Logger.h"
 #include "Configuration.h"
 #include "NVMFile.h"
+#include "DataMetrics.h"
 
 namespace nmea {
 namespace N0183 {
@@ -403,6 +404,10 @@ void Logger::ProcessMessages(void)
             if (m_verbose) {
                 Serial.printf("DBG: logging \"%s\"\n", sentence->Contents());
             }
+
+            logger::DataObs obs(sentence->Timestamp(), sentence->Contents());
+            logger::metrics.RegisterObs(obs);
+
             Serialisable s;
             s += (uint32_t)(sentence->Timestamp());
             s += sentence->Contents();

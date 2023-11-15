@@ -1,4 +1,4 @@
-/*! \file Configuration.h
+/*! \file Configuration.cpp
  *  \brief Provide configuration checks for the module
  *
  * There are a number of parameters that need to be set to configure the logger, including

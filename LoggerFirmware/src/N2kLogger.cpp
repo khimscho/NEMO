@@ -35,6 +35,7 @@
 #include <Arduino.h>
 #include "N2kLogger.h"
 #include "N2kMessages.h"
+#include "DataMetrics.h"
 
 namespace nmea {
 namespace N2000 {
@@ -263,6 +264,10 @@ void Logger::HandleSystemTime(Timestamp::TimeDatum const& t, const tN2kMsg& msg)
     if (ParseN2kSystemTime(msg, SID, date, timestamp, source)) {
         if (source != N2ktimes_LocalCrystalClock) {
             m_timeReference.Update(date, timestamp, t.RawElapsed());
+
+            logger::DataObs obs(t.RawElapsed(), date, timestamp);
+            logger::metrics.RegisterObs(obs);
+
             Serialisable s(sizeof(uint16_t) + sizeof(double) + sizeof(unsigned long) + 1);
             s += date;
             s += timestamp;
@@ -319,6 +324,9 @@ void Logger::HandleDepth(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
         Serial.println("DBG: Handling Depth packet.");
     
     if (ParseN2kWaterDepth(msg, SID, depth, offset, range)) {
+        logger::DataObs obs(t.RawElapsed(), depth, offset);
+        logger::metrics.RegisterObs(obs);
+
         Serialisable s(t.SerialisationSize() + 3*sizeof(double));
         t.Serialise(s);
         s += depth;
@@ -392,6 +400,9 @@ void Logger::HandleGNSS(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
     if (ParseN2kGNSS(msg, SID, datestamp, timestamp, latitude, longitude, altitude,
                      rec_type, rec_method, nSvs, hdop, pdop, sep, nRefStations,
                      refStationType, refStationID, correctionAge)) {
+        logger::DataObs obs(t.RawElapsed(), longitude, latitude, altitude);
+        logger::metrics.RegisterObs(obs);
+        
         Serialisable s(t.SerialisationSize() + 2*sizeof(uint16_t) + 8*sizeof(double) + 5);
         t.Serialise(s); // Put in the standard timestamp, as well as the in-message one.
         s += datestamp; s += timestamp;

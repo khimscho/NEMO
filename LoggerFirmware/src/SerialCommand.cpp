@@ -34,6 +34,7 @@
 #include "HeapMonitor.h"
 #include "NVMFile.h"
 #include "IMULogger.h"
+#include "DataMetrics.h"
 
 const uint32_t CommandMajorVersion = 1;
 const uint32_t CommandMinorVersion = 3;
@@ -993,6 +994,8 @@ void SerialCommand::ReportCurrentStatus(CommandSource src)
     logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_WS_BOOTSTATUS_S, boot_status);
     status["webserver"]["current"] = server_status;
     status["webserver"]["boot"] = boot_status;
+
+    status["data"] = logger::metrics.LastKnownGood();
 
     uint32_t filenumbers[logger::MaxLogFiles];
     uint32_t n_files = m_logManager->CountLogFiles(filenumbers);
