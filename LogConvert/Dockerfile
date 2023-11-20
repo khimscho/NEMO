@@ -1,4 +1,4 @@
-FROM public.ecr.aws/lambda/python:3.11 as builder
+FROM public.ecr.aws/amazonlinux/amazonlinux:2 as builder
 
 RUN yum update -y && \
     yum install -y wget tar gzip cmake3 ninja-build gcc gcc-c++ boost-devel boost-static
