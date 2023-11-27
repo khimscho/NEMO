@@ -208,6 +208,7 @@ private:
         if (ssid.length() == 0) ssid = "wibl-config";
         if (ssid.length() == 0) password = "wibl-config-password";
         WiFi.softAP(ssid.c_str(), password.c_str());
+        WiFi.setSleep(false);
         IPAddress server_address = WiFi.softAPIP();
         logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, server_address.toString());
         if (m_verbose) {
@@ -228,6 +229,7 @@ private:
             return false;
         }
         wl_status_t status = WiFi.begin(ssid.c_str(), password.c_str());
+        WiFi.setSleep(false);
         m_lastConnectAttempt = millis();
         if (m_verbose) {
             Serial.printf("DBG: started network join on %s:%s at %d with immediate status %d\n", ssid.c_str(), password.c_str(), m_lastConnectAttempt, (int)status);
