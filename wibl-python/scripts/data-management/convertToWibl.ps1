@@ -24,6 +24,9 @@ The source .ZIP file to extract the .DAT files from
 .PARAMETER LogConvertPath
 The location of logconvert.exe, if it isn't in a folder next to the script called "logconvert"
 
+.PARAMETER Format
+The format to convert from, either YDVR or TeamSurv.
+
 .PARAMETER OutputFolder
 A folder to output all of the processed files to. This folder will have the same structure as the
 source zip folder
@@ -57,7 +60,10 @@ param (
 
     # The logconvert program can be anywhere, but we can assume it
     # to be in the local directory if the user doesn't specifiy it.
-    [string]$LogConvertPath = ".\logconvert\logconvert.exe"
+    [string]$LogConvertPath = ".\logconvert\logconvert.exe",
+
+    # The format to convert from, either YDVR or TeamSurv.
+    [string]$Format = "YDVR"
 )
 
 # Before starting, verify that we have access to our logconvert program.
@@ -117,7 +123,7 @@ $AllFiles | ForEach-Object -ThrottleLimit 20 -Parallel {
     # Go to the directory that the .dat file lives in and then 
     # use log convert in that directory.
     Push-Location -Path $CurrentItemDirectory -StackName "Wibl"
-    & $using:FullLogConvertPath -f YDVR -i $PSItem.FullName -o $WIBLFileName | Out-Null
+    & $using:FullLogConvertPath -f $Format -i $PSItem.FullName -o $WIBLFileName | Out-Null
     Pop-Location -StackName "Wibl"
 
     Remove-Item $PSItem
