@@ -1,6 +1,10 @@
 <#
+.SYNOPSIS
+Convert YDVR or TeamSurv logger files to WIBL files.
+
 .DESCRIPTION
-This applet converts .DAT files in a .zip file to .WIBL files in a directory that matches the source .zip.
+This script converts YDVR or TeamSurv logger files in a .zip file to .WIBL files in a directory that
+matches the source .zip.
 
 .OUTPUTS
 A directory structure containing .WIBL files matching the input .zip file

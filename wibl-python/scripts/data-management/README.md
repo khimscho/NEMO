@@ -21,12 +21,16 @@ needing conversion. However, if you have many files to convert, you can automate
 
 To run `convertToWibl.ps1` you'll first need to be in a Python virtual environment that has 
 [wibl-python](../../README.md) installed. When running `convertToWibl.ps1` you must supply at least two 
-inputs: 1. a zip file containing YDVR or TeamSurv files (all files in the zip file must be of the same 
-format); and 2. the name of the folder to write converted WIBL files to (this folder will have the same 
-structure as the source zip folder). You'll probably also have to specify the location of your LogConvert 
+inputs: 
+1. A zip file containing YDVR or TeamSurv files (all files in the zip file must be of the same 
+format); and
+2. The name of the folder to write converted WIBL files to (this folder will have the same 
+structure as the source zip folder). 
+
+In addition to those required parameters, you'll probably also have to specify the location of your LogConvert 
 executable (the default is a file named 'logconvert.exe' in a sub-directory called 'logconvert') using 
-the -LogConvertPath option. If the files to be converted are of YDVR format, you won't need to supply any 
-other command line options, however, if the files are of TeamSurv format, you'll need to use the 
+the `-LogConvertPath` option. If the files to be converted are of YDVR format, you won't need to supply any 
+other command line options, however, if the files are of TeamSurv format, you'll also need to use the 
 `-Format TeamSurv` option.
 
 To learn more about how to run `convertToWibl.ps1`, use the `Get-Help` command:
@@ -34,25 +38,25 @@ To learn more about how to run `convertToWibl.ps1`, use the `Get-Help` command:
 PS /Users/janeuser/wibl/wibl-python/scripts/data-management> Get-Help ./convertToWibl.ps1
 
 NAME
-    /Users/janeuser/wibl/wibl-python/scripts/data-management/convertToWibl.ps1
+    convertToWibl.ps1
     
 SYNOPSIS
-    
+    Convert YDVR or TeamSurv logger files to WIBL files.
     
 SYNTAX
-    /Users/janeuser/wibl/wibl-python/scripts/data-management/convertToWibl.ps1 [-Source] <String> [-OutputFolder] <String> [-LogConvertPath <String>] [-Format <String>] [<CommonParameters>]
-    
+    convertToWibl.ps1 [-Source] <String> [-OutputFolder] <String> 
+        [-LogConvertPath <String>] [-Format <String>] [<CommonParameters>]
     
 DESCRIPTION
-    This applet converts .DAT files in a .zip file to .WIBL files in a directory that matches the source .zip.
-    
+    This script converts YDVR or TeamSurv logger files in a .zip file to .WIBL files in a directory that
+    matches the source .zip.
 
 RELATED LINKS
 
 REMARKS
-    To see the examples, type: "Get-Help /Users/janeuser/wibl/wibl-python/scripts/data-management/convertToWibl.ps1 -Examples"
-    For more information, type: "Get-Help /Users/janeuser/wibl/wibl-python/scripts/data-management/convertToWibl.ps1 -Detailed"
-    For technical information, type: "Get-Help /Users/janeuser/wibl/wibl-python/scripts/data-management/convertToWibl.ps1 -Full"
+    To see the examples, type: "Get-Help convertToWibl.ps1 -Examples"
+    For more information, type: "Get-Help convertToWibl.ps1 -Detailed"
+    For technical information, type: "Get-Help convertToWibl.ps1 -Full"
 ```
 
 ## processWibl.ps1: Processing raw WIBL data into IHO B12 GeoJSON data
@@ -61,10 +65,12 @@ WIBL data (now with metadata) into GeoJSON data. Each of these steps can be perf
 files using the `wibl editwibl` and `wibl procwibl` commands. To automate the running of the `editwibl` and `procwibl` 
 steps for many files, use [processWibl.ps1](processWibl.ps1).
 
-To run `processWibl.ps1` you have to supply three inputs: 1. The path to a directory containing WIBL files for a single
-vessel; 2. a path to a JSON file containing metadata for the vessel that collected the data 
-(for example, see: [b12_v3_metadata_example.json](../../tests/fixtures/b12_v3_metadata_example.json)); and 3. a 
-JSON configuration file for local processing (for example, see: 
+To run `processWibl.ps1` you have to supply three inputs: 
+1. The path to a directory containing WIBL files for a single
+vessel; 
+2. A path to a JSON file containing metadata for the vessel that collected the data 
+(for example, see: [b12_v3_metadata_example.json](../../tests/fixtures/b12_v3_metadata_example.json)); and 
+3. A JSON configuration file for local processing (for example, see: 
 [configure.local.json](../../tests/fixtures/configure.local.json)). 
 
 The configuration file should look like the following:
@@ -79,8 +85,12 @@ The configuration file should look like the following:
 }
 ```
 
-The only thing you'll have to change is the value of the `provider_id` key, which should be set
-to the provider ID of the trusted node you plan to use to submit data to DCDB.
+The only thing you'll definitely have to change in your config file is the value of the `provider_id` key, which 
+should be set to the provider ID of the trusted node you plan to use to submit data to DCDB.
+
+> Note: if your data originally came from YDVR file, make sure to set `elapsed_time_width` to 16. If you
+> don't set this correctly, the WIBL processing tools won't be able to detect when the elapsed time timestamp
+> wraps around.
 
 To learn more about how to run `convertToWibl.ps1`, use the `Get-Help` command:
 ```
@@ -110,9 +120,12 @@ Often, the last step of processing WIBL data will be submission to [DCDB](https:
 be done for individual files using the `wibl dcdbupload` command. For uploading files in batch, you can use the
 [submitDCDB.ps1](submitDCDB.ps1).
 
-To use `submitDCDB.ps1` you need to specify three parameters: 1. The path to a directory containing (hopefully 
-validated) GeoJSON files to submit to DCDB; 2. A text file containing authentication credentials for submitting data
-to DCDB; and 3. a JSON configuration file for local processing (the same file as used with `processWibl.ps1`). 
+To use `submitDCDB.ps1` you need to specify three parameters: 
+1. The path to a directory containing (hopefully 
+validated) GeoJSON files to submit to DCDB; 
+2. A text file containing authentication credentials for submitting data
+to DCDB; and 
+3. A JSON configuration file for local processing (the same file as used with `processWibl.ps1`). 
 Optionally, you can specify the file extension of GeoJSON files to submit using the `-extension` option
 (the default is `json`).
 
