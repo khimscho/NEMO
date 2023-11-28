@@ -7,11 +7,14 @@ These scripts require PowerShell 7 or later running on Windows, macOS, or Linux.
 See [here](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell?view=powershell-7.3)
 for installation instructions.
 
-# processWibl.ps1: Processing raw WIBL data into IHO B12 GeoJSON data
-Documenation coming soon...
+## Convert-DATToWIBL.ps1: Converting non-WIBL data to WIBL format using [LogConvert](../../../LogConvert)
+Documentation coming soon...
 
-# validateWibl.ps1: Validate IHO B12 GeoJSON data using csbschema
-Documenation coming soon...
+## processWibl.ps1: Processing raw WIBL data into IHO B12 GeoJSON data
+Documentation coming soon...
 
-# Convert-DATToWIBL.ps1: Converting non-WIBL data to WIBL format using [LogConvert](../../../LogConvert)
+## validateWibl.ps1: Validate IHO B12 GeoJSON data using csbschema
+Documentation coming soon...
+
+## submitDCDB.ps1: Submit IHO B12 GeoJSON data to [DCDB](https://www.ngdc.noaa.gov/iho/)
 Documentation coming soon...
