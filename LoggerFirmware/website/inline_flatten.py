@@ -12,7 +12,6 @@ def convert_file(input: str, output: str) -> None:
         links = soup.find_all('link')
         for link in links:
             ref = os.sep.join((inbase, link['href']))
-            print(f'Inbase: {inbase}, Link: {link}, Ref: {ref}')
             tag = soup.new_tag('style')
             with open(ref) as r:
                 contents = r.read()
@@ -54,3 +53,6 @@ def convert_directory(indir: str, outdir: str) -> None:
         outname = os.path.join(outdir, target)
         print(f'Converting {target} to {outname} ...')
         convert_file(target, outname)
+
+if __name__ == "__main__":
+    convert_directory(".", "../data/website")
