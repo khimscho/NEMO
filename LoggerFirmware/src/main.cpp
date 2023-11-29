@@ -29,6 +29,7 @@
 #define ESP32_CAN_RX_PIN GPIO_NUM_17
 
 #include <NMEA2000_CAN.h> /* This auto-generates the NMEA2000 global for bus control */
+#include "ArduinoJson.h"
 #include "N2kLogger.h"
 #include "serial_number.h"
 #include "SerialCommand.h"
@@ -106,7 +107,10 @@ void setup()
         }
     } else {
         Serial.println("INF: Configuration is now:");
-        Serial.println(logger::ConfigJSON::ExtractConfig(true, true));
+        DynamicJsonDocument config = logger::ConfigJSON::ExtractConfig(true);
+        String config_str;
+        serializeJson(config, config_str);
+        Serial.println(config_str);
     }
     
     Serial.println("Bringing up Storage Controller ...");

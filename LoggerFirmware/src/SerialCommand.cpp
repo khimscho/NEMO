@@ -189,21 +189,22 @@ void SerialCommand::ReportSoftwareVersion(CommandSource src)
 
 void SerialCommand::EraseLogfile(String const& filenum, CommandSource src)
 {
+    bool success = true;
+    long file_num = -1;
     if (filenum == "all") {
-        EmitMessage("Erasing all log files ...\n", src);
         m_logManager->RemoveAllLogfiles();
-        EmitMessage("All log files erased.\n", src);
     } else {
-        long file_num;
         file_num = filenum.toInt();
-        EmitMessage(String("Erasing log file ") + file_num + String("\n"), src);
-        if (m_logManager->RemoveLogFile(file_num)) {
-            String msg = String("Log file ") + file_num + String(" erased.\n");
-            EmitMessage(msg, src);
-        } else {
-            String msg = String("Failed to erase log file ") + file_num + "\n";
-            EmitMessage(msg, src);
+        if (!m_logManager->RemoveLogFile(file_num)) {
+            success = false;
         }
+    }
+    if (success) {
+        ReportCurrentStatus(src);
+    } else {
+        String msg = String("Failed to erase log file ") + file_num + "\n";
+        if (m_wifi != nullptr) m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::NOTFOUND);
+        EmitMessage(msg, src);
     }
 }
 
@@ -457,7 +458,7 @@ void SerialCommand::TransferLogFile(String const& filenum, CommandSource src)
         // version information in them).
         EmitMessage("ERR: File " + filenum + " does not exist.\n", src);
         if (src == CommandSource::WirelessPort && m_wifi != nullptr) {
-            m_wifi->SetStatusCode(404);
+            m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::NOTFOUND);
         }
         return;
     }
@@ -662,8 +663,15 @@ void SerialCommand::ConfigurePassthrough(String const& params, CommandSource src
 
 void SerialCommand::ReportConfigurationJSON(CommandSource src)
 {
-    String json = logger::ConfigJSON::ExtractConfig(src == CommandSource::SerialPort ? true : false);
-    EmitMessage(json + "\n", src);
+    DynamicJsonDocument json = logger::ConfigJSON::ExtractConfig();
+    if (src == CommandSource::SerialPort) {
+        String s;
+        serializeJsonPretty(json, s);
+        EmitMessage(s + "\n", src);
+    } else {
+        if (m_wifi != nullptr)
+            m_wifi->SetMessage(json);
+    }
 }
 
 /// Provide summary report of all of the configuration parameters being managed by the Confgiuration
@@ -741,9 +749,16 @@ void SerialCommand::ReportConfiguration(CommandSource src)
 void SerialCommand::SetupLogger(String const& spec, CommandSource src)
 {
     if (logger::ConfigJSON::SetConfig(spec)) {
-        EmitMessage("INF: Accepted configuration from JSON input string.\n", src);
+        if (src == CommandSource::WirelessPort)
+            ReportConfigurationJSON(src);
+        else
+            EmitMessage("INF: Accepted configuration from JSON input string.\n", src);
     } else {
-        EmitMessage("ERR: Error accepting configuration from JSON input string.\n", src);
+        if (src == CommandSource::WirelessPort) {
+            m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
+            EmitMessage("{ \"result\": \"Failed to accept configuration from JSON input string.\" }", src);
+        } else
+            EmitMessage("ERR: Error accepting configuration from JSON input string.\n", src);
     }
 }
 
@@ -1010,13 +1025,15 @@ void SerialCommand::ReportCurrentStatus(CommandSource src)
         if (!filehash.Empty())
             status["files"]["detail"][n]["md5"] = filehash.Value();
     }
-    String json;
     if (src == CommandSource::SerialPort) {
+        String json;
         serializeJsonPretty(status, json);
+        EmitMessage(json+"\n", src);
     } else {
-        serializeJson(status, json);
+        if (m_wifi != nullptr) {
+            m_wifi->SetMessage(status);
+        }
     }
-    EmitMessage(json+"\n", src);
 }
 
 /// Report the current set of "lab default" configuration parameters set on the logger.  These
@@ -1042,7 +1059,7 @@ void SerialCommand::ReportLabDefaults(CommandSource src)
             EmitMessage("ERR: no lab defaults configuration set!\n", src);
         else {
             EmitMessage("{}", src);
-            if (m_wifi != nullptr) m_wifi->SetStatusCode(503); // "Service Unavailable"
+            if (m_wifi != nullptr) m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::UNAVAILABLE); // "Service Unavailable"
         }
     }
 }
@@ -1080,7 +1097,7 @@ void SerialCommand::ResetLabDefaults(CommandSource src)
     } else {
         EmitMessage("ERR: no lab default configuration set!\n", src);
         if (src == CommandSource::WirelessPort && m_wifi != nullptr)
-            m_wifi->SetStatusCode(503); // "Service Unavailable"
+            m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::UNAVAILABLE); // "Service Unavailable"
     }
 }
 
@@ -1253,7 +1270,7 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
     } else {
         EmitMessage("ERR: command not recognised: \"" + cmd + "\".\n", src);
         if (src == CommandSource::WirelessPort && m_wifi != nullptr) {
-            m_wifi->SetStatusCode(400);
+            m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::NOTFOUND);
         }
     }
 }

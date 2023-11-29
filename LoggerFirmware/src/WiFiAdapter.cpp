@@ -286,9 +286,12 @@ public:
     /// Default constructor for the ESP32 adapter.  This brings up the parameter store to use
     /// for WiFi parameters, but takes no other action until the user explicitly starts the AccessPoint.
     ESP32WiFiAdapter(void)
-    : m_storage(nullptr), m_server(nullptr), m_statusCode(200)
+    : m_storage(nullptr), m_server(nullptr), m_messages(nullptr), m_statusCode(HTTPReturnCodes::OK)
     {
         if ((m_storage = mem::MemControllerFactory::Create()) == nullptr) {
+            return;
+        }
+        if ((m_messages = new DynamicJsonDocument(1024)) == nullptr) {
             return;
         }
     }
@@ -298,14 +301,15 @@ public:
     {
         stop();
         delete m_storage; // Note that we're not stopping the interface, since it may still be required elsewhere
+        delete m_messages;
     }
     
 private:
     mem::MemController  *m_storage;     ///< Pointer to the storage object to use
     WebServer           *m_server;      ///< Pointer to the server object, if started.
     std::queue<String>  m_commands;     ///< Queue to handle commands sent by the user
-    String              m_messages;     ///< Accumulating message content to be send to the client
-    uint32_t            m_statusCode;   ///< Status code to return to the user with the transaction response
+    DynamicJsonDocument *m_messages;    ///< Accumulating message content to be send to the client
+    HTTPReturnCodes     m_statusCode;   ///< Status code to return to the user with the transaction response
     ConnectionStateMachine m_state;     ///< Manager for connection state
 
     /// @brief Handle HTTP requests to the /command endpoint
@@ -354,7 +358,7 @@ private:
             // Configure the endpoints served by the server
             m_server->on("/heartbeat", HTTPMethod::HTTP_GET, std::bind(&ESP32WiFiAdapter::heartbeat, this));
             m_server->on("/command", HTTPMethod::HTTP_POST, std::bind(&ESP32WiFiAdapter::handleCommand, this));
-            m_server->serveStatic("/", SPIFFS, "/website/");
+            m_server->serveStatic("/", SPIFFS, "/website/"); // Note trailing '/' since this is a directory being served.
         }
         //m_state.Verbose(true);
         m_state.Start();
@@ -421,7 +425,17 @@ private:
 
     void accumulateMessage(String const& message)
     {
-        m_messages += message;
+        (*m_messages)["messages"].add(message);
+    }
+
+    /// Replace the entire message to be sent to the client with the provided string.
+    ///
+    /// \param message \a String to use for the return message.
+    /// \return N/A
+
+    void setMessage(DynamicJsonDocument const& message)
+    {
+        *m_messages = message;
     }
 
     /// Configure the HTTP status code that the response should use.  By default, the status code used
@@ -433,7 +447,7 @@ private:
     /// \param status_code  Code to return to the client (typically HTTP status codes)
     /// \return N/A
 
-    void setStatusCode(uint32_t status_code)
+    void setStatusCode(HTTPReturnCodes status_code)
     {
         m_statusCode = status_code;
     }
@@ -447,9 +461,11 @@ private:
 
     bool transmitMessages(char const* data_type)
     {
-        m_server->send(m_statusCode, data_type, m_messages);
-        m_messages = "";
-        m_statusCode = 200; // "OK" by default
+        String message;
+        serializeJson(*m_messages, message);
+        m_server->send(m_statusCode, data_type, message);
+        m_messages->clear();
+        m_statusCode = HTTPReturnCodes::OK; // "OK" by default
         return true;
     }
 
@@ -496,11 +512,17 @@ bool WiFiAdapter::TransferFile(String const& filename, uint32_t filesize, logger
 /// \return N/A
 void WiFiAdapter::AddMessage(String const& message) { accumulateMessage(message); }
 
+/// Pass-through implementation to the sub-class code to reset the message from straight JSON
+///
+/// @param message JSON document to send back to the client
+/// @return N/A
+void WiFiAdapter::SetMessage(DynamicJsonDocument const& message) { setMessage(message); }
+
 /// Pass-through implementation to the sub-class code to set status code
 ///
 /// \param status_code  HTTP status code to set
 /// \return N/A
-void WiFiAdapter::SetStatusCode(uint32_t status_code) { setStatusCode(status_code); }
+void WiFiAdapter::SetStatusCode(HTTPReturnCodes status_code) { setStatusCode(status_code); }
 
 /// Pass-through implementation to the sub-class code to transmit all available messages.
 /// This should also complete the transaction from the client's request.

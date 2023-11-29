@@ -167,14 +167,13 @@ Config LoggerConfig;    ///< Static parameter to use for lookups (rather than ma
 /// \a String so that it can be readily sent to log files, or over WiFi, etc.  The serialisation can be
 /// compact (e.g., for sending to files) or formatted (i.e., with indents) as required.
 ///
-/// @param indent Set true for formatted output, or false for compact strings for serialisation.
 /// @param secure Set true to avoid writing password information into the output dictionary.
 /// @return \a String object with the serialised JSON dictionary of configuration parameters.
 
-String ConfigJSON::ExtractConfig(bool indent, bool secure)
+DynamicJsonDocument ConfigJSON::ExtractConfig(bool secure)
 {
     using namespace ArduinoJson;
-    StaticJsonDocument<1024> params;
+    DynamicJsonDocument params(1024);
     params["version"]["commandproc"] = SerialCommand::SoftwareVersion();
     params["version"]["nmea0183"] = nmea::N0183::Logger::SoftwareVersion();
     params["version"]["nmea2000"] = nmea::N2000::Logger::SoftwareVersion();
@@ -234,13 +233,7 @@ String ConfigJSON::ExtractConfig(bool indent, bool secure)
     params["baudrate"]["port2"] = baudrate_port2.toInt();
     params["udpbridge"] = udp_bridge_port.toInt();
 
-    String rtn;
-    if (indent) {
-        serializeJsonPretty(params, rtn);
-    } else {
-        serializeJson(params, rtn);
-    }
-    return rtn;
+    return params;
 }
 
 /// Set configuration for all values of the key-value store specified in the serialised JSON dictionary
