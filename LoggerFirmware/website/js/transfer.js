@@ -1,6 +1,6 @@
 async function transferData() {
     const fileID = document.getElementById("file-id").value;
-    let data = sendCommand(`transfer ${fileID}`);
+    let data = await sendCommand(`transfer ${fileID}`);
     const options = {
         suggestedName: `wibl-raw.${fileID}.wibl`
     }

@@ -8,7 +8,8 @@ commandText.addEventListener("keypress", function(event) {
 
 function runCommand() {
     const command = document.getElementById("command").value;
-    const data = sendCommand(command);
-    document.getElementById("command-output").value = data;
-    document.getElementById("command").value = '';
+    sendCommand(command).then((data) => {
+        document.getElementById("command-output").value = data;
+        document.getElementById("command").value = '';
+    });
 }

@@ -114,12 +114,12 @@ function parseConfigJSON(configString) {
 
 function uploadCurrentConfig() {
     const config = createJSONConfig();
-    sendCommand('setup ' + config);
+    sendCommand('setup ' + config).then((data) => {});
 }
 
 function uploadDefaultConfig() {
     const config = createJSONConfig();
-    sendCommand('lab defaults ' + config);
+    sendCommand('lab defaults ' + config).then((data) => {});
 }
 
 async function saveConfigLocally() {
@@ -150,43 +150,7 @@ function loadConfigLocally() {
 }
 
 function populateConfig() {
-    //const rawData = sendCommand('setup');
-    const rawData = `{
-        "version": {
-            "commandproc": "1.3.0"
-        },
-        "uniqueID": "UNHJHC-1c3af96b-dbc7-43fc-9054-aa8c09cae671",
-        "shipname": "Anonymous",
-        "udpbridge": 12345,
-        "enable": {
-            "nmea0183": true,
-            "nmea2000": true,
-            "imu": false,
-            "powermonitor": false,
-            "sdmmc": false,
-            "udpbridge": false,
-            "webserver": true
-        },
-        "wifi": {
-            "mode": "AP",
-            "station": {
-                "delay": 20,
-                "retries": 5,
-                "timeout": 5
-            },
-            "ssids": {
-                "ap": "wibl-config",
-                "station": "wibl-logger"
-            },
-            "passwords": {
-                "ap": "wibl-config-password",
-                "station": "wibl-logger-password"
-            }
-        },
-        "baudrate": {
-            "port1": 4800,
-            "port2": 4800
-        }
-    }`;
-    parseConfigJSON(rawData);
+    sendCommand('setup').then((data) => {
+        parseConfigJSON(data);
+    });
 }

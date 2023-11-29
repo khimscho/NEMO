@@ -25,27 +25,15 @@ function createAlgTableRow(algName, algParams) {
 }
 
 function populateAlgTable() {
-    //const rawData = sendCommand('algorithm');
-    rawData = `{
-        "count": 2,
-        "algorithm": [
-            {
-                "name": "deduplicate",
-                "parameters": ""
-            },
-            {
-                "name": "uncertainty",
-                "parameters": "0.25,0.0135,0.95"
-            }
-        ]
-    }`;
-    const data = JSON.parse(rawData);
-    const headerRow = createAlgTableHeader();
-    document.getElementById("alg-table").replaceChildren(headerRow);
-    for (let n = 0; n < data.count; ++n) {
-        const row = createAlgTableRow(data.algorithm[n].name, data.algorithm[n].parameters);
-        document.getElementById("alg-table").appendChild(row);
-    }
+    console.log('Populating Algorithm Table');
+    sendCommand('algorithm').then((data) => {
+        const headerRow = createAlgTableHeader();
+        document.getElementById("alg-table").replaceChildren(headerRow);
+        for (let n = 0; n < data.count; ++n) {
+            const row = createAlgTableRow(data.algorithm[n].name, data.algorithm[n].parameters);
+            document.getElementById("alg-table").appendChild(row);
+        }
+    });
 }
 
 function addAlgorithm() {
@@ -56,11 +44,13 @@ function addAlgorithm() {
     if (algParams === 'N/A') {
         algParams = '';
     }
-    sendCommand(`algorithm ${algName} ${algParams}`);
+    sendCommand(`algorithm ${algName} ${algParams}`).then((data) => {
+        console.log('Algorithm set');
+    });
     populateAlgTable();
 }
 
 function clearAlgList() {
-    sendCommand('algorithm none'); // Remove all algorithms from the logger
-    populateAlgTable(); // This regenerates the list, clearing the local table
+    sendCommand('algorithm none').then((data) => {});
+    populateAlgTable();
 }
