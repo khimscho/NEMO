@@ -115,8 +115,13 @@ class MainWindow:
         success, info = interface.execute_command(command)
         return success, info
     
-    def update_output(self, output: str) -> None:
-        self.output_text.insert(tk.END, output)
+    def update_output(self, output: str, preform: bool) -> None:
+        if (preform):
+            self.output_text.insert(tk.END, output)
+        else:
+            # Data input is stringified JSON, so we need to unpack then re-format
+            data = json.loads(output)
+            self.output_text.insert(tk.END, json.dumps(data, indent=2) + '\n')
         self.output_text.yview_moveto(1.0)
     
     def on_command(self, entry):
@@ -125,7 +130,7 @@ class MainWindow:
             self.output_text.insert(tk.END, '>>> ' + command + '\n')
             self.command_entry.delete(0, tk.END)
             success, info = self.run_command(command)
-            self.update_output(info + '\n')
+            self.update_output(info, False)
     
     def on_setup(self):
         config_dbox = ConfigDBox(self.root, self.server_address_var.get(), self.server_port_var.get(), self.output_text)
@@ -137,6 +142,7 @@ class MainWindow:
             status = json.loads(info)
             summary = StringIO()
             summary.write('Status Summary: \n  Versions:\n')
+            summary.write(f'    Firmware:    {status["version"]["firmware"]}\n')
             summary.write(f'    CommandProc: {status["version"]["commandproc"]}\n')
             summary.write(f'    NMEA0183:    {status["version"]["nmea0183"]}\n')
             summary.write(f'    NMEA2000:    {status["version"]["nmea2000"]}\n')
@@ -176,9 +182,9 @@ class MainWindow:
                 size_units = 'B'
             summary.write(f'  Total File Size: {file_size_total:.3f} {size_units}\n')
             summary.seek(0)
-            self.update_output(summary.read())
+            self.update_output(summary.read(), True)
         else:
-            self.update_output(info + '\n')
+            self.update_output(info, False)
 
     def on_metadata(self):
         json_filename = filedialog.askopenfilename(title='Select JSON Metadata File', filetypes=[('JSON Files', '*.json')])
@@ -187,7 +193,7 @@ class MainWindow:
                 data = json.load(f)
             command: str = 'metadata ' + json.dumps(data)
             status, info = self.run_command(command)
-            self.update_output(info)
+            self.update_output(info, False)
 
     def on_token(self):
         token_filename = filedialog.askopenfilename(title='Select Token File', filetypes=[('ASCII Files', '*.txt')])
@@ -196,7 +202,7 @@ class MainWindow:
                 token = f.read()
             command: str = 'token ' + token
             status, info = self.run_command(command)
-            self.update_output(info)
+            self.update_output(info, False)
 
     def on_algorithms(self):
         algo_dbox = AlgoDBox(self.root, self.server_address_var.get(), self.server_port_var.get(), self.output_text)
@@ -208,7 +214,7 @@ class MainWindow:
 
     def on_restart(self):
         status, info = self.run_command('restart')
-        self.update_output(info + '\n')
+        self.update_output(info, False)
 
     def on_transfer(self):
         transfer_dbox = TransferDBox(self.root, self.server_address_var.get(), self.server_port_var.get(), self.output_text)

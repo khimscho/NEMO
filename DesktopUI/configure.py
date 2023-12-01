@@ -50,7 +50,7 @@ class ConfigDBox:
 
         # Set up version information (which should not be edited)
         self.version_frame = tk.LabelFrame(self.main_frame, text='Versions', padx=self.hor_pad, pady=self.ver_pad)
-        self.version_frame.pack(fill='x')
+        self.version_frame.grid(row=0, column=0, sticky='e')
         self.firmware_var = tk.StringVar()
         self.command_var = tk.StringVar()
         self.nmea0183_var = tk.StringVar()
@@ -84,7 +84,7 @@ class ConfigDBox:
 
         # Set up metadata on unique ID and ship name
         self.metadata_frame = tk.LabelFrame(self.main_frame, text='Metadata', padx=self.hor_pad, pady=self.ver_pad)
-        self.metadata_frame.pack(fill='x')
+        self.metadata_frame.grid(row=1, column=0, sticky='e')
         self.uniqueid_var = tk.StringVar()
         self.shipname_var = tk.StringVar()
         self.uniqueid_label = tk.Label(self.metadata_frame, text='Unique Identifier')
@@ -100,7 +100,7 @@ class ConfigDBox:
 
         # Set up the check-buttons for all of the optional loggers, etc.
         self.options_frame = tk.LabelFrame(self.main_frame, text='Options', padx=self.hor_pad, pady=self.ver_pad)
-        self.options_frame.pack(fill='x')
+        self.options_frame.grid(row=2, column=0, sticky='e')
         self.log_nmea0183_var = tk.IntVar()
         self.log_nmea2000_var = tk.IntVar()
         self.log_imu_var = tk.IntVar()
@@ -125,7 +125,7 @@ class ConfigDBox:
 
         # Set up the (rather complex) WiFi configuration frame
         self.wifi_frame = tk.LabelFrame(self.main_frame, text='WiFi Configuration', padx=self.hor_pad, pady=self.ver_pad)
-        self.wifi_frame.pack(fill='x')
+        self.wifi_frame.grid(row=0, column=1, sticky='nw', rowspan=3, padx=self.hor_pad)
         self.wifi_mode_var = tk.StringVar()
         self.wifi_address_var = tk.StringVar()
         self.retry_delay_var = tk.IntVar()
@@ -200,21 +200,21 @@ class ConfigDBox:
 
         # Set up bottons for 'Configure' and 'Cancel'
         self.button_frame = tk.Frame(self.main_frame, padx=self.hor_pad, pady=self.ver_pad)
-        self.button_frame.pack()
+        self.button_frame.grid(row=3, column=0, columnspan=2)
         self.querylogger_button = tk.Button(self.button_frame, text='Query Logger', command=self.on_querylogger)
         self.querylogger_button.grid(row=0, column=0, sticky="ew")
         self.setlogger_button = tk.Button(self.button_frame, text='Set Logger', command=self.on_setlogger)
         self.setlogger_button.grid(row=0, column=1, sticky="ew")
-        self.load_button = tk.Button(self.button_frame, text='Load Config', command=self.on_load)
-        self.load_button.grid(row=0, column=2, sticky="ew")
-        self.save_button = tk.Button(self.button_frame, text='Save Config', command=self.on_save)
-        self.save_button.grid(row=0, column=3, sticky="ew")
         self.getdefaults_button = tk.Button(self.button_frame, text='Get Defaults', command=self.on_getdefaults)
-        self.getdefaults_button.grid(row=1, column=0, sticky="ew")
+        self.getdefaults_button.grid(row=0, column=2, sticky="ew")
         self.setdefaults_button = tk.Button(self.button_frame, text='Set Defaults', command=self.on_setdefaults)
-        self.setdefaults_button.grid(row=1, column=1, sticky="ew")
+        self.setdefaults_button.grid(row=0, column=3, sticky="ew")
+        self.load_button = tk.Button(self.button_frame, text='Load Config', command=self.on_load)
+        self.load_button.grid(row=0, column=4, sticky="ew")
+        self.save_button = tk.Button(self.button_frame, text='Save Config', command=self.on_save)
+        self.save_button.grid(row=0, column=5, sticky="ew")
         self.dismiss_button = tk.Button(self.button_frame, text='Dismiss', command=self.on_dismiss)
-        self.dismiss_button.grid(row=1, column=3, sticky="ew")
+        self.dismiss_button.grid(row=0, column=6, sticky="ew")
 
         with open('assets/default_config.json', 'r') as f:
             config = json.load(f)
