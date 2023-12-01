@@ -36,6 +36,19 @@
 
 namespace logger {
 
+/// Generate a printable version of the software version for the logger firmware entire.  Note that
+/// this is distinct from the version of the Command Processor, any of the loggers, and of the
+/// serialiser.  This is mostly just to indicate what assembly of the components was present at the
+/// time the firmware was released for "production".
+///
+/// @return String containing the major.minor.patch for the system
+
+String FirmwareVersion(void)
+{
+    String r = String(firmware_major) + "." + String(firmware_minor) + "." + String(firmware_patch);
+    return r;
+}
+
 // Lookup table to translate the Enums in logger::Config::ConfigParam into the strings used to look
 // up the keys in ParamStore.  This list has to be in exactly the same order as the elements in the
 // Enum, of course, or everything will fall apart.
@@ -174,6 +187,7 @@ DynamicJsonDocument ConfigJSON::ExtractConfig(bool secure)
 {
     using namespace ArduinoJson;
     DynamicJsonDocument params(1024);
+    params["version"]["firmware"] = FirmwareVersion();
     params["version"]["commandproc"] = SerialCommand::SoftwareVersion();
     params["version"]["nmea0183"] = nmea::N0183::Logger::SoftwareVersion();
     params["version"]["nmea2000"] = nmea::N2000::Logger::SoftwareVersion();

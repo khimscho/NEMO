@@ -1,4 +1,4 @@
-/*! \file WiFiAdapter.h
+/*! \file WiFiAdapter.cpp
  *  \brief Interface for the WiFi adapter on the module, and a factory to abstract the object
  *
  * In order to get to a decent speed for data transfer, we need to use the WiFi interface rather

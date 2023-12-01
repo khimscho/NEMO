@@ -41,7 +41,7 @@
 #include "HeapMonitor.h"
 
 /// Hardware version for the logger implementation (for NMEA2000 declaration)
-#define LOGGER_HARDWARE_VERSION "1.0.0"
+#define LOGGER_HARDWARE_VERSION "2.4.1"
 
 const unsigned long TransmitMessages[] PROGMEM={0}; ///< List of messages the logger transmits (null set)
 const unsigned long ReceiveMessages[] PROGMEM =
@@ -82,6 +82,8 @@ void setup()
     uint32_t heap_free = heap.CurrentSize();
 
     Serial.begin(115200);
+
+    Serial.printf("BOOTING WIBL DATA LOGGER, FIRMWARE VERSION %s\n", logger::FirmwareVersion());
 
     Serial.printf("DBG: At boot, heap is %d B (%d B free)\n", heap_size, heap_free);
     Serial.printf("DBG: ");

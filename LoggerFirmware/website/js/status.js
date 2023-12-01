@@ -44,14 +44,14 @@ function translateTime(elapsed) {
         if (start) display += ', ';
         start = true;
         display += `${hours} hr`;
-        if (hours > 1)
+        if (hours !== 1)
             display += 's';
     }
     if (mins > 0 || start) {
         if (start) display += ', ';
         start = true;
         display += `${mins} min`;
-        if (mins > 1)
+        if (mins !== 1)
             display += 's';
     }
     if (start) display += ', ';

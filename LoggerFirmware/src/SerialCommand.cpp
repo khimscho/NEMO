@@ -37,7 +37,7 @@
 #include "DataMetrics.h"
 
 const uint32_t CommandMajorVersion = 1;
-const uint32_t CommandMinorVersion = 3;
+const uint32_t CommandMinorVersion = 4;
 const uint32_t CommandPatchVersion = 0;
 
 /// Default constructor for the SerialCommand object.  This stores the pointers for the logger and
@@ -138,6 +138,7 @@ void SerialCommand::ReportConsoleLog(CommandSource src)
 
 void SerialCommand::ReportSoftwareVersion(CommandSource src)
 {
+    EmitMessage(String("Firmware:          ") + logger::FirmwareVersion() + "\n", src);
     EmitMessage(String("Serialiser:        ") + Serialiser::SoftwareVersion() + "\n", src);
     EmitMessage(String("Command Processor: ") + SoftwareVersion() + "\n", src);
     EmitMessage(String("NMEA2000:          ") + nmea::N2000::Logger::SoftwareVersion() + "\n", src);
@@ -1080,6 +1081,7 @@ void SerialCommand::ReportCurrentStatus(CommandSource src)
 {
     DynamicJsonDocument status(10240);
 
+    status["version"]["firmware"] = logger::FirmwareVersion();
     status["version"]["commandproc"] = SoftwareVersion();
     status["version"]["nmea0183"] = nmea::N0183::Logger::SoftwareVersion();
     status["version"]["nmea2000"] = nmea::N2000::Logger::SoftwareVersion();
