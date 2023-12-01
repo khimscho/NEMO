@@ -36,7 +36,7 @@ from uuid import uuid4
 class ConfigDBox:
     hor_pad = 10
     ver_pad = 5
-    __default_commandproc_version__ = '1.3.0'
+    __default_commandproc_version__ = '1.4.0'
     __default_providerid__ = 'UNHJHC'
 
     def __init__(self, root, address: str, port: str, output_widget):
@@ -51,31 +51,36 @@ class ConfigDBox:
         # Set up version information (which should not be edited)
         self.version_frame = tk.LabelFrame(self.main_frame, text='Versions', padx=self.hor_pad, pady=self.ver_pad)
         self.version_frame.pack(fill='x')
+        self.firmware_var = tk.StringVar()
         self.command_var = tk.StringVar()
         self.nmea0183_var = tk.StringVar()
         self.nmea2000_var = tk.StringVar()
         self.imu_var = tk.StringVar()
         self.serialiser_var = tk.StringVar()
+        self.firmware_version_label = tk.Label(self.version_frame, text='Firmware')
+        self.firmware_version_entry = tk.Entry(self.version_frame, textvariable=self.firmware_var, state='disabled')
+        self.firmware_version_label.grid(row=0, column=0, sticky='e')
+        self.firmware_version_entry.grid(row=0, column=1, sticky='w')
         self.command_version_label = tk.Label(self.version_frame, text='Command Processor')
         self.command_version_entry = tk.Entry(self.version_frame, textvariable=self.command_var, state='disabled')
-        self.command_version_label.grid(row=0, column=0, sticky='e')
-        self.command_version_entry.grid(row=0, column=1, sticky='w')
+        self.command_version_label.grid(row=1, column=0, sticky='e')
+        self.command_version_entry.grid(row=1, column=1, sticky='w')
         self.nmea0183_version_label = tk.Label(self.version_frame, text='NMEA0183 Logger')
         self.nmea0183_version_entry = tk.Entry(self.version_frame, textvariable=self.nmea0183_var, state='disabled')
-        self.nmea0183_version_label.grid(row=1, column=0, sticky='e')
-        self.nmea0183_version_entry.grid(row=1, column=1, sticky='w')
+        self.nmea0183_version_label.grid(row=2, column=0, sticky='e')
+        self.nmea0183_version_entry.grid(row=2, column=1, sticky='w')
         self.nmea2000_version_label = tk.Label(self.version_frame, text='NMEA2000 Logger')
         self.nmea2000_version_entry = tk.Entry(self.version_frame, textvariable=self.nmea2000_var, state='disabled')
-        self.nmea2000_version_label.grid(row=2, column=0, sticky='e')
-        self.nmea2000_version_entry.grid(row=2, column=1, sticky='w')
+        self.nmea2000_version_label.grid(row=3, column=0, sticky='e')
+        self.nmea2000_version_entry.grid(row=3, column=1, sticky='w')
         self.imu_version_label = tk.Label(self.version_frame, text='IMU Logger')
         self.imu_version_entry = tk.Entry(self.version_frame, textvariable=self.imu_var, state='disabled')
-        self.imu_version_label.grid(row=3, column=0, sticky='e')
-        self.imu_version_entry.grid(row=3, column=1, sticky='w')
+        self.imu_version_label.grid(row=4, column=0, sticky='e')
+        self.imu_version_entry.grid(row=4, column=1, sticky='w')
         self.serialiser_version_label = tk.Label(self.version_frame, text='Serialiser')
         self.serialiser_version_entry = tk.Entry(self.version_frame, textvariable=self.serialiser_var, state='disabled')
-        self.serialiser_version_label.grid(row=4, column=0, sticky='e')
-        self.serialiser_version_entry.grid(row=4, column=1, sticky='w')
+        self.serialiser_version_label.grid(row=5, column=0, sticky='e')
+        self.serialiser_version_entry.grid(row=5, column=1, sticky='w')
 
         # Set up metadata on unique ID and ship name
         self.metadata_frame = tk.LabelFrame(self.main_frame, text='Metadata', padx=self.hor_pad, pady=self.ver_pad)
@@ -343,6 +348,8 @@ class ConfigDBox:
                 self.record(f'ERR: missing command processor version information in JSON configuration.\n{config}\n')
                 return
             self.command_var.set(config['version']['commandproc'])
+            if 'firmware' in config['version']:
+                self.firmware_var.set(config['version']['firmware'])
             if 'nmea0183' in config['version']:
                 self.nmea0183_var.set(config['version']['nmea0183'])
             if 'nmea2000' in config['version']:

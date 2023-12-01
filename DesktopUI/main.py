@@ -94,6 +94,7 @@ class MainWindow:
         self.setup_button = tk.Button(self.button_frame, text='Setup', command=self.on_setup)
         self.status_button = tk.Button(self.button_frame, text='Status', command=self.on_status)
         self.metadata_button = tk.Button(self.button_frame, text='Metadata', command=self.on_metadata)
+        self.token_button = tk.Button(self.button_frame, text='Token', command=self.on_token)
         self.algorithm_button = tk.Button(self.button_frame, text='Algorithms', command=self.on_algorithms)
         self.nmea0183_button = tk.Button(self.button_frame, text='NMEA0183 Filter', command=self.on_filter)
         self.transfer_button = tk.Button(self.button_frame, text='Transfer Data', command=self.on_transfer)
@@ -101,10 +102,11 @@ class MainWindow:
         self.setup_button.grid(row=0, column=0)
         self.status_button.grid(row=0, column=1)
         self.metadata_button.grid(row=0, column=2)
-        self.algorithm_button.grid(row=0, column=3)
-        self.nmea0183_button.grid(row=0, column=4)
-        self.transfer_button.grid(row=0, column=5)
-        self.restart_button.grid(row=0, column=6)
+        self.token_button.grid(row=0, column=3)
+        self.algorithm_button.grid(row=0, column=4)
+        self.nmea0183_button.grid(row=0, column=5)
+        self.transfer_button.grid(row=0, column=6)
+        self.restart_button.grid(row=0, column=7)
 
         self.button_frame.pack(fill='x')
 
@@ -184,6 +186,15 @@ class MainWindow:
             with open(json_filename, 'r') as f:
                 data = json.load(f)
             command: str = 'metadata ' + json.dumps(data)
+            status, info = self.run_command(command)
+            self.update_output(info)
+
+    def on_token(self):
+        token_filename = filedialog.askopenfilename(title='Select Token File', filetypes=[('ASCII Files', '*.txt')])
+        if token_filename:
+            with open(token_filename, 'r') as f:
+                token = f.read()
+            command: str = 'token ' + token
             status, info = self.run_command(command)
             self.update_output(info)
 

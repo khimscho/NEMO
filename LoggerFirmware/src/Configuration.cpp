@@ -77,7 +77,8 @@ const String lookup[] = {
     "StationTimeout",   ///< Set the timeout for any connect attempt
     "WSStatus",         ///< The current status of the configuration webserver
     "WSBootStatus",     ///< The status of the webserver on boot
-    "LabDefaults"       ///< A JSON string for lab-default configuration
+    "LabDefaults",      ///< A JSON string for lab-default configuration
+    "UploadToken"       ///< An ASCII string to authenticate uploads
 };
 
 /// Default constructor.  This sets up for a dummy parameter store, which is configured
@@ -327,7 +328,7 @@ bool ConfigJSON::SetConfig(String const& json_string)
     return true;
 }
 
-static const char* stable_config = "{\"version\": {\"commandproc\": \"1.3.0\"}, \"enable\": {\"nmea0183\": true, \"nmea2000\": true, \"imu\": false, \"powermonitor\": false, \"sdmmc\": false, \"udpbridge\": false, \"webserver\": true}, \"wifi\": {\"mode\": \"AP\", \"address\": \"192.168.4.1\", \"station\": {\"delay\": 20, \"retries\": 5, \"timeout\": 5}, \"ssids\": {\"ap\": \"wibl-config\", \"station\": \"wibl-logger\"}, \"passwords\": {\"ap\": \"wibl-config-password\", \"station\": \"wibl-logger-password\"}}, \"uniqueID\": \"wibl-logger\", \"shipname\": \"Anonymous\", \"baudrate\": {\"port1\": 4800, \"port2\": 4800}, \"udpbridge\": 12345}";
+static const char* stable_config = "{\"version\": {\"commandproc\": \"1.4.0\"}, \"enable\": {\"nmea0183\": true, \"nmea2000\": true, \"imu\": false, \"powermonitor\": false, \"sdmmc\": false, \"udpbridge\": false, \"webserver\": true}, \"wifi\": {\"mode\": \"AP\", \"address\": \"192.168.4.1\", \"station\": {\"delay\": 20, \"retries\": 5, \"timeout\": 5}, \"ssids\": {\"ap\": \"wibl-config\", \"station\": \"wibl-logger\"}, \"passwords\": {\"ap\": \"wibl-config-password\", \"station\": \"wibl-logger-password\"}}, \"uniqueID\": \"wibl-logger\", \"shipname\": \"Anonymous\", \"baudrate\": {\"port1\": 4800, \"port2\": 4800}, \"udpbridge\": 12345}";
 
 bool ConfigJSON::SetStableConfig(void)
 {

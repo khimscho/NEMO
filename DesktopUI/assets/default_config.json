@@ -1,6 +1,7 @@
 {
     "version": {
-        "commandproc":  "1.3.0",
+        "firmware":     "1.5.0",
+        "commandproc":  "1.4.0",
         "nmea0183":     "1.0.1",
         "nmea2000":     "1.0.0",
         "imu":          "1.0.0",

@@ -154,6 +154,7 @@ function updateStatus(tablePrefix) {
     
         let versions = document.getElementById(versionsTable);
         versions.replaceChildren(assembleSummaryHeader("Versions"));
+        versions.appendChild(assembleSummaryRow("Firmware", data.version.firmware));
         versions.appendChild(assembleSummaryRow("Command Processor", data.version.commandproc));
         versions.appendChild(assembleSummaryRow("NMEA0183", data.version.nmea0183));
         versions.appendChild(assembleSummaryRow("NMEA2000", data.version.nmea2000));

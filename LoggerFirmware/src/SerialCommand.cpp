@@ -1196,6 +1196,63 @@ void SerialCommand::ResetLabDefaults(CommandSource src)
     }
 }
 
+/// Get and report the upload token stored in the logger (if it exists).  This is used to handshake
+/// with the upload server if the logger is sending data directly over WiFi to the outside world.
+///
+/// @param src  CommandSource channel on which the command was received
+/// @return N/A
+
+void SerialCommand::GetUploadToken(CommandSource src)
+{
+    if (src != CommandSource::SerialPort && src != CommandSource::WirelessPort) {
+        EmitMessage("ERR: Request for upload token from unrecognised CommandSource - who are you?\n", src);
+        return;
+    }
+    String token;
+    logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_UPLOAD_TOKEN_S, token);
+    if (token.length() == 0) {
+        if (src == CommandSource::SerialPort) {
+            EmitMessage("ERR: no upload token stored on logger to report.\n", src);
+        } else {
+            m_wifi->AddMessage("No upload token stored on logger to report.");
+            m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::UNAVAILABLE);
+        }
+        return;
+    }
+    if (src == CommandSource::SerialPort) {
+        EmitMessage("Upload token: |" + token + "|\n", src);
+    } else {
+        m_wifi->AddMessage(token);
+    }
+}
+
+/// Set the upload token string (used for handshakes with the upload server if the logger is sending
+/// data directly to the outside world).  The firmware does no validation on the token, except in that
+/// it has to be ASCII-encoded, and just stores what's provided.  On success, the code issues a
+/// GetUploadToken() so that the user has positive confirmation that the update was done.
+///
+/// @param token String to store in the NVM for uploads
+/// @param src      CommandSource channel on which the command was received.
+/// @return N/A
+
+void SerialCommand::SetUploadToken(String const& token, CommandSource src)
+{
+    if (src != CommandSource::SerialPort && src != CommandSource::WirelessPort) {
+        EmitMessage("ERR: Request to set upload token from unrecognised CommandSource - who are you?\n", src);
+        return;
+    }
+    if (!logger::LoggerConfig.SetConfigString(logger::Config::CONFIG_UPLOAD_TOKEN_S, token)) {
+        if (src == CommandSource::SerialPort) {
+            EmitMessage("ERR: Failed to set upload token.  Probably an internal error.\n", src);
+        } else {
+            EmitMessage("Failed to set upload token.  Probably an internal error.", src);
+            m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
+        }
+        return;
+    }
+    GetUploadToken(src);
+}
+
 /// Output a list of known commands, since there are now enough of them to make remembering them
 /// all a little difficult.
 
@@ -1345,6 +1402,14 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         }
     } else if (cmd == "stop") {
         Shutdown();
+    } else if (cmd.startsWith("token")) {
+        if (cmd.length() == 5) {
+            // Getter
+            GetUploadToken(src);
+        } else {
+            // Setter
+            SetUploadToken(cmd.substring(6), src);
+        }
     } else if (cmd.startsWith("transfer")) {
         TransferLogFile(cmd.substring(9), src);
     } else if (cmd.startsWith("uniqueid")) {

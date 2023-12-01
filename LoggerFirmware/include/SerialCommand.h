@@ -171,6 +171,10 @@ private:
     void SetLabDefaults(String const& spec, CommandSource src);
     /// \brief Reset the configuration to lab-default configuration JSON string
     void ResetLabDefaults(CommandSource src);
+    /// @brief Report the upload token used to authenticate transmissions
+    void GetUploadToken(CommandSource src);
+    /// @brief Set the upload token used to authenticate transmissions
+    void SetUploadToken(String const& token, CommandSource src);
     /// \brief Check for commands, and execute them if found
     void Execute(String const& command, CommandSource src);
     
