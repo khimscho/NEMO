@@ -1,15 +1,13 @@
-function populateFilterTable() {
-    sendCommand('accept').then((data) => {
-        let display = '';
-        if (data.count == 0) {
-            display = 'All';
-        } else {
-            for (let n = 0; n < data.count; ++n) {
-                display += data.accepted[n] + ' ';
-            }
+function populateFilterTable(data) {
+    let display = '';
+    if (data.count == 0) {
+        display = 'All';
+    } else {
+        for (let n = 0; n < data.count; ++n) {
+            display += data.accepted[n] + ' ';
         }
-        document.getElementById('filter-list').textContent = display;
-    });
+    }
+    document.getElementById('filter-list').textContent = display;
 }
 
 function addFilter() {
@@ -17,12 +15,21 @@ function addFilter() {
     const filterID = rawID.toUpperCase();
     document.getElementById('add-item').value = '';
     sendCommand(`accept ${filterID}`).then((data) => {
-        populateFilterTable();
+        populateFilterTable(data);
     });
 }
 
 function clearFilterList() {
     sendCommand('accept all').then((data) => {
-        populateFilterTable();
+        populateFilterTable(data);
     });
+}
+
+function bootstrapFilterTable() {
+    const boot = () => {
+        sendCommand('accept').then((data) => {
+            populateFilterTable(data);
+        });
+    }
+    after(500, boot);
 }

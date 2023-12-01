@@ -29,6 +29,7 @@
 
 #include <set>
 #include "Arduino.h"
+#include "ArduinoJson.h"
 #include "serialisation.h"
 
 namespace logger {
@@ -162,7 +163,7 @@ public:
     /// \brief Generate a list of all requested algorithms to the output managed by \a Stream
     void ListAlgorithms(Stream& s);
     /// \brief Generate a JSON representation of the algorithms
-    void MakeJSON(String& s);
+    DynamicJsonDocument MakeJSON(void);
     /// \brief Write the list of all requested algorithms to the log file associated with \a Serialiser
     void SerialiseAlgorithms(Serialiser *s);
 
@@ -196,7 +197,7 @@ public:
     /// \brief Write the list of accepted message IDs into the data log file associated with \a Serialiser
     void SerialiseIDs(Serialiser *s);
     /// \brief Make a JSON representation of the messageIDs that are being selected
-    void MakeJSON(String& s);
+    DynamicJsonDocument MakeJSON(void);
     /// \brief Read all of the message IDs and build the structure required for checking incoming messages
     void BuildSet(std::set<String>& s);
 

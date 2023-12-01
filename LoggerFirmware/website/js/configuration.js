@@ -88,8 +88,7 @@ function createJSONConfig() {
     return JSON.stringify(data);
 }
 
-function parseConfigJSON(configString) {
-    const config = JSON.parse(configString);
+function parseConfigJSON(config) {
     document.getElementById("unique-id").value = config.uniqueID;
     document.getElementById("ship-name").value = config.shipname;
     document.getElementById("bridge-port").value = config.udpbridge;
@@ -140,7 +139,8 @@ function loadConfigLocally() {
         let reader = new FileReader();
         reader.readAsText(input.files[0]);
         reader.onload = function() {
-            parseConfigJSON(reader.result);
+            json = JSON.parse(reader.result);
+            parseConfigJSON(json);
         }
     }
     input.onchange = function() {
@@ -149,8 +149,11 @@ function loadConfigLocally() {
     input.click();
 }
 
-function populateConfig() {
-    sendCommand('setup').then((data) => {
-        parseConfigJSON(data);
-    });
+function bootstrapConfig() {
+    const boot = () => {
+        sendCommand('setup').then((data) => {
+            parseConfigJSON(data);
+        });
+    }
+    after(500, boot);
 }

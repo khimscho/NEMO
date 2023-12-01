@@ -131,39 +131,6 @@ void SerialCommand::ReportConsoleLog(CommandSource src)
     }
 }
 
-/// Report the sizes of all of the log files that exist in the /logs directory on
-/// the attached SD card.  This incidentally reports all of the log files that are
-/// ready for transfer.  The report goes out onto the Stream associated with
-/// the source of the command.
-///
-/// \param src  Stream by which the command arrived
-
-void SerialCommand::ReportLogfileSizes(CommandSource src)
-{
-    EmitMessage("Current log file sizes:\n", src);
-    
-    uint32_t    filenumber[logger::MaxLogFiles];
-    uint32_t    file_count = m_logManager->CountLogFiles(filenumber);
-    String      filename;
-    uint32_t    filesize;
-    logger::Manager::MD5Hash    filehash;
-    char        linebuffer[128];
-
-    if (file_count == 0) {
-        EmitMessage("INF: no completed files in current inventory.\n", src);
-        return;
-    }
-    for (int f = 0; f < file_count; ++f) {
-        m_logManager->EnumerateLogFile(filenumber[f], filename, filesize, filehash);
-        if (filehash.Empty()) {
-            snprintf(linebuffer, 128, "    %s %8u B\n", filename.c_str(), filesize);
-        } else {
-            snprintf(linebuffer, 128, "    %s %8u B (MD5: %s)\n", filename.c_str(), filesize, filehash.Value().c_str());
-        }
-        EmitMessage(linebuffer, src);
-    }
-}
-
 /// Report the version string for the current logger implementation.  This also goes out on
 /// the BLE interface if there's a client connected.
 ///
@@ -173,8 +140,8 @@ void SerialCommand::ReportSoftwareVersion(CommandSource src)
 {
     EmitMessage(String("Serialiser:        ") + Serialiser::SoftwareVersion() + "\n", src);
     EmitMessage(String("Command Processor: ") + SoftwareVersion() + "\n", src);
-    EmitMessage(String("NMEA2000:          ") + nmea::N2000::Logger::SoftwareVersion() + String("\n"), src);
-    EmitMessage(String("NMEA0183:          ") + nmea::N0183::Logger::SoftwareVersion() + String("\n"), src);
+    EmitMessage(String("NMEA2000:          ") + nmea::N2000::Logger::SoftwareVersion() + "\n", src);
+    EmitMessage(String("NMEA0183:          ") + nmea::N0183::Logger::SoftwareVersion() + "\n", src);
     EmitMessage(String("IMU:               ") + imu::Logger::SoftwareVersion() + "\n", src);
 }
 
@@ -259,13 +226,26 @@ void SerialCommand::ReportIdentificationString(CommandSource src)
 ///
 /// \param identifier   String to use to identify the logger
 
-void SerialCommand::SetIdentificationString(String const& identifier)
+void SerialCommand::SetIdentificationString(String const& identifier, CommandSource src)
 {
-    if (!logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_MODULEID_S, identifier)) {
-            Serial.println("ERR: module identification string file failed to write.");
-            return;
+    if (logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_MODULEID_S, identifier)) {
+        if (src == CommandSource::SerialPort) {
+            EmitMessage("INF: UUID accepted.\n", src);
+        } else {
+            ReportConfigurationJSON(src);
+        }
+    } else {
+        EmitMessage("ERR: module identification string file failed to write.", src);
+        if (src == CommandSource::WirelessPort && m_wifi != nullptr)
+            m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
     }
 }
+
+/// Report the ship-name installed in the logger.  This is usually the actual name of the ship
+/// hosting the logger, but can be "Anonymous", and if not set, reports "UNKNOWN".
+///
+/// @param src Channel on which to report the information
+/// @return N/A
 
 void SerialCommand::ReportShipname(CommandSource src)
 {
@@ -278,10 +258,28 @@ void SerialCommand::ReportShipname(CommandSource src)
     }
 }
 
+/// Set the ship-name.  This is usually the actual name of the ship hosting the logger, but can be
+/// anything the user requires, including "Anonymous" if required.  The code simply stores what's
+/// provided, and imposes no required structure on the name.  The code generates an error message if
+/// the name cannot be stored for any reason (that would usually be a NVM failure), but reports
+/// confirmation (configuration JSON on WiFi) on success.
+///
+/// @param name Name to use for the host platform
+/// @param src  Channel on which to report confimation
+/// @return N/A
+
 void SerialCommand::SetShipname(String const& name, CommandSource src)
 {
-    if (!logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_SHIPNAME_S, name)) {
+    if (logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_SHIPNAME_S, name)) {
+        if (src == CommandSource::SerialPort) {
+            EmitMessage("INF: Shipname accepted.\n", src);
+        } else {
+            ReportConfigurationJSON(src);
+        }
+    } else {
         EmitMessage("ERR: shipname string failed to write.", src);
+        if (src == CommandSource::WirelessPort && m_wifi != nullptr)
+            m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
     }
 }
 
@@ -338,6 +336,12 @@ void SerialCommand::SetWiFiSSID(String const& params, CommandSource src)
         logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_SSID_S, ssid);
     } else {
         EmitMessage("ERR: WiFi SSID must specify 'ap' or 'station' as first parameter.\n", src);
+        if (src == CommandSource::WirelessPort && m_wifi != nullptr)
+            m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
+        return;
+    }
+    if (src == CommandSource::WirelessPort) {
+        ReportConfigurationJSON(src, true);
     }
 }
 
@@ -347,11 +351,17 @@ void SerialCommand::SetWiFiSSID(String const& params, CommandSource src)
 
 void SerialCommand::GetWiFiSSID(CommandSource src)
 {
-    String ap_ssid, station_ssid;
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_AP_SSID_S, ap_ssid);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_SSID_S, station_ssid);
-    EmitMessage("WiFi AP SSID: " + ap_ssid + "\n", src);
-    EmitMessage("WiFi Station SSID: " + station_ssid + "\n", src);
+    if (src == CommandSource::SerialPort) {
+        String ap_ssid, station_ssid;
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_AP_SSID_S, ap_ssid);
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_SSID_S, station_ssid);
+        EmitMessage("WiFi AP SSID: " + ap_ssid + "\n", src);
+        EmitMessage("WiFi Station SSID: " + station_ssid + "\n", src);
+    } else if (src == CommandSource::WirelessPort) {
+        ReportConfigurationJSON(src, true);
+    } else {
+        EmitMessage("ERR: command source not recognised - who are you?\n", src);
+    }
 }
 
 /// Specify the password to use for clients attempting to connect to the WiFi access
@@ -369,6 +379,13 @@ void SerialCommand::SetWiFiPassword(String const& params, CommandSource src)
         logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_PASSWD_S, password);
     } else {
         EmitMessage("ERR: WiFi password must specify 'ap' or 'station' as first parameter.\n", src);
+        if (src == CommandSource::WirelessPort && m_wifi != nullptr) {
+            m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
+        }
+        return;
+    }
+    if (src == CommandSource::WirelessPort) {
+        ReportConfigurationJSON(src, true);
     }
 }
 
@@ -378,11 +395,17 @@ void SerialCommand::SetWiFiPassword(String const& params, CommandSource src)
 
 void SerialCommand::GetWiFiPassword(CommandSource src)
 {
-    String ap_password, station_password;
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_AP_PASSWD_S, ap_password);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_PASSWD_S, station_password);
-    EmitMessage("WiFi AP Password: " + ap_password + "\n", src);
-    EmitMessage("WiFi Station Password: " + station_password + "\n", src);
+    if (src == CommandSource::SerialPort) {
+        String ap_password, station_password;
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_AP_PASSWD_S, ap_password);
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_PASSWD_S, station_password);
+        EmitMessage("WiFi AP Password: " + ap_password + "\n", src);
+        EmitMessage("WiFi Station Password: " + station_password + "\n", src);
+    } else if (src == CommandSource::WirelessPort) {
+         ReportConfigurationJSON(src, true);
+    } else {
+        EmitMessage("ERR: command source not recognised - who are you?\n", src);
+    }
 }
 
 /// Turn the WiFi interface on and off, as required by the user
@@ -393,38 +416,52 @@ void SerialCommand::GetWiFiPassword(CommandSource src)
 void SerialCommand::ManageWireless(String const& command, CommandSource src)
 {
     if (command == "on") {
-        logger::HeapMonitor heap;
-        Serial.printf("DBG: Before starting WiFi, heap free = %d B\n", heap.CurrentSize());
-        if (m_wifi->Startup()) {
-            EmitMessage("WiFi started on ", src);
-            String ip_address;
-            logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, ip_address);
-            EmitMessage(ip_address + "\n", src);
-            Serial.printf("DBG: After WiFi startup, heap fee = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
-            
-            bool start_bridge;
-            logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_BRIDGE_B, start_bridge);
-            if (start_bridge) {
-                if (m_bridge == nullptr)
-                    m_bridge = new nmea::N0183::PointBridge();
-                Serial.printf("DBG: After UDP bridge start, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+        if (src == CommandSource::SerialPort) {
+            logger::HeapMonitor heap;
+            Serial.printf("DBG: Before starting WiFi, heap free = %d B\n", heap.CurrentSize());
+            if (m_wifi->Startup()) {
+                EmitMessage("WiFi started on ", src);
+                String ip_address;
+                logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, ip_address);
+                EmitMessage(ip_address + "\n", src);
+                Serial.printf("DBG: After WiFi startup, heap fee = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+                
+                bool start_bridge;
+                logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_BRIDGE_B, start_bridge);
+                if (start_bridge) {
+                    if (m_bridge == nullptr)
+                        m_bridge = new nmea::N0183::PointBridge();
+                    Serial.printf("DBG: After UDP bridge start, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+                } else {
+                    m_bridge = nullptr;
+                }
             } else {
-                m_bridge = nullptr;
+                Serial.println("ERR: WiFi startup failed");
             }
         } else {
-            EmitMessage("ERR: WiFi startup failed.\n", src);
+            EmitMessage("ERR: manual wireless startup can only be done on serial line.", src);
+            if (src == CommandSource::WirelessPort && m_wifi != nullptr)
+                m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::UNAVAILABLE);
+            return;
         }
     } else if (command == "off") {
-        logger::HeapMonitor heap;
-        Serial.printf("DBG: Before stopping WiFi, heap free = %d B\n", heap.CurrentSize());
+        if (src == CommandSource::SerialPort) {
+            logger::HeapMonitor heap;
+            Serial.printf("DBG: Before stopping WiFi, heap free = %d B\n", heap.CurrentSize());
 
-        m_wifi->Shutdown();
-        EmitMessage("WiFi stopped.\n", src);
-        Serial.printf("DBG: After WiFi stopped, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
-        if (m_bridge != nullptr) {
-            delete m_bridge;
-            m_bridge = nullptr;
-            Serial.printf("DBG: After UDP bridge stopped, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+            m_wifi->Shutdown();
+            Serial.println("WiFi stopped.");
+            Serial.printf("DBG: After WiFi stopped, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+            if (m_bridge != nullptr) {
+                delete m_bridge;
+                m_bridge = nullptr;
+                Serial.printf("DBG: After UDP bridge stopped, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+            }
+        } else {
+            EmitMessage("ERR: manual wireless shutdown can only be done on serial line.", src);
+            if (src == CommandSource::WirelessPort && m_wifi != nullptr)
+                m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::UNAVAILABLE);
+            return;
         }
     } else if (command == "accesspoint") {
         m_wifi->SetWirelessMode(WiFiAdapter::WirelessMode::ADAPTER_SOFTAP);
@@ -433,7 +470,13 @@ void SerialCommand::ManageWireless(String const& command, CommandSource src)
         m_wifi->SetWirelessMode(WiFiAdapter::WirelessMode::ADAPTER_STATION);
         logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WS_STATUS_S, "Station-Enabled");
     } else {
-        Serial.println("ERR: wireless management command not recognised.");
+        EmitMessage("ERR: wireless management command not recognised.", src);
+        if (src == CommandSource::WirelessPort && m_wifi != nullptr)
+            m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
+        return;
+    }
+    if (src == CommandSource::WirelessPort) {
+        ReportConfigurationJSON(src);
     }
 }
 
@@ -539,16 +582,28 @@ void SerialCommand::ConfigureSerialPortSpeed(String const& params, CommandSource
             channel = logger::Config::ConfigParam::CONFIG_BAUDRATE_2_S;
     } else {
         EmitMessage("ERR: serial channel must be in {1,2}.\n", src);
+        if (src == CommandSource::WirelessPort && m_wifi != nullptr) {
+            m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
+        }
         return;
     }
     baud_rate_str = params.substring(2);
     baud_rate = static_cast<uint32_t>(baud_rate_str.toInt());
     if (baud_rate < 4800 || baud_rate > 115200) {
         EmitMessage("ERR: baud rate implausible; ignoring command.\n", src);
+        if (src == CommandSource::WirelessPort && m_wifi != nullptr) {
+            m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
+        }
         return;
     }
     logger::LoggerConfig.SetConfigString(channel, baud_rate_str);
-    EmitMessage("INFO: speed set, remember to reboot to have this take effect.\n", src);
+    if (src == CommandSource::SerialPort) {
+        EmitMessage("INFO: speed set, remember to reboot to have this take effect.\n", src);
+    } else if (src == CommandSource::WirelessPort) {
+        ReportConfigurationJSON(src);
+    } else {
+        EmitMessage("ERR: command source not recognised - who are you?\n", src);
+    }
 }
 
 /// General interface to set up whether the various data interfaces and optional modules are actually
@@ -658,10 +713,11 @@ void SerialCommand::ConfigurePassthrough(String const& params, CommandSource src
 /// the wheel), the JSON if formatted; for output on the WiFi channel (where there's
 /// a computer behind the terminal), it's unformatted.
 ///
-/// \param src  Command channel that provided the command (and therefore gets the result)
-/// \return N/A
+/// @param src  Command channel that provided the command (and therefore gets the result)
+/// @param secure Flag: true if the channel is trusted, and password information can be given
+/// @return N/A
 
-void SerialCommand::ReportConfigurationJSON(CommandSource src)
+void SerialCommand::ReportConfigurationJSON(CommandSource src, bool secure)
 {
     DynamicJsonDocument json = logger::ConfigJSON::ExtractConfig();
     if (src == CommandSource::SerialPort) {
@@ -754,11 +810,9 @@ void SerialCommand::SetupLogger(String const& spec, CommandSource src)
         else
             EmitMessage("INF: Accepted configuration from JSON input string.\n", src);
     } else {
-        if (src == CommandSource::WirelessPort) {
+        EmitMessage("ERR: Error accepting configuration from JSON input string.\n", src);
+        if (src == CommandSource::WirelessPort && m_wifi != nullptr)
             m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
-            EmitMessage("{ \"result\": \"Failed to accept configuration from JSON input string.\" }", src);
-        } else
-            EmitMessage("ERR: Error accepting configuration from JSON input string.\n", src);
     }
 }
 
@@ -793,8 +847,7 @@ void SerialCommand::ReportAlgRequests(CommandSource src)
             algstore.ListAlgorithms(Serial);
             break;
         case CommandSource::WirelessPort:
-            algstore.MakeJSON(algorithms);
-            EmitMessage(algorithms, src);
+            m_wifi->SetMessage(algstore.MakeJSON());
             break;
         default:
             EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
@@ -812,16 +865,24 @@ void SerialCommand::ReportAlgRequests(CommandSource src)
 void SerialCommand::ConfigureAlgRequest(String const& params, CommandSource src)
 {
     logger::AlgoRequestStore algstore;
-    String alg_name, alg_params;
     if (params.startsWith("none")) {
         algstore.ResetList();
+        if (src == CommandSource::WirelessPort)
+            ReportAlgRequests(src);
         return;
     }
     int split = params.indexOf(' ');
+    String alg_name, alg_params;
     alg_name = params.substring(0, split);
     alg_params = params.substring(split+1);
     algstore.AddAlgorithm(alg_name, alg_params);
-    EmitMessage("INF: added algorithm \"" + alg_name + "\" with parameters \"" + alg_params + "\"\n", src);
+    if (src == CommandSource::SerialPort) {
+        EmitMessage("INF: added algorithm \"" + alg_name + "\" with parameters \"" + alg_params + "\"\n", src);
+    } else if (src == CommandSource::WirelessPort) {
+        ReportAlgRequests(src);
+    } else {
+        EmitMessage("ERR: algorithm addition from unknown CommandSource - who are you?\n", src);
+    }
 }
 
 /// Set the string for additional metadata to be applied to the data when it's converted to GeoJSON
@@ -839,7 +900,11 @@ void SerialCommand::StoreMetadataElement(String const& params, CommandSource src
 {
     logger::MetadataStore metastore;
     metastore.WriteMetadata(params);
-    EmitMessage("INO: added metadata element to local configuration.\n", src);
+    if (src == CommandSource::SerialPort) {
+        EmitMessage("INF: added metadata element to local configuration.\n", src);
+    } else {
+        EmitJSON(params, src);
+    } 
 }
 
 /// Report the user-specified string for auxiliary metadata generation, if set.  This metadata
@@ -851,7 +916,15 @@ void SerialCommand::ReportMetadataElement(CommandSource src)
 {
     logger::MetadataStore metastore;
     String metadata = metastore.GetMetadata();
-    EmitMessage("Metadata element: |" + metadata + "|\n", src);
+    if (src == CommandSource::SerialPort) {
+        EmitMessage("Metadata element: |" + metadata + "|\n", src);
+    } else {
+        if (metadata.length() == 0) {
+            EmitMessage("No metadata element stored in logger.", src);
+        } else {
+            EmitJSON(metadata, src);
+        }
+    }
 }
 
 /// Report the currently configured set of NMEA0183 message IDs that are acceptable for logging.
@@ -871,8 +944,7 @@ void SerialCommand::ReportNMEAFilter(CommandSource src)
             filter.ListIDs(Serial);
             break;
         case CommandSource::WirelessPort:
-            filter.MakeJSON(filter_ids);
-            EmitMessage(filter_ids, src);
+            m_wifi->SetMessage(filter.MakeJSON());
             break;
         default:
             EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
@@ -899,6 +971,8 @@ void SerialCommand::AddNMEAFilter(String const& params, CommandSource src)
     } else {
         filter.AddID(params);
     }
+    if (src == CommandSource::WirelessPort)
+        ReportNMEAFilter(src);
 }
 
 /// Report the set of scales set for any on-board sensors that record binary data that needs to be
@@ -911,16 +985,19 @@ void SerialCommand::AddNMEAFilter(String const& params, CommandSource src)
 void SerialCommand::ReportScalesElement(CommandSource src)
 {
     logger::ScalesStore scales;
-    EmitMessage("Sensor scales for on-board sensors:\n", src);
     switch(src) {
         case CommandSource::SerialPort:
+            EmitMessage("Sensor scales for on-board sensors:\n", src);
+            break;
         case CommandSource::WirelessPort:
-            EmitMessage(scales.GetScales() + "\n", src);
             break;
         default:
             EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
+            if (src == CommandSource::WirelessPort && m_wifi != nullptr)
+                m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
             break;
     }
+    EmitJSON(scales.GetScales(), src);
 }
 
 /// Report the number of files that are available on the SD card for transfer.
@@ -936,17 +1013,19 @@ void SerialCommand::ReportFileCount(CommandSource src)
 
 void SerialCommand::ReportWebserverConfig(CommandSource src)
 {
-    bool enable;
-    String station_delay, station_retries, station_timeout;
-    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_WEBSERVER_B, enable);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_DELAY_S, station_delay);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_RETRIES_S, station_retries);
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_TIMEOUT_S, station_timeout);
-    if (src == CommandSource::SerialPort || src == CommandSource::WirelessPort) {
+    if (src == CommandSource::SerialPort) {
+        bool enable;
+        String station_delay, station_retries, station_timeout;
+        logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_WEBSERVER_B, enable);
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_DELAY_S, station_delay);
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_RETRIES_S, station_retries);
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_TIMEOUT_S, station_timeout);
         EmitMessage(String("Webserver is ") + (enable ? "on" : "off") +
             " with connection delay " + station_delay +
             ", connection timeout " + station_timeout +
             ", and " + station_retries + " retries.\n", src);
+    } else if (src == CommandSource::WirelessPort) {
+        ReportConfigurationJSON(src);
     } else {
         EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
     }
@@ -969,6 +1048,9 @@ void SerialCommand::ConfigureWebserver(String const& params, CommandSource src)
         state = false;
     } else {
         EmitMessage("ERR: webserver can be configured 'on' or 'off' on boot only.\n", src);
+        if (src == CommandSource::WirelessPort && m_wifi != nullptr) {
+            m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
+        }
         return;
     }
     int delay_position = params.indexOf(' ') + 1;
@@ -982,6 +1064,9 @@ void SerialCommand::ConfigureWebserver(String const& params, CommandSource src)
     logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_RETRIES_S, station_retries);
     logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_STATION_TIMEOUT_S, station_timeout);
     logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_WEBSERVER_B, state);
+    if (src == CommandSource::WirelessPort) {
+        ReportConfigurationJSON(src);
+    }
 }
 
 /// Report on the current status of the logger, including the WiFi status, the number of files available,
@@ -1047,20 +1132,9 @@ void SerialCommand::ReportLabDefaults(CommandSource src)
 {
     String spec;
     logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_DEFAULTS_S, spec);
-    if (spec.length() > 0) {
-        if (src == CommandSource::SerialPort) {
-            EmitMessage("Lab default JSON: ", src);
-            EmitMessage(spec + "\n", src);
-        } else {
-            EmitMessage(spec, src);
-        }
-    } else {
-        if (src == CommandSource::SerialPort)
-            EmitMessage("ERR: no lab defaults configuration set!\n", src);
-        else {
-            EmitMessage("{}", src);
-            if (m_wifi != nullptr) m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::UNAVAILABLE); // "Service Unavailable"
-        }
+    EmitJSON(spec, src);
+    if (spec.length() == 0 && src == CommandSource::WirelessPort && m_wifi != nullptr) {
+        m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::UNAVAILABLE);
     }
 }
 
@@ -1076,7 +1150,14 @@ void SerialCommand::ReportLabDefaults(CommandSource src)
 void SerialCommand::SetLabDefaults(String const& spec, CommandSource src)
 {
     logger::LoggerConfig.SetConfigString(logger::Config::CONFIG_DEFAULTS_S, spec);
-    EmitMessage("INF: set lab defaults.\n", src);
+    if (src == CommandSource::SerialPort) {
+        EmitMessage("INF: set lab defaults.\n", src);
+    } else if (m_wifi != nullptr) {
+        if (!EmitJSON(spec, src)) {
+            m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
+            m_wifi->AddMessage("Invalid input JSON string");
+        }
+    }
 }
 
 /// Reset the configuration of the logger to the previous-stored default configuration.  Note
@@ -1093,11 +1174,23 @@ void SerialCommand::ResetLabDefaults(CommandSource src)
     logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_DEFAULTS_S, spec);
     if (spec.length() > 0) {
         logger::ConfigJSON::SetConfig(spec);
-        EmitMessage("INF: lab default configuration reset; you may need to reboot for some changes to take effect.\n", src);
+        if (src == CommandSource::SerialPort) {
+            EmitMessage("INF: lab default configuration reset; you may need to reboot for some changes to take effect.\n", src);
+        } else if (m_wifi != nullptr) {
+            if (!EmitJSON(spec, src)) {
+                EmitMessage("Invalid lab defaults JSON", src);
+                m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
+            } else {
+                EmitMessage("Defaults reset; reboot may be required for some changes to take effect.", src);
+            }
+        }
     } else {
-        EmitMessage("ERR: no lab default configuration set!\n", src);
-        if (src == CommandSource::WirelessPort && m_wifi != nullptr)
+        if (src == CommandSource::SerialPort) {
+            EmitMessage("ERR: no lab default configuration set!\n", src);
+        } else if (m_wifi != nullptr) {
+            m_wifi->AddMessage("No lab defaults stored on logger to reset to.");
             m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::UNAVAILABLE); // "Service Unavailable"
+        }
     }
 }
 
@@ -1232,7 +1325,7 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
             SetShipname(cmd.substring(9), src);
         }
     } else if (cmd == "sizes") {
-        ReportLogfileSizes(src);
+        ReportCurrentStatus(src);
     } else if (cmd.startsWith("speed")) {
         ConfigureSerialPortSpeed(cmd.substring(6), src);
     } else if (cmd.startsWith("ssid")) {
@@ -1245,6 +1338,9 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
     } else if (cmd == "steplog") {
         m_logManager->CloseLogfile();
         m_logManager->StartNewLog();
+        if (src == CommandSource::WirelessPort && m_wifi != nullptr) {
+            ReportCurrentStatus(src);
+        }
     } else if (cmd == "stop") {
         Shutdown();
     } else if (cmd.startsWith("transfer")) {
@@ -1253,7 +1349,7 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         if (cmd.length() == 8) {
             ReportIdentificationString(src);
         } else {
-            SetIdentificationString(cmd.substring(9));
+            SetIdentificationString(cmd.substring(9), src);
         }
     } else if (cmd.startsWith("verbose")) {
         SetVerboseMode(cmd.substring(8));
@@ -1351,4 +1447,41 @@ void SerialCommand::EmitMessage(String const& msg, CommandSource src)
             Serial.println("ERR: command source not recognised.");
             break;
     }
+}
+/// Generate a message on the output stream associated with the given source, with
+/// the message in JSON format.  This often happens with metadata, configuration,
+/// and status information.  The code decodes the JSON, which de facto validates
+/// the JSON string.  Deserialisation errors are reported with a single message on
+/// the appropriate output stream (on WiFi, this is JSON with a "messages" tag).
+///
+/// @param source   JSON document, stringified.
+/// @param chan     Input channel on which the command arrived
+/// @return True if the deserialisation worked; false on error
+
+bool SerialCommand::EmitJSON(String const& source, CommandSource chan)
+{
+    if (source.length() == 0) {
+        EmitMessage("No data in JSON.\n", chan);
+        return true;
+    }
+    DynamicJsonDocument json(source.length()*2);
+    DeserializationError rc = deserializeJson(json, source + "\n");
+    if (rc.code() == DeserializationError::Ok) {
+        switch (chan) {
+            case CommandSource::SerialPort:
+                serializeJsonPretty(json, Serial);
+                break;
+            case CommandSource::WirelessPort:
+                if (m_wifi != nullptr) {
+                    m_wifi->SetMessage(json);
+                }
+                break;
+            default:
+                Serial.println("ERR: command source not recognised.");
+                break;
+        }
+    } else {
+        EmitMessage(rc.c_str(), chan);
+    }
+    return rc.code() == DeserializationError::Ok;
 }

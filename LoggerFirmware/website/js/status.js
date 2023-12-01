@@ -18,6 +18,49 @@ function translateSize(byteCount) {
     return dataSize;
 }
 
+function translateTime(elapsed) {
+    let secs = elapsed / 1000.0;
+
+    const one_day = 24.0*60.0*60.0;
+    const one_hour = 60.0*60.0;
+    const one_minute = 60.0;
+    
+    const days = Math.floor(secs / one_day);
+    secs -= days * one_day;
+    const hours = Math.floor(secs / one_hour);
+    secs -= hours * one_hour;
+    const mins = Math.floor(secs / one_minute);
+    secs -= mins * one_minute;
+
+    let start = false;
+    let display = '';
+    if (days > 0) {
+        start = true;
+        display += `${days} day`;
+        if (day > 1)
+            display += 's';
+    }
+    if (hours > 0 || start) {
+        if (start) display += ', ';
+        start = true;
+        display += `${hours} hr`;
+        if (hours > 1)
+            display += 's';
+    }
+    if (mins > 0 || start) {
+        if (start) display += ', ';
+        start = true;
+        display += `${mins} min`;
+        if (mins > 1)
+            display += 's';
+    }
+    if (start) display += ', ';
+    secs = Math.floor( secs * 1000) / 1000;
+    display += `${secs} s`;
+
+    return display
+}
+
 function assembleSummaryHeader(name) {
     const headerRow = document.createElement("tr");
     const header = document.createElement("th");
@@ -92,6 +135,15 @@ function assembleDetailRow(id, len, md5) {
     return row; 
 }
 
+function emptyCurrentData() {
+    let row = document.createElement('tr');
+    let elem = document.createElement('td');
+    elem.setAttribute('colspan', '4');
+    elem.textContent = 'No Data Observed';
+    row.appendChild(elem);
+    return row;
+}
+
 function updateStatus(tablePrefix) {
     sendCommand('status').then((data) => {
         const versionsTable = tablePrefix + '-versions';
@@ -115,7 +167,7 @@ function updateStatus(tablePrefix) {
     
         let stats = document.getElementById(statsTable);
         stats.replaceChildren(assembleSummaryHeader("Status"));
-        stats.appendChild(assembleSummaryRow("Elapsed Time", data.elapsed/1000.0 + ' s'));
+        stats.appendChild(assembleSummaryRow("Elapsed Time", translateTime(data.elapsed)));
         stats.appendChild(assembleSummaryRow("Webserver Status Current", data.webserver.current));
         stats.appendChild(assembleSummaryRow("Webserver Status Boot", data.webserver.boot));
         stats.appendChild(assembleSummaryRow("Files on Logger", data.files.count));
@@ -124,7 +176,9 @@ function updateStatus(tablePrefix) {
         let nmea0183 = document.getElementById(n0183Table);
         if (nmea0183 !== null) {
             nmea0183.replaceChildren(assembleDataHeader("Latest NMEA0183 Data"));
-            console.log('found ' + data.data.nmea0183.count + ' NMEA0183 status elements');
+            if (data.data.nmea0183.count === 0) {
+                nmea0183.appendChild(emptyCurrentData());
+            }
             for (let n = 0; n < data.data.nmea0183.count; ++n) {
                 nmea0183.appendChild(assembleDataRow(
                     data.data.nmea0183.detail[n].name,
@@ -137,6 +191,9 @@ function updateStatus(tablePrefix) {
         let nmea2000 = document.getElementById(n2000Table);
         if (nmea2000 !== null) {
             nmea2000.replaceChildren(assembleDataHeader("Latest NMEA2000 Data"));
+            if (data.data.nmea2000.count === 0) {
+                nmea2000.appendChild(emptyCurrentData());
+            }
             for (let n = 0; n < data.data.nmea2000.count; ++n) {
                 nmea2000.appendChild(assembleDataRow(
                     data.data.nmea2000.detail[n].name,
@@ -157,9 +214,11 @@ function updateStatus(tablePrefix) {
 }
 
 function updateIndexStatus() {
-    updateStatus('index');
+    const update = () => { updateStatus('index'); }
+    after(500, update);
 }
 
 function updateStatusData() {
-    updateStatus('status');
+    const update = () => { updateStatus('status'); }
+    after(500, update);
 }

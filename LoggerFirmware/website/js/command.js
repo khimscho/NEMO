@@ -9,7 +9,7 @@ commandText.addEventListener("keypress", function(event) {
 function runCommand() {
     const command = document.getElementById("command").value;
     sendCommand(command).then((data) => {
-        document.getElementById("command-output").value = data;
+        document.getElementById("command-output").value = JSON.stringify(data, null, 2);
         document.getElementById("command").value = '';
     });
 }

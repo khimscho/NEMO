@@ -13,3 +13,12 @@ function rebootLogger() {
     let command = 'restart';
     sendCommand(command, 3);
 }
+
+function after(delay, callable) {
+    const sleep = (delay) => new Promise((resolve) => setTimeout(resolve, delay));
+    const pause = async () => {
+        await sleep(delay);
+        callable();
+    }
+    pause();
+}

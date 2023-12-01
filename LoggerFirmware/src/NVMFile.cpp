@@ -374,7 +374,7 @@ void AlgoRequestStore::ListAlgorithms(Stream& s)
 // Convert the algorithm requests into a JSON structure that we can then convert to a \a String
 // to send to the WiFi interface (or elsewhere)
 
-void AlgoRequestStore::MakeJSON(String& s)
+DynamicJsonDocument AlgoRequestStore::MakeJSON(void)
 {
     NVMFileReader alg(m_algoBackingStore);
     NVMFileReader par(m_paramBackingStore);
@@ -388,7 +388,7 @@ void AlgoRequestStore::MakeJSON(String& s)
         ++entry;
     }
     algorithms["count"] = entry;
-    serializeJson(algorithms, s);
+    return algorithms;
 }
 
 /// Write a set of output blocks into the binary WIBL-format file containing the algorithms and their
@@ -459,7 +459,7 @@ void N0183IDStore::ListIDs(Stream& s)
 
 /// Generate a 
 
-void N0183IDStore::MakeJSON(String& s)
+DynamicJsonDocument N0183IDStore::MakeJSON(void)
 {
     NVMFileReader r(m_backingStore);
     DynamicJsonDocument messages(1024);
@@ -470,7 +470,7 @@ void N0183IDStore::MakeJSON(String& s)
         ++entry;
     }
     messages["count"] = entry;
-    serializeJson(messages, s);
+    return messages;
 }
 
 /// Write the list of all allowed message IDs to an output WIBL-format binary file using

@@ -24,16 +24,22 @@ function createAlgTableRow(algName, algParams) {
     return row;
 }
 
-function populateAlgTable() {
-    console.log('Populating Algorithm Table');
-    sendCommand('algorithm').then((data) => {
-        const headerRow = createAlgTableHeader();
-        document.getElementById("alg-table").replaceChildren(headerRow);
+function populateAlgTable(data) {
+    const headerRow = createAlgTableHeader();
+    document.getElementById("alg-table").replaceChildren(headerRow);
+    if (data.count === 0) {
+        let row = document.createElement('tr');
+        let elem = document.createElement('td');
+        elem.setAttribute('colspan', '2');
+        elem.textContent = 'No algorithms stored in logger';
+        row.appendChild(elem);
+        document.getElementById('alg-table').appendChild(row);
+    } else {
         for (let n = 0; n < data.count; ++n) {
             const row = createAlgTableRow(data.algorithm[n].name, data.algorithm[n].parameters);
             document.getElementById("alg-table").appendChild(row);
         }
-    });
+    }
 }
 
 function addAlgorithm() {
@@ -45,12 +51,21 @@ function addAlgorithm() {
         algParams = '';
     }
     sendCommand(`algorithm ${algName} ${algParams}`).then((data) => {
-        console.log('Algorithm set');
+        populateAlgTable(data);
     });
-    populateAlgTable();
 }
 
 function clearAlgList() {
-    sendCommand('algorithm none').then((data) => {});
-    populateAlgTable();
+    sendCommand('algorithm none').then((data) => {
+        populateAlgTable(data);
+    });
+}
+
+function bootstrapAlgTable() {
+    const boot = () => {
+        sendCommand('algorithm').then((data) => {
+            populateAlgTable(data);
+        });
+    }
+    after(500, boot);
 }

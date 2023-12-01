@@ -109,7 +109,7 @@ void setup()
         Serial.println("INF: Configuration is now:");
         DynamicJsonDocument config = logger::ConfigJSON::ExtractConfig(true);
         String config_str;
-        serializeJson(config, config_str);
+        serializeJsonPretty(config, config_str);
         Serial.println(config_str);
     }
     
