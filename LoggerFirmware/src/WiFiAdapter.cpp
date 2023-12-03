@@ -338,7 +338,7 @@ private:
     /// @return N/A
     void heartbeat(void)
     {
-        m_server->send(200, "text/plain", GetSerialNumberString());
+        m_commands.push("status");
     }
 
     /// Bring up the WiFi adapter, which in this case includes bring up the soft access point.  This
