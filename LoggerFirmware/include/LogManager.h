@@ -120,8 +120,8 @@ public:
     /// \brief Provide a pointer to the current serialiser
     Serialiser *OutputChannel(void) { return m_serialiser; }
     
-    /// \brief Call-through for the console log file handle
-    Stream& Console(void);
+    /// \brief Call to log on the console log
+    void Syslog(String const& message);
     /// \brief Close the console file prior to shutdown
     void CloseConsole(void);
     /// \brief Dump console log to serial
@@ -180,6 +180,8 @@ private:
     void enumerate(uint32_t lognumber, String& filename, uint32_t& filesize);
     /// \brief Generate a hash for a given file 
     void hash(String const& filename, MD5Hash& hash);
+    /// \brief Rotate the console log files, if necessary
+    void RotateConsoleLogs(void);
 };
 
 }

@@ -313,7 +313,7 @@ void SerialCommand::Shutdown(void)
 {
     m_logManager->CloseLogfile();
     Serial.println("info: Stopping under control for powerdown");
-    m_logManager->Console().println("info: Stopping under control for powerdown.");
+    m_logManager->Syslog("INF: Stopping under control for powerdown.");
     m_logManager->CloseConsole();
     m_led->SetStatus(StatusLED::Status::sSTOPPED);
     while (true) {
@@ -1493,7 +1493,7 @@ void SerialCommand::ProcessCommand(void)
 void SerialCommand::EmergencyStop(void)
 {
     Serial.println("WARN: Emergency power activated, shutting down.");
-    m_logManager->Console().println("warning: emergency power activated, shutting down.");
+    m_logManager->Syslog("warning: emergency power activated, shutting down.");
     Shutdown();
 }
 

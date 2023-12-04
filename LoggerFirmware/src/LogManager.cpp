@@ -48,6 +48,8 @@ namespace logger {
 // limits (although you'd have to collect data for quite a file to get to this level).
 
 const int MAX_LOG_FILE_SIZE = 10*1024*1024; ///< Maximum size of a single log file before swapping
+const int MAX_CONSOLE_FILE_SIZE = 100*1024; ///< Maximum size of the console log before rotation
+const int MAX_CONSOLE_LOGS = 3; ///< Maximum number of console logs to support before over-writing
 
 Manager::MD5Hash::MD5Hash(void)
 {
@@ -374,8 +376,7 @@ Manager::Manager(StatusLED *led)
 #else
     m_consoleLog = m_storage->Controller().open("/console.log", FILE_WRITE);
 #endif
-    m_consoleLog.println("info: booted logger, appending to console log.");
-    m_consoleLog.flush();
+    Syslog("info: booted logger, appending to console log.");
     Serial.println("info: started console log.");
 }
 
@@ -557,9 +558,11 @@ void Manager::Record(PacketIDs pktID, Serialisable const& data)
     }
 }
 
-Stream& Manager::Console(void)
+void Manager::Syslog(String const& message)
 {
-    return m_consoleLog;
+    m_consoleLog.println(message);
+    m_consoleLog.flush();
+    RotateConsoleLogs(); // This is maybe a little much, but does ensure we don't exceed the max size.
 }
 
 void Manager::CloseConsole(void)
@@ -651,6 +654,27 @@ void Manager::DumpConsoleLog(Stream& output)
     }
     m_consoleLog.close();
     m_consoleLog = m_storage->Controller().open("/console.log", FILE_APPEND);
+}
+
+/// Rotate the console log file(s) if the currently open log file is larger than the maximum
+/// size alowed.  The number of old files retained in the rotation, and the maximum size, are
+/// controlled by compile-time constants (at the top of LogManager.cpp).
+///
+/// \return N/A
+
+void Manager::RotateConsoleLogs(void)
+{
+    if (m_consoleLog.size() > MAX_CONSOLE_FILE_SIZE) {
+        m_consoleLog.close();
+        for (int target = MAX_CONSOLE_LOGS-1; target >= 2; --target) {
+            String target_file = "/console." + String(target);
+            String source_file = "/console." + String(target-1);
+            if (m_storage->Controller().exists(source_file))
+                m_storage->Controller().rename(source_file.c_str(), source_file.c_str());
+        }
+        m_storage->Controller().rename("/console.log", "/console.1");
+        m_consoleLog = m_storage->Controller().open("/console.log", FILE_APPEND);
+    }
 }
 
 /// Generic interface to transfer a given log file to any output that supports the Stream

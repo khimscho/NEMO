@@ -176,7 +176,7 @@ Logger::Logger(tNMEA2000 *source, logger::Manager *output)
 
 Logger::~Logger(void)
 {
-    m_logManager->Console().println("Stopped NEMA2000 logging under control.");
+    m_logManager->Syslog("Stopped NEMA2000 logging under control.");
 }
 
 /// Generate a human-readable version of the logger's version information.  This is a simple
@@ -274,9 +274,7 @@ void Logger::HandleSystemTime(Timestamp::TimeDatum const& t, const tN2kMsg& msg)
             s += t.RawElapsed();
             s += (uint8_t)source;
             m_logManager->Record(logger::Manager::PacketIDs::Pkt_SystemTime, s);
-            m_logManager->Console().print("INF: Time update to: ");
-            m_logManager->Console().println(m_timeReference.printable());
-            m_logManager->Console().flush();
+            m_logManager->Syslog(String("INF: Time update to: ") + m_timeReference.printable());
         }
     }
 }
@@ -303,9 +301,7 @@ void Logger::HandleAttitude(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
         s += roll;
         m_logManager->Record(logger::Manager::PacketIDs::Pkt_Attitude, s);
     } else {
-        m_logManager->Console().println(t.printable() +
-                                       ": ERR: Failed to parse attitude data packet.");
-        m_logManager->Console().flush();
+        m_logManager->Syslog(t.printable() + ": ERR: Failed to parse attitude data packet.");
     }
 }
 
@@ -334,9 +330,7 @@ void Logger::HandleDepth(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
         s += range;
         m_logManager->Record(logger::Manager::PacketIDs::Pkt_Depth, s);
     } else {
-        m_logManager->Console().println(t.printable() +
-                                       ": ERR: Failed to parse water depth packet.");
-        m_logManager->Console().flush();
+        m_logManager->Syslog(t.printable() + ": ERR: Failed to parse water depth packet.");
     }
 }
 
@@ -365,8 +359,7 @@ void Logger::HandleCOG(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
             m_logManager->Record(logger::Manager::PacketIDs::Pkt_COG, s);
         }
     } else {
-        m_logManager->Console().println(t.printable() + ": ERR: Failed to parse COG/SOG packet.");
-        m_logManager->Console().flush();
+        m_logManager->Syslog(t.printable() + ": ERR: Failed to parse COG/SOG packet.");
     }
 }
 
@@ -422,15 +415,10 @@ void Logger::HandleGNSS(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
             // probably OK since it's usually 1Hz.  Therefore we can update if
             // we don't have anything else
             m_timeReference.Update(datestamp, timestamp, t.RawElapsed());
-            m_logManager->Console().print("INFO: Time update to: ");
-            m_logManager->Console().print(m_timeReference.printable());
-            m_logManager->Console().println(" from GNSS record.");
-            m_logManager->Console().flush();
+            m_logManager->Syslog(String("INFO: Time update to: ") + m_timeReference.printable() + String(" from GNSS record."));
         }
     } else {
-        m_logManager->Console().println(t.printable() +
-                                       ": ERR: Failed to parse primary GNSS report packet.");
-        m_logManager->Console().flush();
+        m_logManager->Syslog(t.printable() + ": ERR: Failed to parse primary GNSS report packet.");
     }
 }
 
@@ -463,9 +451,7 @@ void Logger::HandleEnvironment(Timestamp::TimeDatum const& t, tN2kMsg const& msg
         s += pressure;
         m_logManager->Record(logger::Manager::PacketIDs::Pkt_Environment, s);
     } else {
-        m_logManager->Console().println(t.printable() +
-                                       ": ERR: Failed to parse environmental parameters packet.");
-        m_logManager->Console().flush();
+        m_logManager->Syslog(t.printable() + ": ERR: Failed to parse environmental parameters packet.");
     }
 }
 
@@ -496,9 +482,7 @@ void Logger::HandleTemperature(Timestamp::TimeDatum const& t, tN2kMsg const& msg
             m_logManager->Record(logger::Manager::PacketIDs::Pkt_Temperature, s);
         }
     } else {
-        m_logManager->Console().println(t.printable() +
-                                       ": ERR: Failed to parse temperature packet.");
-        m_logManager->Console().flush();
+        m_logManager->Syslog(t.printable() + ": ERR: Failed to parse temperature packet.");
     }
 }
 
@@ -528,9 +512,7 @@ void Logger::HandleHumidity(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
             m_logManager->Record(logger::Manager::PacketIDs::Pkt_Humidity, s);
         }
     } else {
-        m_logManager->Console().println(t.printable() +
-                                       ": ERR: Failed to parse humidity packet.");
-        m_logManager->Console().flush();
+        m_logManager->Syslog(t.printable() + ": ERR: Failed to parse humidity packet.");
     }
 }
 
@@ -560,9 +542,7 @@ void Logger::HandlePressure(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
             m_logManager->Record(logger::Manager::PacketIDs::Pkt_Pressure, s);
         }
     } else {
-        m_logManager->Console().println(t.printable() +
-                                       ": ERR: Failed to parse pressure packet.");
-        m_logManager->Console().flush();
+        m_logManager->Syslog(t.printable() + ": ERR: Failed to parse pressure packet.");
     }
 }
 
@@ -592,9 +572,7 @@ void Logger::HandleExtTemperature(Timestamp::TimeDatum const& t, tN2kMsg const& 
             m_logManager->Record(logger::Manager::PacketIDs::Pkt_Temperature, s);
         }
     } else {
-        m_logManager->Console().println(t.printable() +
-                                     ": ERR: Failed to parse temperature packet.");
-        m_logManager->Console().flush();
+        m_logManager->Syslog(t.printable() + ": ERR: Failed to parse temperature packet.");
     }
 }
 
