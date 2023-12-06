@@ -5,23 +5,32 @@ NAME_STEM=$1
 SOUNDINGS_FILE=$2
 GEBCO_FILE=$3
 
-COLOR_TABLE="${SOUNDINGS_FILE}.cpt"
+SOUNDINGS_EXT=json
+SOUNDINGS_RAST=${SOUNDINGS_FILE/\.$SOUNDINGS_EXT/\.tif}
+COLOR_TABLE="${SOUNDINGS_RAST}.cpt"
 FORMATS='pdf,png'
+RASTER_NODATA=-99999
+RASTER_RES=0.0005
 # TODO: make bounds buffer dynamic based on scale of soundings
 BOUNDS_BUFFER=0.5
 INSET_BUFFER_INC=$((4*$BOUNDS_BUFFER-$BOUNDS_BUFFER))
 # TODO: allow width to be specified
 PROJECTION=M6i
 
-# TODO: Take GeoJSON file as input and use gdal_rasterize to generate GeoTIFF of soundings
-# gdal_rasterize -a_srs EPSG:4326 -tr 0.0005 0.0005 -a_nodata -99999 -co COMPRESS=DEFLATE -co ZLEVEL=9 -a depth bigfile-md.json bigfile-md.tif
+# Generate GeoTIFF of soundings from GeoJSON file
+echo "Generate GeoTIFF of soundings from GeoJSON file..."
+gdal_rasterize -q -a_srs EPSG:4326 -tr $RASTER_RES $RASTER_RES \
+  -a_nodata $RASTER_NODATA -co COMPRESS=DEFLATE -co ZLEVEL=9 -a depth \
+  $SOUNDINGS_FILE $SOUNDINGS_RAST
 
 # Make color table for soundings
+echo "Make color table for soundings..."
 # TODO: Figure out how to skip nodata values in color table
-gmt grd2cpt ${SOUNDINGS_FILE} -N > ${COLOR_TABLE}
+gmt grd2cpt ${SOUNDINGS_RAST} -N > ${COLOR_TABLE}
 
 # Read bounds from rasterized soundings and set environment buffered variables for bounds
-gdalinfo -json $SOUNDINGS_FILE | \
+echo "Read bounds from rasterized soundings and set environment buffered variables for bounds..."
+gdalinfo -json $SOUNDINGS_RAST | \
   jq '
     @sh "GMT_PLOT_XMIN=$((\(.wgs84Extent.coordinates[0][0][0]) - $BOUNDS_BUFFER))",
     @sh "GMT_PLOT_XMAX=$((\(.wgs84Extent.coordinates[0][2][0]) + $BOUNDS_BUFFER))",
@@ -41,6 +50,7 @@ $GMT_PLOT_XMIN $GMT_PLOT_YMIN $GMT_PLOT_XMAX $GMT_PLOT_YMAX
 EOF
 
 # Create map
+echo "Creating map for soundings ${SOUNDINGS_FILE}..."
 gmt begin ${NAME_STEM} ${FORMATS}
   # Plot GEBCO bathymetry and corresponding colorbar
   gmt grdimage $GEBCO_FILE -J$PROJECTION -R$REGION -Cterra
@@ -50,7 +60,7 @@ gmt begin ${NAME_STEM} ${FORMATS}
   # Add frame around entire map with title
   gmt basemap -J$PROJECTION -R$REGION -B+t"Soundings from '$SOUNDINGS_FILE'" -B -LjBR+o0.75c/0.5c+w100k+f+u
   # Plot soundings
-  gmt grdimage ${SOUNDINGS_FILE} -C${COLOR_TABLE}
+  gmt grdimage ${SOUNDINGS_RAST} -C${COLOR_TABLE}
   # Plot region inset
   gmt inset begin -DjTR+w2c/2.2c+o0.25c/0.25c -F+gwhite+p1p+c0.1c
     gmt coast -R$REGION_INSET -JM2c -Swhite -Ggrey --MAP_FRAME_TYPE=plain
