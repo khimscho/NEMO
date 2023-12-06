@@ -29,8 +29,11 @@ gdalinfo -json $SOUNDINGS_RAST | \
     @sh "GMT_PLOT_XMIN=$((\(.wgs84Extent.coordinates[0][0][0]) - $BOUNDS_BUFFER))",
     @sh "GMT_PLOT_XMAX=$((\(.wgs84Extent.coordinates[0][2][0]) + $BOUNDS_BUFFER))",
     @sh "GMT_PLOT_YMIN=$((\(.wgs84Extent.coordinates[0][1][1]) - $BOUNDS_BUFFER))",
-    @sh "GMT_PLOT_YMAX=$((\(.wgs84Extent.coordinates[0][0][1]) + $BOUNDS_BUFFER))"
+    @sh "GMT_PLOT_YMAX=$((\(.wgs84Extent.coordinates[0][0][1]) + $BOUNDS_BUFFER))",
+    @sh "GMT_PLOT_CENT_LON=\(.cornerCoordinates.center[0])",
+    @sh "GMT_PLOT_CENT_LAT=\(.cornerCoordinates.center[1])"
   ' | tee | while read cmd; do eval "export $cmd"; done
+GLOBAL_INSET_PROJ="G$GMT_PLOT_CENT_LON/$GMT_PLOT_CENT_LAT/?"
 REGION="$GMT_PLOT_XMIN/$GMT_PLOT_XMAX/$GMT_PLOT_YMIN/$GMT_PLOT_YMAX"
 # Calculate region for overview inset map
 GMT_PLOT_XMIN_INSET=$(($GMT_PLOT_XMIN - $INSET_BUFFER_INC))
@@ -38,10 +41,15 @@ GMT_PLOT_XMAX_INSET=$(($GMT_PLOT_XMAX + $INSET_BUFFER_INC))
 GMT_PLOT_YMIN_INSET=$(($GMT_PLOT_YMIN - $INSET_BUFFER_INC))
 GMT_PLOT_YMAX_INSET=$(($GMT_PLOT_YMAX + $INSET_BUFFER_INC))
 REGION_INSET="$GMT_PLOT_XMIN_INSET/$GMT_PLOT_XMAX_INSET/$GMT_PLOT_YMIN_INSET/$GMT_PLOT_YMAX_INSET"
-REGION_POLY="${NAME_STEM}-inset.txt"
+REGION_POLY="${NAME_STEM}-region.txt"
 cat << EOF > $REGION_POLY
 $GMT_PLOT_XMIN $GMT_PLOT_YMIN $GMT_PLOT_XMAX $GMT_PLOT_YMAX
 EOF
+INSET_POLY="${NAME_STEM}-inset.txt"
+cat << EOF > $INSET_POLY
+$GMT_PLOT_XMIN_INSET $GMT_PLOT_YMIN_INSET $GMT_PLOT_XMAX_INSET $GMT_PLOT_YMAX_INSET
+EOF
+
 
 # Create map
 echo "Creating map for soundings ${SOUNDINGS_FILE}..."
@@ -55,8 +63,13 @@ gmt begin ${NAME_STEM} ${FORMATS}
   gmt basemap -J$PROJECTION -R$REGION -B+t"Soundings from '$SOUNDINGS_FILE'" -B -LjBR+o0.75c/0.5c+w100k+f+u
   # Plot soundings
   gmt grdview ${SOUNDINGS_RAST}
+  # Plot global inset
+  gmt inset begin -DjTR+w2c+o0.25c/0.25c -F+gwhite+p1p+c0.1c
+		gmt coast -Rg -J$GLOBAL_INSET_PROJ -Da -Ggray -A5000 -Bg
+		gmt plot $INSET_POLY -J$GLOBAL_INSET_PROJ -Sr+s -W0.5p,blue
+	gmt inset end
   # Plot region inset
-  gmt inset begin -DjTR+w2c/2.2c+o0.25c/0.25c -F+gwhite+p1p+c0.1c
+  gmt inset begin -DjTR+w2c/2.2c+o0.25c/2.55c -F+gwhite+p1p+c0.1c
     gmt coast -R$REGION_INSET -JM2c -Swhite -Ggrey --MAP_FRAME_TYPE=plain
     gmt plot $REGION_POLY -J'M?' -Sr+s -W0.5p,blue
   gmt inset end
