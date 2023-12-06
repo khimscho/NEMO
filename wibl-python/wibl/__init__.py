@@ -2,7 +2,7 @@ import sys
 from importlib import resources
 from pathlib import Path
 
-__version__ = '1.0.1'
+__version__ = '1.0.2'
 
 
 def get_default_file(default_file_rel_path: str) -> Path:
