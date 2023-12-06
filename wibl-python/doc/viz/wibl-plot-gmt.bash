@@ -40,16 +40,20 @@ cat << EOF > $REGION_POLY
 $GMT_PLOT_XMIN $GMT_PLOT_YMIN $GMT_PLOT_XMAX $GMT_PLOT_YMAX
 EOF
 
-# Plot
+# Create map
 gmt begin ${NAME_STEM} ${FORMATS}
-  gmt grdimage ${GEBCO_FILE} -J$PROJECTION -R$REGION -Cterra
-  gmt colorbar -DJBC+o0c/0.8c -Bx50+l'GEBCO Bathymetry' -By+lm
+  # Plot GEBCO bathymetry and corresponding colorbar
+  gmt grdimage $GEBCO_FILE -J$PROJECTION -R$REGION -Cterra
   # TODO: Change +w50k (width of scalebar in km) to be dynamic based on extent
   #   see if gmtmath is useful for this: https://docs.generic-mapping-tools.org/6.4/gmtmath.html
-  gmt basemap -J$PROJECTION -R$REGION -B -LjBR+o0.75c/0.5c+w100k+f+u
+  gmt colorbar -DJBC+o0c/0.8c -Bx50+l'GEBCO Bathymetry' -By+lm
+  # Add frame around entire map with title
+  gmt basemap -J$PROJECTION -R$REGION -B+t"Soundings from '$SOUNDINGS_FILE'" -B -LjBR+o0.75c/0.5c+w100k+f+u
+  # Plot soundings
   gmt grdimage ${SOUNDINGS_FILE} -C${COLOR_TABLE}
+  # Plot region inset
   gmt inset begin -DjTR+w2c/2.2c+o0.25c/0.25c -F+gwhite+p1p+c0.1c
-    gmt coast -R$REGION_INSET -J'M2c' -Swhite -Ggrey --MAP_FRAME_TYPE=plain
+    gmt coast -R$REGION_INSET -JM2c -Swhite -Ggrey --MAP_FRAME_TYPE=plain
     gmt plot $REGION_POLY -J'M?' -Sr+s -W0.5p,blue
   gmt inset end
 gmt end
