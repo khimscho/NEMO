@@ -31,8 +31,8 @@ REGION="$GMT_PLOT_XMIN/$GMT_PLOT_XMAX/$GMT_PLOT_YMIN/$GMT_PLOT_YMAX"
 
 # Plot
 gmt begin ${NAME_STEM} ${FORMATS}
-  # TODO: Add color bar for GEBCO
   gmt grdimage ${GEBCO_FILE} -J$PROJECTION -R$REGION -Cterra
+  gmt colorbar -DJBC+o0c/0.8c -Bx100+l'GEBCO Bathymetry' -By+lm
   # TODO: Change +w100k (width of scalebar in km) to be dynamic based on extent
   #   see if gmtmath is useful for this: https://docs.generic-mapping-tools.org/6.4/gmtmath.html
   gmt basemap -J$PROJECTION -R$REGION -B -LjBR+o0.75c/0.5c+w100k+f+u
