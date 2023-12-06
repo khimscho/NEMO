@@ -7,7 +7,6 @@ GEBCO_FILE=$3
 
 SOUNDINGS_EXT=json
 SOUNDINGS_RAST=${SOUNDINGS_FILE/\.$SOUNDINGS_EXT/\.tif}
-COLOR_TABLE="${SOUNDINGS_RAST}.cpt"
 FORMATS='pdf,png'
 RASTER_NODATA=-99999
 RASTER_RES=0.0005
@@ -22,11 +21,6 @@ echo "Generate GeoTIFF of soundings from GeoJSON file..."
 gdal_rasterize -q -a_srs EPSG:4326 -tr $RASTER_RES $RASTER_RES \
   -a_nodata $RASTER_NODATA -co COMPRESS=DEFLATE -co ZLEVEL=9 -a depth \
   $SOUNDINGS_FILE $SOUNDINGS_RAST
-
-# Make color table for soundings
-echo "Make color table for soundings..."
-# TODO: Figure out how to skip nodata values in color table
-gmt grd2cpt ${SOUNDINGS_RAST} -N > ${COLOR_TABLE}
 
 # Read bounds from rasterized soundings and set environment buffered variables for bounds
 echo "Read bounds from rasterized soundings and set environment buffered variables for bounds..."
@@ -54,13 +48,13 @@ echo "Creating map for soundings ${SOUNDINGS_FILE}..."
 gmt begin ${NAME_STEM} ${FORMATS}
   # Plot GEBCO bathymetry and corresponding colorbar
   gmt grdimage $GEBCO_FILE -J$PROJECTION -R$REGION -Cterra
-  # TODO: Change +w50k (width of scalebar in km) to be dynamic based on extent
+  # TODO: Change -Bx50... (width of scalebar in km) to be dynamic based on extent
   #   see if gmtmath is useful for this: https://docs.generic-mapping-tools.org/6.4/gmtmath.html
   gmt colorbar -DJBC+o0c/0.8c -Bx50+l'GEBCO Bathymetry' -By+lm
   # Add frame around entire map with title
   gmt basemap -J$PROJECTION -R$REGION -B+t"Soundings from '$SOUNDINGS_FILE'" -B -LjBR+o0.75c/0.5c+w100k+f+u
   # Plot soundings
-  gmt grdimage ${SOUNDINGS_RAST} -C${COLOR_TABLE}
+  gmt grdview ${SOUNDINGS_RAST}
   # Plot region inset
   gmt inset begin -DjTR+w2c/2.2c+o0.25c/0.25c -F+gwhite+p1p+c0.1c
     gmt coast -R$REGION_INSET -JM2c -Swhite -Ggrey --MAP_FRAME_TYPE=plain
