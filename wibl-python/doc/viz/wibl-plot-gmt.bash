@@ -32,7 +32,7 @@ gdalinfo -json $SOUNDINGS_RAST | \
     @sh "GMT_PLOT_YMAX=$((\(.wgs84Extent.coordinates[0][0][1]) + $BOUNDS_BUFFER))",
     @sh "GMT_PLOT_CENT_LON=\(.cornerCoordinates.center[0])",
     @sh "GMT_PLOT_CENT_LAT=\(.cornerCoordinates.center[1])"
-  ' | tee | while read cmd; do eval "export $cmd"; done
+  ' | while read cmd; do eval "export $cmd"; done
 GLOBAL_INSET_PROJ="G$GMT_PLOT_CENT_LON/$GMT_PLOT_CENT_LAT/?"
 REGION="$GMT_PLOT_XMIN/$GMT_PLOT_XMAX/$GMT_PLOT_YMIN/$GMT_PLOT_YMAX"
 # Calculate region for overview inset map
@@ -50,17 +50,17 @@ cat << EOF > $INSET_POLY
 $GMT_PLOT_XMIN_INSET $GMT_PLOT_YMIN_INSET $GMT_PLOT_XMAX_INSET $GMT_PLOT_YMAX_INSET
 EOF
 
-
 # Create map
 echo "Creating map for soundings ${SOUNDINGS_FILE}..."
-gmt begin ${NAME_STEM} ${FORMATS}
+gmt begin ${NAME_STEM} ${FORMATS} I+m.2c
   # Plot GEBCO bathymetry and corresponding colorbar
   gmt grdimage $GEBCO_FILE -J$PROJECTION -R$REGION -Cterra
   # TODO: Change -Bx50... (width of scalebar in km) to be dynamic based on extent
   #   see if gmtmath is useful for this: https://docs.generic-mapping-tools.org/6.4/gmtmath.html
   gmt colorbar -DJBC+o0c/0.8c -Bx50+l'GEBCO Bathymetry' -By+lm
   # Add frame around entire map with title
-  gmt basemap -J$PROJECTION -R$REGION -B+t"Soundings from '$SOUNDINGS_FILE'" -B -LjBR+o0.75c/0.5c+w100k+f+u
+  gmt basemap -J$PROJECTION -R$REGION -B+t"Soundings from '$SOUNDINGS_FILE'" -B \
+    -LjBR+o0.75c/0.5c+w100k+f+u --FONT_TITLE=20p,Helvetica
   # Plot soundings
   gmt grdview ${SOUNDINGS_RAST}
   # Plot global inset
