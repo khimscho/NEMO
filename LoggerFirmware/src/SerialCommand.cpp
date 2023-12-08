@@ -843,12 +843,15 @@ void SerialCommand::ReportAlgRequests(CommandSource src)
 {
     logger::AlgoRequestStore algstore;
     String algorithms;
+    DynamicJsonDocument doc(1024);
     switch (src) {
         case CommandSource::SerialPort:
-            algstore.ListAlgorithms(Serial);
+            algorithms = algstore.JSONRepresentation(true);
+            EmitMessage(algorithms + '\n', src);
             break;
         case CommandSource::WirelessPort:
-            m_wifi->SetMessage(algstore.MakeJSON());
+            algstore.GetContents(doc);
+            m_wifi->SetMessage(doc);
             break;
         default:
             EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
@@ -867,7 +870,7 @@ void SerialCommand::ConfigureAlgRequest(String const& params, CommandSource src)
 {
     logger::AlgoRequestStore algstore;
     if (params.startsWith("none")) {
-        algstore.ResetList();
+        algstore.ClearAlgorithmList();
         if (src == CommandSource::WirelessPort)
             ReportAlgRequests(src);
         return;
@@ -900,7 +903,7 @@ void SerialCommand::ConfigureAlgRequest(String const& params, CommandSource src)
 void SerialCommand::StoreMetadataElement(String const& params, CommandSource src)
 {
     logger::MetadataStore metastore;
-    metastore.WriteMetadata(params);
+    metastore.SetMetadata(params);
     if (src == CommandSource::SerialPort) {
         EmitMessage("INF: added metadata element to local configuration.\n", src);
     } else {
@@ -916,7 +919,7 @@ void SerialCommand::StoreMetadataElement(String const& params, CommandSource src
 void SerialCommand::ReportMetadataElement(CommandSource src)
 {
     logger::MetadataStore metastore;
-    String metadata = metastore.GetMetadata();
+    String metadata = metastore.JSONRepresentation();
     if (src == CommandSource::SerialPort) {
         EmitMessage("Metadata element: |" + metadata + "|\n", src);
     } else {
@@ -938,14 +941,17 @@ void SerialCommand::ReportNMEAFilter(CommandSource src)
 {
     logger::N0183IDStore filter;
     String filter_ids;
-    
+    DynamicJsonDocument doc(1024);
+
     switch (src) {
         case CommandSource::SerialPort:
             EmitMessage("NMEA0183 message IDs accepted for logging:\n", src);
-            filter.ListIDs(Serial);
+            filter_ids = filter.JSONRepresentation(true);
+            EmitMessage(filter_ids + '\n', src);
             break;
         case CommandSource::WirelessPort:
-            m_wifi->SetMessage(filter.MakeJSON());
+            filter.GetContents(doc);
+            m_wifi->SetMessage(doc);
             break;
         default:
             EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
@@ -968,7 +974,7 @@ void SerialCommand::AddNMEAFilter(String const& params, CommandSource src)
 {
     logger::N0183IDStore filter;
     if (params == "all") {
-        filter.ResetFilter();
+        filter.ClearIDList();
     } else {
         filter.AddID(params);
     }
@@ -989,8 +995,10 @@ void SerialCommand::ReportScalesElement(CommandSource src)
     switch(src) {
         case CommandSource::SerialPort:
             EmitMessage("Sensor scales for on-board sensors:\n", src);
+            EmitMessage(scales.JSONRepresentation(true) + '\n', src);
             break;
         case CommandSource::WirelessPort:
+            EmitJSON(scales.JSONRepresentation(), src);
             break;
         default:
             EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
@@ -998,7 +1006,6 @@ void SerialCommand::ReportScalesElement(CommandSource src)
                 m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
             break;
     }
-    EmitJSON(scales.GetScales(), src);
 }
 
 /// Report the number of files that are available on the SD card for transfer.
@@ -1532,7 +1539,9 @@ bool SerialCommand::EmitJSON(String const& source, CommandSource chan)
         EmitMessage("No data in JSON.\n", chan);
         return true;
     }
-    DynamicJsonDocument json(source.length()*2);
+    int capacity = source.length() * 2;
+    if (capacity < 1024) capacity = 1024;
+    DynamicJsonDocument json(capacity);
     DeserializationError rc = deserializeJson(json, source + "\n");
     if (rc.code() == DeserializationError::Ok) {
         switch (chan) {
