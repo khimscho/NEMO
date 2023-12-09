@@ -358,6 +358,7 @@ private:
             // Configure the endpoints served by the server
             m_server->on("/heartbeat", HTTPMethod::HTTP_GET, std::bind(&ESP32WiFiAdapter::heartbeat, this));
             m_server->on("/command", HTTPMethod::HTTP_POST, std::bind(&ESP32WiFiAdapter::handleCommand, this));
+            m_server->serveStatic("/logs", m_storage->Controller(), "/logs/");
             m_server->serveStatic("/", SPIFFS, "/website/"); // Note trailing '/' since this is a directory being served.
         }
         //m_state.Verbose(true);
@@ -463,6 +464,7 @@ private:
     {
         String message;
         serializeJson(*m_messages, message);
+        Serial.printf("DBG: WiFi transmitting response |%s|\n", message.c_str());
         m_server->send(m_statusCode, data_type, message);
         m_messages->clear();
         m_statusCode = HTTPReturnCodes::OK; // "OK" by default

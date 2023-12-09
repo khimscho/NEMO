@@ -585,6 +585,18 @@ void Manager::AddInventory(bool verbose)
     m_inventory = new Inventory(this, verbose);
 }
 
+bool Manager::WriteSnapshot(String& name, String const& contents)
+{
+    name = String("/logs/") + name;
+    File f = m_storage->Controller().open(name, FILE_WRITE);
+    if (f) {
+        f.print(contents);
+        f.close();
+        return true;
+    }
+    return false;
+}
+
 /// Generate a logical file number for the next log file to be written.  This operates
 /// by walking the current log directory counting files that exist until the upper
 /// limit is reached.  The log directory is created if it does not already exist, and any

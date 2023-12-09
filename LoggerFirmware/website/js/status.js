@@ -121,10 +121,13 @@ function assembleDataRow(id, source, time, data) {
     return row;
 }
 
-function assembleDetailRow(id, len, md5) {
+function assembleDetailRow(id, len, md5, url) {
     let row = document.createElement('tr');
     let idEl = document.createElement('td');
-    idEl.textContent = id;
+    let linkEl = document.createElement('a');
+    linkEl.setAttribute('href', '..' + url);
+    linkEl.textContent = id;
+    idEl.appendChild(linkEl);
     let sizeEl = document.createElement('td');
     sizeEl.textContent = translateSize(len);
     let md5El = document.createElement('td');
@@ -208,9 +211,16 @@ function updateStatus(tablePrefix) {
         if (detail !== null) {
             detail.replaceChildren(assembleDetailHeader());
             for (let n = 0; n < data.files.count; ++n) {
-                detail.appendChild(assembleDetailRow(data.files.detail[n].id, data.files.detail[n].len, data.files.detail[n].md5));
+                detail.appendChild(assembleDetailRow(data.files.detail[n].id, data.files.detail[n].len, data.files.detail[n].md5, data.files.detail[n].url));
             }
         }
+    });
+}
+
+function redirectCatalog() {
+    sendCommand('snapshot catalog').then((data) => {
+        let frame = document.getElementById('downloadFrame');
+        frame.setAttribute('src', '..' + data.url);
     });
 }
 
@@ -221,5 +231,10 @@ function updateIndexStatus() {
 
 function updateStatusData() {
     const update = () => { updateStatus('status'); }
+    after(500, update);
+}
+
+function saveCatalog() {
+    const update = () => { redirectCatalog(); }
     after(500, update);
 }

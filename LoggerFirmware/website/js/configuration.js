@@ -121,15 +121,24 @@ function uploadDefaultConfig() {
     sendCommand('lab defaults ' + config).then((data) => {});
 }
 
-async function saveConfigLocally() {
-    const config = createJSONConfig();
-    const options = {
-        suggestedName: document.getElementById("unique-id").value + '.json'
-    }
-    const fileHandle = await window.showSaveFilePicker(options);
-    const fileStream = await fileHandle.createWritable();
-    await fileStream.write(new Blob([config], {type: 'text/json'}));
-    await fileStream.close();
+function saveConfigLocally() {
+    sendCommand('snapshot config').then((data) => {
+        if (data.url === "") {
+            window.alert("Failed to generate defaults snapshot on logger");
+        } else {
+            document.getElementById('downloadFrame').setAttribute('src', '..' + data.url);
+        }
+    });
+}
+
+function saveDefaultLocally() {
+    sendCommand('snapshot defaults').then((data) => {
+        if (data.url === "") {
+            window.alert("Failed to generate defaults snapshot on logger");
+        } else {
+            document.getElementById('downloadFrame').setAttribute('src', '..' + data.url);
+        }
+    });
 }
 
 function loadConfigLocally() {

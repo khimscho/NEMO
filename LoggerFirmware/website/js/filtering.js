@@ -4,7 +4,7 @@ function populateFilterTable(data) {
         display = 'All';
     } else {
         for (let n = 0; n < data.count; ++n) {
-            display += data.accepted[n] + ' ';
+            display += data.ids[n] + ' ';
         }
     }
     document.getElementById('filter-list').textContent = display;

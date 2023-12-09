@@ -35,12 +35,14 @@
 .refresh-button {
     display: flex;
     justify-content: center;
-    padding-top: 30px;
+    padding: 30px;
 }
 
 .refresh-button input[type="button"] {
     font-size: 18px;
     padding: 5px;
+    margin-left: 5px;
+    margin-right: 5px;
 }
 
 .refresh-button input[type="button"]:hover {

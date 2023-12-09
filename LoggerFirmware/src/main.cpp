@@ -83,7 +83,7 @@ void setup()
 
     Serial.begin(115200);
 
-    Serial.printf("BOOTING WIBL DATA LOGGER, FIRMWARE VERSION %s\n", logger::FirmwareVersion());
+    Serial.printf("*\n*\n*\nBOOTING WIBL DATA LOGGER, FIRMWARE VERSION %s\n*\nFor more information: http://wibl.ccom.unh.edu\n*\n*\n", logger::FirmwareVersion());
 
     Serial.printf("DBG: At boot, heap is %d B (%d B free)\n", heap_size, heap_free);
     Serial.printf("DBG: ");

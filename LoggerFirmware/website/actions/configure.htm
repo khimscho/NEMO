@@ -105,10 +105,12 @@
                 <div class="group-wrapper">
                     <input type="button" value="Set Working Config" onclick="uploadCurrentConfig()"/>
                     <input type="button" value="Set Default Config" onclick="uploadDefaultConfig()"/>
-                    <input type="button" value="Save to Disc" onclick="saveConfigLocally()">
                     <input type="button" value="Load from Disc" onclick="loadConfigLocally()">
+                    <input type="button" value="Download Working Config" onclick="saveConfigLocally()">
+                    <input type="button" value="Download Default Config" onclick="saveDefaultLocally()">
                 </div>
             </form>
+            <iframe id="downloadFrame" style="position:absolute;width:0;height:0;border:0;"></iframe>
             <script>
                 bootstrapConfig();
             </script>

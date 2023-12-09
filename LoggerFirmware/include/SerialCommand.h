@@ -175,6 +175,8 @@ private:
     void GetUploadToken(CommandSource src);
     /// @brief Set the upload token used to authenticate transmissions
     void SetUploadToken(String const& token, CommandSource src);
+    /// @brief Generate a downloadable version of a given resource in /log directory
+    void SnapshotResource(String const& resource, CommandSource src);
     /// \brief Check for commands, and execute them if found
     void Execute(String const& command, CommandSource src);
     
@@ -182,6 +184,8 @@ private:
     void EmitMessage(String const& msg, CommandSource src);
     /// \brief Convert a stringified JSON into a document, with error reporting
     bool EmitJSON(String const& source, CommandSource src);
+    /// @brief Generate a list of files into a JSON document
+    void GenerateFilelist(JsonDocument& doc);
 };
 
 #endif

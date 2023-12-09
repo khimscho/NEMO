@@ -132,6 +132,8 @@ public:
     void HashFile(uint32_t file_num, MD5Hash& hash);
     void AddInventory(bool verbose = false);
 
+    bool WriteSnapshot(String& name, String const& contents);
+
 private:
     /// \class Inventory
     /// \brief Manage an inventory of the files currently on the SD card

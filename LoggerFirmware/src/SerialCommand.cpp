@@ -1106,19 +1106,8 @@ void SerialCommand::ReportCurrentStatus(CommandSource src)
 
     status["data"] = logger::metrics.LastKnownGood();
 
-    uint32_t filenumbers[logger::MaxLogFiles];
-    uint32_t n_files = m_logManager->CountLogFiles(filenumbers);
-    status["files"]["count"] = n_files;
-    for (int n = 0; n < n_files; ++n) {
-        String filename;
-        uint32_t filesize;
-        logger::Manager::MD5Hash filehash;
-        m_logManager->EnumerateLogFile(filenumbers[n], filename, filesize, filehash);
-        status["files"]["detail"][n]["id"] = filenumbers[n];
-        status["files"]["detail"][n]["len"] = filesize;
-        if (!filehash.Empty())
-            status["files"]["detail"][n]["md5"] = filehash.Value();
-    }
+    GenerateFilelist(status);
+
     if (src == CommandSource::SerialPort) {
         String json;
         serializeJsonPretty(status, json);
@@ -1238,7 +1227,7 @@ void SerialCommand::GetUploadToken(CommandSource src)
 /// it has to be ASCII-encoded, and just stores what's provided.  On success, the code issues a
 /// GetUploadToken() so that the user has positive confirmation that the update was done.
 ///
-/// @param token String to store in the NVM for uploads
+/// @param token    String to store in the NVM for uploads
 /// @param src      CommandSource channel on which the command was received.
 /// @return N/A
 
@@ -1258,6 +1247,58 @@ void SerialCommand::SetUploadToken(String const& token, CommandSource src)
         return;
     }
     GetUploadToken(src);
+}
+
+/// Generate a downloadable snapshot of the given resource in the log space (i.e., on the SD card) so that
+/// it's exposed in the webserver and therefore capable of being downloaded by the browser directly (and
+/// therefore automatically downloads to local storage).  The command responds with a JSON description of
+/// the URL at which to find the resource that's converted, or empty URL if the conversion was not completed.
+///     The known resources might vary by variant of the firmware, but include at least:
+///         'catalog'   The list of all known files on the logger, their MD5 hash, size, and names
+///         'config'    The current running configuration of the logger
+///         'default'   The "lab default" configuration of the logger
+///
+/// @param resource Target resource from the known list
+/// @param src      CommandSource channel on which the command was received
+/// @return N/A
+
+void SerialCommand::SnapshotResource(String const& resource, CommandSource src)
+{
+    String url;
+    bool rc;
+
+    if (resource == "config") {
+        DynamicJsonDocument json(logger::ConfigJSON::ExtractConfig());
+        String contents;
+        url = "config.jsn";
+        serializeJson(json, contents);
+        rc = m_logManager->WriteSnapshot(url, contents);
+    } else if (resource == "defaults") {
+        String defaults;
+        logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_DEFAULTS_S, defaults);
+        if (defaults.isEmpty())
+            defaults = String("{}");
+        url = "defaults.jsn";
+        rc = m_logManager->WriteSnapshot(url, defaults);
+    } else if (resource == "catalog") {
+        DynamicJsonDocument files(10240);
+        String contents;
+        GenerateFilelist(files);
+        url = "catalog.jsn";
+        serializeJson(files, contents);
+        rc = m_logManager->WriteSnapshot(url, contents);
+    } else {
+        EmitMessage("ERR: unknown snapshot resource requested.\n", src);
+    }
+
+    StaticJsonDocument<256> responseJson;
+    if (rc)
+        responseJson["url"] = url;
+    else
+        responseJson["url"] = "";
+    String response;
+    serializeJson(responseJson, response);
+    EmitJSON(response, src);
 }
 
 /// Output a list of known commands, since there are now enough of them to make remembering them
@@ -1288,6 +1329,7 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  setup [json-specification]          Report the configuration of the logger, or set it, using JSON specifications.\n", src);
     EmitMessage("  shipname name                       Set the name of the host ship carrying the logger.\n", src);
     EmitMessage("  sizes                               Output list of the extant log files, and their sizes in bytes.\n", src);
+    EmitMessage("  snapshot catalog|config|defaults    Prepare a downloadable version of the specified resource in /logs\n", src);
     EmitMessage("  speed 1|2 baud-rate                 Set the baud rate for the RS-422 input channels.\n", src);
     EmitMessage("  ssid ap|station [wifi-ssid]         Set the WiFi SSID.\n", src);
     EmitMessage("  status                              Generate JSON-format status message for current dynamic configuration\n", src);
@@ -1393,6 +1435,8 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         }
     } else if (cmd == "sizes") {
         ReportCurrentStatus(src);
+    } else if (cmd.startsWith("snapshot")) {
+        SnapshotResource(cmd.substring(9), src);
     } else if (cmd.startsWith("speed")) {
         ConfigureSerialPortSpeed(cmd.substring(6), src);
     } else if (cmd.startsWith("ssid")) {
@@ -1561,4 +1605,29 @@ bool SerialCommand::EmitJSON(String const& source, CommandSource chan)
         EmitMessage(rc.c_str(), chan);
     }
     return rc.code() == DeserializationError::Ok;
+}
+
+/// Generate a list of all known files on the logger (and their attributes) into
+/// an existing JSON document.  This includes the number of files, their reference
+/// IDs, sizes, MD5 hashes, and filenames in the store.
+///
+/// @param doc  JsonDocument to use for output
+/// @return N/A
+
+void SerialCommand::GenerateFilelist(JsonDocument& doc)
+{
+    uint32_t filenumbers[logger::MaxLogFiles];
+    uint32_t n_files = m_logManager->CountLogFiles(filenumbers);
+    doc["files"]["count"] = n_files;
+    for (int n = 0; n < n_files; ++n) {
+        String filename;
+        uint32_t filesize;
+        logger::Manager::MD5Hash filehash;
+        m_logManager->EnumerateLogFile(filenumbers[n], filename, filesize, filehash);
+        doc["files"]["detail"][n]["id"] = filenumbers[n];
+        doc["files"]["detail"][n]["len"] = filesize;
+        if (!filehash.Empty())
+            doc["files"]["detail"][n]["md5"] = filehash.Value();
+        doc["files"]["detail"][n]["url"] = filename;
+    }
 }
