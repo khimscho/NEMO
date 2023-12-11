@@ -831,6 +831,34 @@ void SerialCommand::ReportHeapSize(CommandSource src)
     EmitMessage(msg, src);
 }
 
+/// Report the algorithms being recommended for use on the data, as stored in the logger.  This is
+/// broken out because the system has to be able to report the algorithms either on demand, or as a
+/// response to setting a new algorithm (or clearing the list), before finalising the file on the
+/// NVM store.  (Otherwise, you get a race condition due to the RAII sematics for the store.)
+///
+/// @param store    Algorithm store object to report.
+/// @param src      Channel on which to report the information (typically the same one that sent the command)
+/// @return N/A
+
+void SerialCommand::DisplayAlgorithmStore(logger::AlgoRequestStore& store, CommandSource src)
+{
+    String algorithms;
+    DynamicJsonDocument doc(1024);
+    switch (src) {
+        case CommandSource::SerialPort:
+            algorithms = store.JSONRepresentation(true);
+            EmitMessage(algorithms + '\n', src);
+            break;
+        case CommandSource::WirelessPort:
+            store.GetContents(doc);
+            m_wifi->SetMessage(doc);
+            break;
+        default:
+            EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
+            break;
+    }
+}
+
 /// Report the list of algorithms that the logger would request that the post-processing applies to the data
 /// from this system (e.g., de-duplication of depth, reputation computation, etc.).  There is no obligation
 /// for the post-processing to do this, but knowing which to do, and in which order, is useful.  The algorithms
@@ -842,21 +870,7 @@ void SerialCommand::ReportHeapSize(CommandSource src)
 void SerialCommand::ReportAlgRequests(CommandSource src)
 {
     logger::AlgoRequestStore algstore;
-    String algorithms;
-    DynamicJsonDocument doc(1024);
-    switch (src) {
-        case CommandSource::SerialPort:
-            algorithms = algstore.JSONRepresentation(true);
-            EmitMessage(algorithms + '\n', src);
-            break;
-        case CommandSource::WirelessPort:
-            algstore.GetContents(doc);
-            m_wifi->SetMessage(doc);
-            break;
-        default:
-            EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
-            break;
-    }
+    DisplayAlgorithmStore(algstore, src);
 }
 
 /// Set up the list of requests for algorithms to be run on the data at the post-processing stage.
@@ -869,24 +883,24 @@ void SerialCommand::ReportAlgRequests(CommandSource src)
 void SerialCommand::ConfigureAlgRequest(String const& params, CommandSource src)
 {
     logger::AlgoRequestStore algstore;
+
     if (params.startsWith("none")) {
         algstore.ClearAlgorithmList();
-        if (src == CommandSource::WirelessPort)
-            ReportAlgRequests(src);
-        return;
-    }
-    int split = params.indexOf(' ');
-    String alg_name, alg_params;
-    alg_name = params.substring(0, split);
-    alg_params = params.substring(split+1);
-    algstore.AddAlgorithm(alg_name, alg_params);
-    if (src == CommandSource::SerialPort) {
-        EmitMessage("INF: added algorithm \"" + alg_name + "\" with parameters \"" + alg_params + "\"\n", src);
-    } else if (src == CommandSource::WirelessPort) {
-        ReportAlgRequests(src);
     } else {
-        EmitMessage("ERR: algorithm addition from unknown CommandSource - who are you?\n", src);
+        int split = params.indexOf(' ');
+        String alg_name, alg_params;
+        if (split < 0) {
+            // No space in the string, so there's no parameters for the algorithm
+            alg_name = params;
+            alg_params = String("None");
+        } else {
+            alg_name = params.substring(0, split);
+            alg_params = params.substring(split+1);
+        }
+        algstore.AddAlgorithm(alg_name, alg_params);
     }
+
+    DisplayAlgorithmStore(algstore, src);
 }
 
 /// Set the string for additional metadata to be applied to the data when it's converted to GeoJSON
@@ -931,17 +945,10 @@ void SerialCommand::ReportMetadataElement(CommandSource src)
     }
 }
 
-/// Report the currently configured set of NMEA0183 message IDs that are acceptable for logging.
-/// All sentences with a message ID in the list will be written to the log; all others are rejected
-/// after reception.
-///
-/// \param src  Channel on which to report the IDs configured for logging (Serial, WiFi, BLE)
-
-void SerialCommand::ReportNMEAFilter(CommandSource src)
+void SerialCommand::DisplayNMEAFilter(logger::N0183IDStore& filter, CommandSource src)
 {
-    logger::N0183IDStore filter;
-    String filter_ids;
     DynamicJsonDocument doc(1024);
+    String filter_ids;
 
     switch (src) {
         case CommandSource::SerialPort:
@@ -957,6 +964,18 @@ void SerialCommand::ReportNMEAFilter(CommandSource src)
             EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
             break;
     }
+}
+
+/// Report the currently configured set of NMEA0183 message IDs that are acceptable for logging.
+/// All sentences with a message ID in the list will be written to the log; all others are rejected
+/// after reception.
+///
+/// \param src  Channel on which to report the IDs configured for logging (Serial, WiFi, BLE)
+
+void SerialCommand::ReportNMEAFilter(CommandSource src)
+{
+    logger::N0183IDStore filter;
+    DisplayNMEAFilter(filter, src);
 }
 
 /// Add to the list of NMEA0183 sentence message IDs that are allowed to be logged to SD card on
@@ -978,8 +997,7 @@ void SerialCommand::AddNMEAFilter(String const& params, CommandSource src)
     } else {
         filter.AddID(params);
     }
-    if (src == CommandSource::WirelessPort)
-        ReportNMEAFilter(src);
+    DisplayNMEAFilter(filter, src);
 }
 
 /// Report the set of scales set for any on-board sensors that record binary data that needs to be

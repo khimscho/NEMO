@@ -56,7 +56,7 @@ NVMFile::NVMFile(String const& filename)
         // so that the string will parse without failing in the ArduinoJson library.
         m_contents = String("{}");
     }
-    Serial.printf("DBG: Read |%s| from NVM file |%s|\n", m_contents.c_str(), m_backingStore.c_str());
+    Serial.printf("DBG: NVMFile() read |%s| from |%s|\n", m_contents.c_str(), m_backingStore.c_str());
 }
 
 /// Write the contents of the object to non-volatile memory space on the logger as a simple
@@ -72,7 +72,7 @@ NVMFile::~NVMFile(void)
         if (m_changed) {
             File f = SPIFFS.open(m_backingStore.c_str(), "w", true);
             if (!f) {
-                Serial.printf("ERR: failed to open \"%s\" for NVM file write.\n", m_backingStore.c_str());
+                Serial.printf("ERR: failed to open |%s| for NVM file write.\n", m_backingStore.c_str());
                 return;
             }
             Serial.printf("DBG: ~NVMFile() writing |%s| to |%s|.\n", m_contents.c_str(), m_backingStore.c_str());
@@ -100,7 +100,7 @@ DynamicJsonDocument NVMFile::BeginTransaction(void)
     Serial.printf("DBG: deserialising |%s| into %d byte buffer.\n", m_contents.c_str(), doc.capacity());
     DeserializationError err = deserializeJson(doc, m_contents);
     if (err != DeserializationError::Ok) {
-        Serial.printf("ERR: failed to parse JSON for NVM file \"%s\" (lib said: %s).\n",
+        Serial.printf("ERR: failed to parse JSON for NVM file |%s| (lib said: %s).\n",
             m_backingStore.c_str(), err.c_str());
     } else {
         Serial.printf("DBG: deserialised JSON for NVM file |%s|, capacity %d, memory used %d\n",

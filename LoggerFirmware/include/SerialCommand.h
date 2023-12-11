@@ -35,6 +35,7 @@
 #include "StatusLED.h"
 #include "WiFiAdapter.h"
 #include "IncrementalBuffer.h"
+#include "NVMFile.h"
 
 /// \class SerialCommand
 /// \brief Implement a simple ASCII command language for the logger
@@ -186,6 +187,10 @@ private:
     bool EmitJSON(String const& source, CommandSource src);
     /// @brief Generate a list of files into a JSON document
     void GenerateFilelist(JsonDocument& doc);
+    /// @brief Display a NMEA0183 filter ID list
+    void DisplayNMEAFilter(logger::N0183IDStore& filter, CommandSource src);
+    /// @brief Display an Algorithm Store list
+    void DisplayAlgorithmStore(logger::AlgoRequestStore& store, CommandSource src);
 };
 
 #endif

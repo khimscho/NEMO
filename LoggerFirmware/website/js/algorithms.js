@@ -47,8 +47,8 @@ function addAlgorithm() {
     let algParams = document.getElementById('alg-params').value;
     document.getElementById('alg-name').value = '';
     document.getElementById('alg-params').value = '';
-    if (algParams === 'N/A') {
-        algParams = '';
+    if (algParams === 'N/A' || algParams === '') {
+        algParams = 'None';
     }
     sendCommand(`algorithm ${algName} ${algParams}`).then((data) => {
         populateAlgTable(data);
