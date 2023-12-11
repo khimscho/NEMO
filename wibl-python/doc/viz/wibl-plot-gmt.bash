@@ -57,12 +57,13 @@ gmt begin ${NAME_STEM} ${FORMATS} I+m.2c
   gmt grdimage $GEBCO_FILE -J$PROJECTION -R$REGION -Cterra
   # TODO: Change -Bx50... (width of scalebar in km) to be dynamic based on extent
   #   see if gmtmath is useful for this: https://docs.generic-mapping-tools.org/6.4/gmtmath.html
-  gmt colorbar -DJBC+o0c/0.8c -Bx50+l'GEBCO Bathymetry' -By+lm
+  gmt colorbar -DJBC+o0c/0.8c -Bx50+l'GEBCO 2023 Bathymetry' -By+lm
   # Add frame around entire map with title
   gmt basemap -J$PROJECTION -R$REGION -B+t"Soundings from '$SOUNDINGS_FILE'" -B \
     -LjBR+o0.75c/0.5c+w100k+f+u --FONT_TITLE=20p,Helvetica
   # Plot soundings
   gmt grdview ${SOUNDINGS_RAST}
+  # TODO: Add color map and colorbar for soundings
   # Plot global inset
   gmt inset begin -DjTR+w2c+o0.25c/0.25c -F+gwhite+p1p+c0.1c
 		gmt coast -Rg -J$GLOBAL_INSET_PROJ -Da -Ggray -A5000 -Bg
