@@ -84,7 +84,7 @@ f.colorbar(position="JBC", frame=["x+lGEBCO 2023 Bathymetry", "y+lm"])
 
 # Plot soundings
 f.grdimage(sounding_rast, cmap='haxby', nan_transparent=True)
-f.colorbar(position="JRM+o-2.0c/0c+w4c",
+f.colorbar(position="JLM+o-2.0c/0c+w4c",
            box="+gwhite@30+p0.8p,black",
            frame=["x+lSounding depth", "y+lm"])
 
