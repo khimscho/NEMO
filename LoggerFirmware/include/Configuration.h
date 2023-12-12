@@ -91,7 +91,11 @@ class Config {
             CONFIG_WS_STATUS_S,     /* String: status of the configuration web server */
             CONFIG_WS_BOOTSTATUS_S, /* String: status of the configuration web server at boot time */
             CONFIG_DEFAULTS_S,      /* String: JSON-format for default "lab reset" parameters */
-            CONFIG_UPLOAD_TOKEN_S   /* String: shared upload token for cloud transmission */
+            CONFIG_UPLOAD_TOKEN_S,  /* String: shared upload token for cloud transmission */
+            CONFIG_UPLOAD_SERVER_S, /* String: server IP address to use for upload */
+            CONFIG_UPLOAD_PORT_S,   /* String: port to use on server for upload */
+            CONFIG_UPLOAD_TIMEOUT_S,/* String: timeout (seconds) before deciding that the server isn't available */
+            CONFIG_UPLOAD_INTERVAL_S,/* String: interval (seconds) between upload attempts */
         };
 
         /// \brief Extract a configuration string for the specified parameter

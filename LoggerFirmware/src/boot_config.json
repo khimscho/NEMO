@@ -34,5 +34,11 @@
         "port1":    4800,
         "port2":    4800
     },
-    "udpbridge":    12345
+    "udpbridge":    12345,
+    "upload": {
+        "server": "192.168.4.2",
+        "port": 80,
+        "timeout": 5.0,
+        "interval": 1800.0
+    }
 }

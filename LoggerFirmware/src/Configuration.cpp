@@ -78,7 +78,11 @@ const String lookup[] = {
     "WSStatus",         ///< The current status of the configuration webserver
     "WSBootStatus",     ///< The status of the webserver on boot
     "LabDefaults",      ///< A JSON string for lab-default configuration
-    "UploadToken"       ///< An ASCII string to authenticate uploads
+    "UploadToken",      ///< An ASCII string to authenticate uploads
+    "UploadServer",     ///< IPv4 address for the server to use for upload
+    "UploadPort",       ///< IPc4 port for server to use for upload
+    "UploadTimeout",    ///< Timeout (seconds) for the upload server to respond to probe
+    "UploadInterval"    ///< Interval (seconds) between upload attempts
 };
 
 /// Default constructor.  This sets up for a dummy parameter store, which is configured
@@ -248,6 +252,16 @@ DynamicJsonDocument ConfigJSON::ExtractConfig(bool secure)
     params["baudrate"]["port2"] = baudrate_port2.toInt();
     params["udpbridge"] = udp_bridge_port.toInt();
 
+    String upload_server, upload_port, upload_timeout, upload_interval;
+    LoggerConfig.GetConfigString(Config::CONFIG_UPLOAD_SERVER_S, upload_server);
+    LoggerConfig.GetConfigString(Config::CONFIG_UPLOAD_PORT_S, upload_port);
+    LoggerConfig.GetConfigString(Config::CONFIG_UPLOAD_TIMEOUT_S, upload_timeout);
+    LoggerConfig.GetConfigString(Config::CONFIG_UPLOAD_INTERVAL_S, upload_interval);
+    params["upload"]["server"] = upload_server;
+    params["upload"]["port"] = upload_port.toInt();
+    params["upload"]["timeout"] = upload_timeout.toDouble();
+    params["upload"]["interval"] = upload_interval.toDouble();
+
     return params;
 }
 
@@ -322,13 +336,23 @@ bool ConfigJSON::SetConfig(String const& json_string)
             LoggerConfig.SetConfigString(Config::CONFIG_SHIPNAME_S, params["shipname"]);
         if (params.containsKey("udpbridge"))
             LoggerConfig.SetConfigString(Config::CONFIG_BRIDGE_PORT_S, params["udpbridge"]);
+        if (params.containsKey("upload")) {
+            if (params.containsKey("server"))
+                LoggerConfig.SetConfigString(Config::CONFIG_UPLOAD_SERVER_S, params["upload"]["server"]);
+            if (params.containsKey("port"))
+                LoggerConfig.SetConfigString(Config::CONFIG_UPLOAD_PORT_S, params["upload"]["port"]);
+            if (params.containsKey("timeout"))
+                LoggerConfig.SetConfigString(Config::CONFIG_UPLOAD_TIMEOUT_S, params["upload"]["timeout"]);
+            if (params.containsKey("interval"))
+                LoggerConfig.SetConfigString(Config::CONFIG_UPLOAD_INTERVAL_S, params["upload"]["interval"]);
+        }
     } else {
         return false;
     }
     return true;
 }
 
-static const char* stable_config = "{\"version\": {\"commandproc\": \"1.4.0\"}, \"enable\": {\"nmea0183\": true, \"nmea2000\": true, \"imu\": false, \"powermonitor\": false, \"sdmmc\": false, \"udpbridge\": false, \"webserver\": true}, \"wifi\": {\"mode\": \"AP\", \"address\": \"192.168.4.1\", \"station\": {\"delay\": 20, \"retries\": 5, \"timeout\": 5}, \"ssids\": {\"ap\": \"wibl-config\", \"station\": \"wibl-logger\"}, \"passwords\": {\"ap\": \"wibl-config-password\", \"station\": \"wibl-logger-password\"}}, \"uniqueID\": \"wibl-logger\", \"shipname\": \"Anonymous\", \"baudrate\": {\"port1\": 4800, \"port2\": 4800}, \"udpbridge\": 12345}";
+static const char *stable_config = "{\"version\": {\"commandproc\": \"1.4.0\"}, \"enable\": {\"nmea0183\": true, \"nmea2000\": true, \"imu\": false, \"powermonitor\": false, \"sdmmc\": false, \"udpbridge\": false, \"webserver\": true}, \"wifi\": {\"mode\": \"AP\", \"address\": \"192.168.4.1\", \"station\": {\"delay\": 20, \"retries\": 5, \"timeout\": 5}, \"ssids\": {\"ap\": \"wibl-config\", \"station\": \"wibl-logger\"}, \"passwords\": {\"ap\": \"wibl-config-password\", \"station\": \"wibl-logger-password\"}}, \"uniqueID\": \"wibl-logger\", \"shipname\": \"Anonymous\", \"baudrate\": {\"port1\": 4800, \"port2\": 4800}, \"udpbridge\": 12345, \"upload\": {\"server\": \"192.168.4.2\", \"port\": 80, \"timeout\": 5.0, \"interval\": 1800.0}}";
 
 bool ConfigJSON::SetStableConfig(void)
 {
