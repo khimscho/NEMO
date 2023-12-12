@@ -34,11 +34,17 @@ center_lon: float = (xmin + xmax) / 2
 center_lat: float = (ymin + ymax) / 2
 global_inset_proj = f"G{center_lon}/{center_lat}/?"
 
+pygmt.config(FONT_TITLE='20p,Helvetica')
 f = pygmt.Figure()
+
+title = f"Soundings from '{sounding_path}'"
+f.basemap(region=region,
+          projection='M16c',
+          frame=["afg", f"+t{title}"])
+
 f.grdimage(gebco_path,
            region=region,
            projection="M16c",
-           frame="afg",
            cmap='terra')
 
 f.colorbar(position="JBC", frame=["x+lGEBCO 2023 Bathymetry", "y+lm"])
@@ -73,4 +79,5 @@ with f.inset(
     )
     f.plot(data=region_poly, style="r+s", pen="0.5p,blue")
 
-f.savefig('pygmt_test_gtiff.png')
+# f.savefig('pygmt_test_gtiff.png')
+f.psconvert(prefix='pygmt_test_gtiff', fmt='f', resize='+m0.2c')
