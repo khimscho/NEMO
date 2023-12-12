@@ -15,5 +15,6 @@ Firmware 1.5.0 includes the following additions:
 * Scales, metadata, NMEA0183 filters, and algorithm requests are now all stored as JSON data int the NVM, rather than as plain-text files.
 * The status command now provides the URL at which to find each log file, as well as size, MD5 hash, and ID number.
 * New command "snapshot" to generate a snapshot of the running configuration, default configuration, or file catalog as files on the SD card so that they can be downloaded to local storage on a mobile device.  The JSON response is the URL at which to find the snapshot.  The internal website implements this functionality through GUI buttons.
+* Ability to specify more than one NMEA0183 sentence recognition string in "accept" command in a single command.
 
 Note that this release also updates the command processor version to 1.4.0.
