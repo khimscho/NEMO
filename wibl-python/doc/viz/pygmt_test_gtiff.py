@@ -1,13 +1,30 @@
 import pygmt
+from osgeo import gdal
 import rasterio
+
+gdal.UseExceptions()
+
+RASTER_NODATA = -99999.
+RASTER_RES = 0.0005
 
 gebco_path: str = 'data/gebco_2023/GEBCO_2023.nc'
 buffer = 0.5
 buffer_inset = 4 * buffer
-sounding_path: str = 'data/bigfile-md.tif'
+sounding_path: str = 'data/bigfile-md.json'
+sounding_rast: str = 'data/bigfile-md.tif'
+
+# Generate GeoTIFF of soundings from GeoJSON file
+try:
+    gdal.Rasterize(sounding_rast, sounding_path, format='GTiff',
+                   outputSRS='EPSG:4326', xRes=RASTER_RES, yRes=-RASTER_RES,
+                   noData=RASTER_NODATA, creationOptions=['COMPRESS=DEFLATE', 'ZLEVEL=9'],
+                   attribute='depth')
+except Exception as e:
+    # TODO: Handle this exception once we move this to library code
+    pass
 
 # Get bounds from raster metadata
-with rasterio.open(sounding_path) as d:
+with rasterio.open(sounding_rast) as d:
     xmin = d.bounds.left
     xmax = d.bounds.right
     ymin = d.bounds.bottom
@@ -50,7 +67,7 @@ f.grdimage(gebco_path,
 f.colorbar(position="JBC", frame=["x+lGEBCO 2023 Bathymetry", "y+lm"])
 
 # Plot soundings
-f.grdview(sounding_path)
+f.grdview(sounding_rast, cmap=True)
 
 # Plot global inset
 with f.inset(
