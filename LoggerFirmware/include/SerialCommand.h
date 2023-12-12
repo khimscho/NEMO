@@ -186,7 +186,7 @@ private:
     /// \brief Convert a stringified JSON into a document, with error reporting
     bool EmitJSON(String const& source, CommandSource src);
     /// @brief Generate a list of files into a JSON document
-    void GenerateFilelist(JsonDocument& doc);
+    DynamicJsonDocument GenerateFilelist(void);
     /// @brief Display a NMEA0183 filter ID list
     void DisplayNMEAFilter(logger::N0183IDStore& filter, CommandSource src);
     /// @brief Display an Algorithm Store list

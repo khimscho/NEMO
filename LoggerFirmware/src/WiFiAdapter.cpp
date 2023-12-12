@@ -426,7 +426,20 @@ private:
 
     void accumulateMessage(String const& message)
     {
-        (*m_messages)["messages"].add(message);
+        if (!(*m_messages)["messages"].add(message)) {
+            // False means there wasn't enough memory in the document.
+            size_t new_capacity = m_messages->capacity() * 2;
+            DynamicJsonDocument *new_doc = new DynamicJsonDocument(new_capacity);
+            if (new_doc != nullptr) {
+                new_doc->set(*m_messages);
+                (*new_doc)["messages"].add(message);
+                delete m_messages;
+                m_messages = new_doc;
+            } else {
+                Serial.printf("ERR: failed to expand WiFi message accumulation buffer to %d bytes; messages may be truncated.\n",
+                    new_capacity);
+            }
+        }
     }
 
     /// Replace the entire message to be sent to the client with the provided string.

@@ -74,7 +74,7 @@ public:
     String JSONRepresentation(bool indented = false);
 
     /// @brief Generate a JsonDocument representation of the underlying object
-    void GetContents(JsonDocument& dest);
+    DynamicJsonDocument GetContents(void);
 
 protected:
     /// @brief Start a transaction to update the contents of the object
@@ -197,7 +197,8 @@ public:
     N0183IDStore(void);
 
     /// \brief Add another message ID to the accepted list
-    bool AddID(String const& msgid);
+    bool AddIDs(String const& msgid);
+
     /// \brief Reset the accepted list to empty
     void ClearIDList(void);
 

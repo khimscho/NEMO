@@ -842,20 +842,14 @@ void SerialCommand::ReportHeapSize(CommandSource src)
 
 void SerialCommand::DisplayAlgorithmStore(logger::AlgoRequestStore& store, CommandSource src)
 {
-    String algorithms;
-    DynamicJsonDocument doc(1024);
-    switch (src) {
-        case CommandSource::SerialPort:
-            algorithms = store.JSONRepresentation(true);
-            EmitMessage(algorithms + '\n', src);
-            break;
-        case CommandSource::WirelessPort:
-            store.GetContents(doc);
-            m_wifi->SetMessage(doc);
-            break;
-        default:
-            EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
-            break;
+    if (src == CommandSource::SerialPort) {
+        String algorithms(store.JSONRepresentation(true));
+        EmitMessage(algorithms + '\n', src);
+    } else if (src == CommandSource::WirelessPort) {
+        DynamicJsonDocument doc(store.GetContents());
+        m_wifi->SetMessage(doc);
+    } else {
+        EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
     }
 }
 
@@ -947,22 +941,15 @@ void SerialCommand::ReportMetadataElement(CommandSource src)
 
 void SerialCommand::DisplayNMEAFilter(logger::N0183IDStore& filter, CommandSource src)
 {
-    DynamicJsonDocument doc(1024);
-    String filter_ids;
-
-    switch (src) {
-        case CommandSource::SerialPort:
-            EmitMessage("NMEA0183 message IDs accepted for logging:\n", src);
-            filter_ids = filter.JSONRepresentation(true);
-            EmitMessage(filter_ids + '\n', src);
-            break;
-        case CommandSource::WirelessPort:
-            filter.GetContents(doc);
-            m_wifi->SetMessage(doc);
-            break;
-        default:
-            EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
-            break;
+    if (src == CommandSource::SerialPort) {
+        EmitMessage("NMEA0183 message IDs accepted for logging:\n", src);
+        String filter_ids(filter.JSONRepresentation(true));
+        EmitMessage(filter_ids + '\n', src);
+    } else if (src == CommandSource::WirelessPort) {
+        DynamicJsonDocument doc(filter.GetContents());
+        m_wifi->SetMessage(doc);
+    } else {
+         EmitMessage("ERR: request for unknown CommandSource - who are you?\n", src);
     }
 }
 
@@ -986,7 +973,7 @@ void SerialCommand::ReportNMEAFilter(CommandSource src)
 /// everything is logged.  Note that the code does not consider the talker ID, so INGGA and
 /// GPGGA will both be logged if GGA is on the list.
 ///
-/// \param params   Parameters for the command: any | <arbitrary-text>
+/// \param params   Parameters for the command: all | <arbitrary-text>
 /// \param src      Channel on which to report the results of the command (Serial, WiFi, BLE)
 
 void SerialCommand::AddNMEAFilter(String const& params, CommandSource src)
@@ -995,7 +982,7 @@ void SerialCommand::AddNMEAFilter(String const& params, CommandSource src)
     if (params == "all") {
         filter.ClearIDList();
     } else {
-        filter.AddID(params);
+        filter.AddIDs(params);
     }
     DisplayNMEAFilter(filter, src);
 }
@@ -1124,7 +1111,8 @@ void SerialCommand::ReportCurrentStatus(CommandSource src)
 
     status["data"] = logger::metrics.LastKnownGood();
 
-    GenerateFilelist(status);
+    DynamicJsonDocument filelist(GenerateFilelist());
+    status["files"] = filelist["files"];
 
     if (src == CommandSource::SerialPort) {
         String json;
@@ -1299,9 +1287,8 @@ void SerialCommand::SnapshotResource(String const& resource, CommandSource src)
         url = "defaults.jsn";
         rc = m_logManager->WriteSnapshot(url, defaults);
     } else if (resource == "catalog") {
-        DynamicJsonDocument files(10240);
+        DynamicJsonDocument files(GenerateFilelist());
         String contents;
-        GenerateFilelist(files);
         url = "catalog.jsn";
         serializeJson(files, contents);
         rc = m_logManager->WriteSnapshot(url, contents);
@@ -1601,10 +1588,14 @@ bool SerialCommand::EmitJSON(String const& source, CommandSource chan)
         EmitMessage("No data in JSON.\n", chan);
         return true;
     }
-    int capacity = source.length() * 2;
-    if (capacity < 1024) capacity = 1024;
+    int capacity = 1024; // Initial guess for size required
     DynamicJsonDocument json(capacity);
-    DeserializationError rc = deserializeJson(json, source + "\n");
+    DeserializationError rc;
+    while ((rc = deserializeJson(json, source + "\n")) == DeserializationError::NoMemory) {
+        capacity *= 2;
+        DynamicJsonDocument larger(capacity);
+        json = larger;
+    }
     if (rc.code() == DeserializationError::Ok) {
         switch (chan) {
             case CommandSource::SerialPort:
@@ -1629,23 +1620,35 @@ bool SerialCommand::EmitJSON(String const& source, CommandSource chan)
 /// an existing JSON document.  This includes the number of files, their reference
 /// IDs, sizes, MD5 hashes, and filenames in the store.
 ///
-/// @param doc  JsonDocument to use for output
-/// @return N/A
+/// @param filelist JsonDocument with the file list, ready to insert
 
-void SerialCommand::GenerateFilelist(JsonDocument& doc)
+DynamicJsonDocument SerialCommand::GenerateFilelist(void)
 {
     uint32_t filenumbers[logger::MaxLogFiles];
     uint32_t n_files = m_logManager->CountLogFiles(filenumbers);
+    DynamicJsonDocument doc(100*n_files); // Approximate guess, but can expand
+
     doc["files"]["count"] = n_files;
     for (int n = 0; n < n_files; ++n) {
         String filename;
         uint32_t filesize;
         logger::Manager::MD5Hash filehash;
         m_logManager->EnumerateLogFile(filenumbers[n], filename, filesize, filehash);
-        doc["files"]["detail"][n]["id"] = filenumbers[n];
-        doc["files"]["detail"][n]["len"] = filesize;
+        StaticJsonDocument<256> entry;
+        entry["id"] = filenumbers[n];
+        entry["len"] = filesize;
         if (!filehash.Empty())
-            doc["files"]["detail"][n]["md5"] = filehash.Value();
-        doc["files"]["detail"][n]["url"] = filename;
+            entry["md5"] = filehash.Value();
+        entry["url"] = filename;
+
+        if (!doc["files"]["detail"].add(entry.as<JsonObject>())) {
+            // Out of memory, so make a new allocation
+            int capacity = doc.capacity() * 2;
+            DynamicJsonDocument new_doc(capacity);
+            new_doc.set(doc);
+            doc = new_doc;
+            doc["files"]["detail"].add(entry.as<JsonObject>());
+        }
     }
+    return doc;
 }

@@ -156,9 +156,19 @@ String NVMFile::JSONRepresentation(bool indented)
 ///
 /// @param dest Document into which to generate contents
 
-void NVMFile::GetContents(JsonDocument& dest)
+DynamicJsonDocument NVMFile::GetContents(void)
 {
-    deserializeJson(dest, m_contents);
+    DynamicJsonDocument dest(1024);
+    DeserializationError rc;
+
+    while ((rc = deserializeJson(dest, m_contents)) == DeserializationError::NoMemory) {
+        // Increase capacity in the destination document
+        size_t capacity = dest.capacity() * 2;
+        DynamicJsonDocument new_doc(capacity);
+        new_doc.set(dest);
+        dest = new_doc;
+    }
+    return dest;
 }
 
 /// Replace the contents of the object with the specified document.  The previous contents of the
@@ -359,8 +369,7 @@ void AlgoRequestStore::ClearAlgorithmList(void)
 
 void AlgoRequestStore::SerialiseAlgorithms(Serialiser *s)
 {
-    DynamicJsonDocument doc(1024);
-    GetContents(doc);
+    DynamicJsonDocument doc(GetContents());
 
     int alg_count = doc["count"];
     for (int n = 0; n < alg_count; ++n) {
@@ -395,20 +404,36 @@ N0183IDStore::N0183IDStore(void)
 /// "GLL", "ZDA", "DBT", etc.)  No captialisation converion is done --- what you specify is what gets
 /// checked.
 ///
-/// @param msgid    String representation of the three-letter message ID
+/// @param msgid    String representation of the three-letter message IDs (space separated)
 
-bool N0183IDStore::AddID(String const& msgid)
+bool N0183IDStore::AddIDs(String const& msg_set)
 {
-    if (msgid.length() != 3) {
-        Serial.printf("ERR: cannot add recognition ID of |%s|: must have three characters.\n",
-            msgid.c_str());
-        return false;
-    }
     DynamicJsonDocument doc(BeginTransaction());
     int count = doc["count"];
+    int start_point = 0, split_point;
+
     Serial.printf("DBG: NMEA0183 ID count currently %d\n", count);
-    doc["ids"][count] = msgid;
-    doc["count"] = count + 1;
+
+    while ((split_point = msg_set.indexOf(' ', start_point)) >= 0) {
+        String msgid = msg_set.substring(start_point, split_point);
+        if (msgid.length() != 3) {
+            Serial.printf("ERR: cannot add recognition ID of |%s|: must have three characters.\n",
+                msgid.c_str());
+        } else {
+            doc["ids"][count] = msgid;
+            ++count;
+        }
+        start_point = split_point + 1;
+    }
+    // At the end of the loop, the last sentence to be accepted is at start_point
+    if ((msg_set.length() - start_point) != 3) {
+        Serial.printf("ERR: cannot add recognition ID of |%s|: must have three characters.\n",
+                msg_set.substring(start_point).c_str());
+    } else {
+        doc["ids"][count] = msg_set.substring(start_point);
+        ++count;
+    }
+    doc["count"] = count;
     EndTransaction(doc);
 
     String temp(JSONRepresentation());
@@ -434,8 +459,7 @@ void N0183IDStore::ClearIDList(void)
 
 void N0183IDStore::SerialiseIDs(Serialiser *s)
 {
-    DynamicJsonDocument doc(1024);
-    GetContents(doc);
+    DynamicJsonDocument doc(GetContents());
 
     int count = doc["count"];
     for (int n = 0; n < count; ++n) {
@@ -455,8 +479,7 @@ void N0183IDStore::SerialiseIDs(Serialiser *s)
 
 void N0183IDStore::BuildSet(std::set<String>& s)
 {
-    DynamicJsonDocument doc(1024);
-    GetContents(doc);
+    DynamicJsonDocument doc(GetContents());
 
     int count = doc["count"];
     s.clear();
