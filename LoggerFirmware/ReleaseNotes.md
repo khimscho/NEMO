@@ -1,0 +1,19 @@
+# Release Notes: Logger Firmware
+
+## Firmware 1.5.0
+
+Firmware 1.5.0 includes the following additions:
+
+* Ability to include algorithm requests dynamically based on the data being captured.  This resolves the issue to "no data" values in NMEA2000 inputs causing chaos in post.
+* Internal website.  The logger can now host its own configuration and manipulation software, providing these to any browser as a mixture of HTML/CSS/JavaScript.  Data download is through normal browser download mechanisms by exposing the log files as a static website and providing download links as part of the website status page.  This makes the logger self-hosting.
+* Monitoring for the latest time/position/depth on NMEA0183 and NMEA2000 inputs so that the status page on the internal website can demonstrate whether the logger is receiving data (ideal for installation, but also good for debugging while underway).
+* JSON output for all commands when using the WiFi interface.  This includes error messages as a JSON response with just a "messages" tag and an array of strings.
+* A consistently reported firmware version in configuration and status information.
+* Addition of NVM storage for an upload token (e.g., for an API key).
+* "/heartbeat" API endpoint on the logger's WiFi interface now generates a full status message, rather than just the serial number of the logger.
+* Console logs are now limited to a fixed (compile-time) size, but will rotate three stages (grandparent-parent-child) to preserve a little more history.
+* Scales, metadata, NMEA0183 filters, and algorithm requests are now all stored as JSON data int the NVM, rather than as plain-text files.
+* The status command now provides the URL at which to find each log file, as well as size, MD5 hash, and ID number.
+* New command "snapshot" to generate a snapshot of the running configuration, default configuration, or file catalog as files on the SD card so that they can be downloaded to local storage on a mobile device.  The JSON response is the URL at which to find the snapshot.  The internal website implements this functionality through GUI buttons.
+
+Note that this release also updates the command processor version to 1.4.0.
