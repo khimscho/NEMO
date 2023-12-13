@@ -1,5 +1,8 @@
-import sys
+import json
+import tempfile
 from pathlib import Path
+from typing import Dict, List, Any
+import logging
 
 import pygmt
 from osgeo import gdal
@@ -12,15 +15,90 @@ RASTER_MAX = 40_000
 RASTER_RES = 0.0009
 REGION_INSET_MULT = 4
 
-gebco_path: str = 'data/gebco_2023/GEBCO_2023.nc'
-# sounding_str: str = 'data/bigfile-md.json'
-sounding_str: str = 'data/pnw-b12_2.0.json'
-sounding_path: Path = Path(sounding_str)
+gebco_path: Path = Path('data/gebco_2023/GEBCO_2023.nc')
+geojson_path: Path = Path('data/GeoJSON')
+observer_name: str = '$VESSEL_NAME'
+
+
+logger = logging.getLogger(__name__)
+
+
+def merge_geojson(geojson_path: Path, out_geojson_fp, *,
+                  files_glob: str = '*.json',
+                  fail_on_error: bool = False) -> None:
+    """
+    Merge multiple geojson files into one geojson file.
+    :param geojson_path:
+    :param out_geojson_path:
+    :param files_glob:
+    :param files_to_merge:
+    :param fail_on_error:
+    :return:
+    """
+    out_features: List[Dict[str, Any]] = []
+
+    out_dict: Dict[str, Any] = {
+        'type': 'FeatureCollection',
+        'crs': {
+            'type': 'name',
+            'properties': {
+                'name': 'urn:ogc:def:crs:OGC:1.3:CRS84'
+            }
+        },
+        'features': out_features
+    }
+
+    # Read each file to merge
+    for file_to_merge in geojson_path.glob(files_glob):
+        if not file_to_merge.exists() or not file_to_merge.is_file():
+            mesg = f"Unabled to merge {str(file_to_merge)}: Path does not exist or is not a file."
+            if fail_on_error:
+                logger.error(mesg)
+                raise Exception(mesg)
+            else:
+                logger.warning(mesg)
+                continue
+        with open(file_to_merge) as tmp_f:
+            tmp_geojson: Dict = json.load(tmp_f)
+
+        if 'features' not in tmp_geojson:
+            mesg = f"Unable to merge features from {str(file_to_merge)}: No features found."
+            if fail_on_error:
+                logger.error(mesg)
+                raise Exception(mesg)
+            else:
+                logger.warning(mesg)
+                continue
+
+        tmp_feat: List[Dict[str, Any]] = tmp_geojson['features']
+        if not isinstance(tmp_feat, list):
+            mesg = (f"Unable to merge features from {str(file_to_merge)}: "
+                    "Expected 'features' to be an array, but it is not.")
+            if fail_on_error:
+                logger.error(mesg)
+                raise Exception(mesg)
+            else:
+                logger.warning(mesg)
+                continue
+
+        out_features.extend(tmp_feat)
+
+    # Write out merged features
+    json.dump(out_dict, out_geojson_fp)
+
+
+# Merge GeoJSON files into a single file
+# Create merged GeoJSON file in a temporary directory and get its name
+merged_geojson_fp = tempfile.NamedTemporaryFile(mode='w',
+                                                encoding='utf-8',
+                                                newline='\n',
+                                                suffix='.json',
+                                                delete=False)
+sounding_path: Path = Path(merged_geojson_fp.name)
 sounding_rast: Path = sounding_path.with_suffix('.tif')
-
-# TODO: Merge GeoJSON into a single file
-# $ ogrmerge.py -o ~/Downloads/GeoJSON/merged.json ~/Downloads/GeoJSON/*.json -single
-
+# Now merge and then close the merged file so that we can rasterize it next.
+merge_geojson(geojson_path, merged_geojson_fp)
+merged_geojson_fp.close()
 
 # Generate GeoTIFF of soundings from GeoJSON file
 try:
@@ -28,6 +106,8 @@ try:
                    outputSRS='EPSG:4326', xRes=RASTER_RES, yRes=-RASTER_RES,
                    noData=RASTER_NODATA, creationOptions=['COMPRESS=DEFLATE', 'ZLEVEL=9'],
                    attribute='depth', where=f"depth > 0 AND depth < {RASTER_MAX}")
+    logger.debug(f"Deleting merged soundings file {str(sounding_path)}")
+    sounding_path.unlink()
 except Exception as e:
     # TODO: Handle this exception once we move this to library code
     print(str(e))
@@ -72,7 +152,7 @@ pygmt.config(FONT_TITLE='20p,Helvetica',
              FONT_LABEL='12p,Helvetica')
 f = pygmt.Figure()
 
-title = f"Soundings from '{sounding_str}'"
+title = f"Soundings from '{observer_name}'"
 f.basemap(region=region,
           projection='M16c',
           frame=["afg", f"+t{title}"])
