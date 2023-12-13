@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 
 import pygmt
@@ -26,10 +27,11 @@ try:
     gdal.Rasterize(sounding_rast, sounding_path, format='GTiff',
                    outputSRS='EPSG:4326', xRes=RASTER_RES, yRes=-RASTER_RES,
                    noData=RASTER_NODATA, creationOptions=['COMPRESS=DEFLATE', 'ZLEVEL=9'],
-                   attribute='depth', where=f"depth < {RASTER_MAX}")
+                   attribute='depth', where=f"depth > 0 AND depth < {RASTER_MAX}")
 except Exception as e:
     # TODO: Handle this exception once we move this to library code
-    pass
+    print(str(e))
+    raise e
 
 # Get bounds from raster metadata
 with rasterio.open(sounding_rast) as d:
@@ -83,7 +85,7 @@ f.grdimage(gebco_path,
 f.colorbar(position="JBC", frame=["x+lGEBCO 2023 Bathymetry", "y+lm"])
 
 # Plot soundings
-f.grdimage(sounding_rast, cmap='haxby', nan_transparent=True)
+f.grdimage(sounding_rast, cmap='drywet', nan_transparent=True)
 f.colorbar(position="JLM+o-2.0c/0c+w4c",
            box="+gwhite@30+p0.8p,black",
            frame=["x+lSounding depth", "y+lm"])
