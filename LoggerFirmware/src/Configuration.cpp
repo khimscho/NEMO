@@ -60,7 +60,8 @@ const String lookup[] = {
     "PowMon",           ///< Control whether power monitoring and emergency shutdown is done (binary)
     "MemModule",        ///< Control whether SD/MMC or SPI is used to access the SD card (binary)
     "Bridge",           ///< Control whether to start the UDP->RS-422 bridge on WiFi startup (binary)
-    "WebServer",        ///< Control whether to use the web server interface to configure the system
+    "WebServer",        ///< Control whether to use the web server interface to configure the system (binary)
+    "Upload",           ///< Control whether to auto-upload files when online (binary)
     "modid",            ///< Set the module's Unique ID (string)
     "shipname",         ///< Set the ship's name (string)
     "ap_ssid",          ///< Set the WiFi SSID (string)
@@ -82,7 +83,8 @@ const String lookup[] = {
     "UploadServer",     ///< IPv4 address for the server to use for upload
     "UploadPort",       ///< IPc4 port for server to use for upload
     "UploadTimeout",    ///< Timeout (seconds) for the upload server to respond to probe
-    "UploadInterval"    ///< Interval (seconds) between upload attempts
+    "UploadInterval",   ///< Interval (seconds) between upload attempts
+    "UploadDuration"    ///< Time (seconds) for upload activity before diverting back to other efforts
 };
 
 /// Default constructor.  This sets up for a dummy parameter store, which is configured
@@ -200,7 +202,8 @@ DynamicJsonDocument ConfigJSON::ExtractConfig(bool secure)
     params["version"]["serialiser"] = Serialiser::SoftwareVersion();
 
     // Enable/disable for the various loggers and features
-    bool nmea0183_enable, nmea2000_enable, imu_enable, powmon_enable, sdmmc_enable, udp_bridge_enable, webserver_on_boot;
+    bool nmea0183_enable, nmea2000_enable, imu_enable, powmon_enable, sdmmc_enable,
+         udp_bridge_enable, webserver_on_boot, upload_online;
     LoggerConfig.GetConfigBinary(Config::CONFIG_NMEA0183_B, nmea0183_enable);
     LoggerConfig.GetConfigBinary(Config::ConfigParam::CONFIG_NMEA2000_B, nmea2000_enable);
     LoggerConfig.GetConfigBinary(Config::ConfigParam::CONFIG_MOTION_B, imu_enable);
@@ -208,6 +211,7 @@ DynamicJsonDocument ConfigJSON::ExtractConfig(bool secure)
     LoggerConfig.GetConfigBinary(Config::ConfigParam::CONFIG_SDMMC_B, sdmmc_enable);
     LoggerConfig.GetConfigBinary(Config::ConfigParam::CONFIG_BRIDGE_B, udp_bridge_enable);
     LoggerConfig.GetConfigBinary(Config::ConfigParam::CONFIG_WEBSERVER_B, webserver_on_boot);
+    LoggerConfig.GetConfigBinary(Config::ConfigParam::CONFIG_UPLOAD_B, upload_online);
     params["enable"]["nmea0183"] = nmea0183_enable;
     params["enable"]["nmea2000"] = nmea2000_enable;
     params["enable"]["imu"] = imu_enable;
@@ -215,6 +219,7 @@ DynamicJsonDocument ConfigJSON::ExtractConfig(bool secure)
     params["enable"]["sdmmc"] = sdmmc_enable;
     params["enable"]["udpbridge"] = udp_bridge_enable;
     params["enable"]["webserver"] = webserver_on_boot;
+    params["enable"]["upload"] = upload_online;
 
     // String configurations for the various parameters in configuration
     String wifi_station_delay, wifi_station_retries, wifi_station_timeout, wifi_ip_address, wifi_mode;
@@ -252,15 +257,17 @@ DynamicJsonDocument ConfigJSON::ExtractConfig(bool secure)
     params["baudrate"]["port2"] = baudrate_port2.toInt();
     params["udpbridge"] = udp_bridge_port.toInt();
 
-    String upload_server, upload_port, upload_timeout, upload_interval;
+    String upload_server, upload_port, upload_timeout, upload_interval, upload_duration;
     LoggerConfig.GetConfigString(Config::CONFIG_UPLOAD_SERVER_S, upload_server);
     LoggerConfig.GetConfigString(Config::CONFIG_UPLOAD_PORT_S, upload_port);
     LoggerConfig.GetConfigString(Config::CONFIG_UPLOAD_TIMEOUT_S, upload_timeout);
     LoggerConfig.GetConfigString(Config::CONFIG_UPLOAD_INTERVAL_S, upload_interval);
+    LoggerConfig.GetConfigString(Config::CONFIG_UPLOAD_DURATION_S, upload_duration);
     params["upload"]["server"] = upload_server;
     params["upload"]["port"] = upload_port.toInt();
     params["upload"]["timeout"] = upload_timeout.toDouble();
     params["upload"]["interval"] = upload_interval.toDouble();
+    params["upload"]["duration"] = upload_duration.toDouble();
 
     return params;
 }
@@ -299,6 +306,8 @@ bool ConfigJSON::SetConfig(String const& json_string)
                 LoggerConfig.SetConfigBinary(Config::CONFIG_BRIDGE_B, params["enable"]["udpbridge"]);
             if (params["enable"].containsKey("webserver"))
                 LoggerConfig.SetConfigBinary(Config::CONFIG_WEBSERVER_B, params["enable"]["webserver"]);
+            if (params["enable"].containsKey("upload"))
+                LoggerConfig.SetConfigBinary(Config::CONFIG_UPLOAD_B, params["enable"]["upload"]);
         }
         if (params.containsKey("wifi")) {
             if (params["wifi"].containsKey("mode"))
@@ -337,14 +346,16 @@ bool ConfigJSON::SetConfig(String const& json_string)
         if (params.containsKey("udpbridge"))
             LoggerConfig.SetConfigString(Config::CONFIG_BRIDGE_PORT_S, params["udpbridge"]);
         if (params.containsKey("upload")) {
-            if (params.containsKey("server"))
+            if (params["upload"].containsKey("server"))
                 LoggerConfig.SetConfigString(Config::CONFIG_UPLOAD_SERVER_S, params["upload"]["server"]);
-            if (params.containsKey("port"))
+            if (params["upload"].containsKey("port"))
                 LoggerConfig.SetConfigString(Config::CONFIG_UPLOAD_PORT_S, params["upload"]["port"]);
-            if (params.containsKey("timeout"))
+            if (params["upload"].containsKey("timeout"))
                 LoggerConfig.SetConfigString(Config::CONFIG_UPLOAD_TIMEOUT_S, params["upload"]["timeout"]);
-            if (params.containsKey("interval"))
+            if (params["upload"].containsKey("interval"))
                 LoggerConfig.SetConfigString(Config::CONFIG_UPLOAD_INTERVAL_S, params["upload"]["interval"]);
+            if (params["upload"].containsKey("duration"))
+                LoggerConfig.SetConfigString(Config::CONFIG_UPLOAD_DURATION_S, params["upload"]["duration"]);
         }
     } else {
         return false;
@@ -352,7 +363,7 @@ bool ConfigJSON::SetConfig(String const& json_string)
     return true;
 }
 
-static const char *stable_config = "{\"version\": {\"commandproc\": \"1.4.0\"}, \"enable\": {\"nmea0183\": true, \"nmea2000\": true, \"imu\": false, \"powermonitor\": false, \"sdmmc\": false, \"udpbridge\": false, \"webserver\": true}, \"wifi\": {\"mode\": \"AP\", \"address\": \"192.168.4.1\", \"station\": {\"delay\": 20, \"retries\": 5, \"timeout\": 5}, \"ssids\": {\"ap\": \"wibl-config\", \"station\": \"wibl-logger\"}, \"passwords\": {\"ap\": \"wibl-config-password\", \"station\": \"wibl-logger-password\"}}, \"uniqueID\": \"wibl-logger\", \"shipname\": \"Anonymous\", \"baudrate\": {\"port1\": 4800, \"port2\": 4800}, \"udpbridge\": 12345, \"upload\": {\"server\": \"192.168.4.2\", \"port\": 80, \"timeout\": 5.0, \"interval\": 1800.0}}";
+static const char *stable_config = "{\"version\": {\"commandproc\": \"1.4.0\"}, \"enable\": {\"nmea0183\": true, \"nmea2000\": true, \"imu\": false, \"powermonitor\": false, \"sdmmc\": false, \"udpbridge\": false, \"webserver\": true, \"upload\": false}, \"wifi\": {\"mode\": \"AP\", \"address\": \"192.168.4.1\", \"station\": {\"delay\": 20, \"retries\": 5, \"timeout\": 5}, \"ssids\": {\"ap\": \"wibl-config\", \"station\": \"wibl-logger\"}, \"passwords\": {\"ap\": \"wibl-config-password\", \"station\": \"wibl-logger-password\"}}, \"uniqueID\": \"wibl-logger\", \"shipname\": \"Anonymous\", \"baudrate\": {\"port1\": 4800, \"port2\": 4800}, \"udpbridge\": 12345, \"upload\": {\"server\": \"192.168.4.2\", \"port\": 80, \"timeout\": 5.0, \"interval\": 1800.0, \"duration\": 10.0}}";
 
 bool ConfigJSON::SetStableConfig(void)
 {

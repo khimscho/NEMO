@@ -167,6 +167,6 @@ DynamicJsonDocument DataMetrics::LastKnownGood(void) const
     return summary;
 }
 
-DataMetrics metrics;
+DataMetrics Metrics;
 
 };

@@ -74,6 +74,7 @@ class Config {
             CONFIG_SDMMC_B,         /* Binary: SD-MMC (SDIO) interface for log files */
             CONFIG_BRIDGE_B,        /* Binary: Bridge UDP broadcast packets to NMEA0183 */
             CONFIG_WEBSERVER_B,     /* Binary: Use web server interface to configure system */
+            CONFIG_UPLOAD_B,        /* Binary: enable auto-upload when online */
             CONFIG_MODULEID_S,      /* String: User-specified unique identifier for the module */
             CONFIG_SHIPNAME_S,      /* String: User-specific name for the ship hosting the WIBL */
             CONFIG_AP_SSID_S,       /* String: WiFi SSID for AP */
@@ -96,6 +97,7 @@ class Config {
             CONFIG_UPLOAD_PORT_S,   /* String: port to use on server for upload */
             CONFIG_UPLOAD_TIMEOUT_S,/* String: timeout (seconds) before deciding that the server isn't available */
             CONFIG_UPLOAD_INTERVAL_S,/* String: interval (seconds) between upload attempts */
+            CONFIG_UPLOAD_DURATION_S/* String: duration (seconds) for each upload event */
         };
 
         /// \brief Extract a configuration string for the specified parameter

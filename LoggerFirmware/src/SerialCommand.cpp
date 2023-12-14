@@ -35,6 +35,7 @@
 #include "NVMFile.h"
 #include "IMULogger.h"
 #include "DataMetrics.h"
+#include "Status.h"
 
 const uint32_t CommandMajorVersion = 1;
 const uint32_t CommandMinorVersion = 4;
@@ -63,21 +64,34 @@ SerialCommand::SerialCommand(nmea::N2000::Logger *CANLogger, nmea::N0183::Logger
     // whether it gets started when the system first somes up or not.
     m_wifi = WiFiAdapterFactory::Create();
 
-    Serial.printf("DBG: After WiFi interface create, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+    Serial.printf("DBG: After WiFi interface create, heap free = %d B, delta = %d B\n",
+        heap.CurrentSize(), heap.DeltaSinceLast());
     bool start_wifi;
     if (logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_WEBSERVER_B, start_wifi)
         && start_wifi) {
         if (m_wifi->Startup()) {
-            Serial.printf("DBG: After WiFi interface start, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+            Serial.printf("DBG: After WiFi interface start, heap free = %d B, delta = %d B\n",
+                heap.CurrentSize(), heap.DeltaSinceLast());
 
             bool start_bridge;
             logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_BRIDGE_B, start_bridge);
             if (start_bridge) {
                 m_bridge = new nmea::N0183::PointBridge();
 
-                Serial.printf("DBG: After UDP bridge start, heap free = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
+                Serial.printf("DBG: After UDP bridge start, heap free = %d B, delta = %d B\n",
+                    heap.CurrentSize(), heap.DeltaSinceLast());
             } else {
                 m_bridge = nullptr;
+            }
+
+            bool start_autoupload;
+            logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_UPLOAD_B, start_autoupload);
+            if (start_autoupload) {
+                m_uploadManager = new net::UploadManager(m_logManager);
+                Serial.printf("DBG: After UploadManager start, heap free = %d B, delta = %d B\n",
+                    heap.CurrentSize(), heap.DeltaSinceLast());
+            } else {
+                m_uploadManager = nullptr;
             }
         } else {
             Serial.printf("ERR: Failed to start WiFi interface.\n");
@@ -91,6 +105,7 @@ SerialCommand::SerialCommand(nmea::N2000::Logger *CANLogger, nmea::N0183::Logger
 
 SerialCommand::~SerialCommand()
 {
+    delete m_uploadManager;
     delete m_bridge;
     delete m_wifi;
 }
@@ -492,11 +507,12 @@ void SerialCommand::TransferLogFile(String const& filenum, CommandSource src)
 {
     String          filename;
     uint32_t        filesize;
+    uint16_t        uploadCount;
     uint32_t        file_number = filenum.toInt();
     logger::Manager::MD5Hash filehash;
     unsigned long   tx_start, tx_end, tx_duration;
    
-    m_logManager->EnumerateLogFile(file_number, filename, filesize, filehash);
+    m_logManager->EnumerateLogFile(file_number, filename, filesize, filehash, uploadCount);
     if (filesize == 0) {
         // This implies File Not Found (since all log files have at least the serialiser
         // version information in them).
@@ -762,6 +778,7 @@ void SerialCommand::ReportConfiguration(CommandSource src)
     EmitMessage("  Bridge UDP: ", src);
     logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_BRIDGE_B, bin_param);
     EmitMessage(bin_param ? "on\n" : "off\n", src);
+
     EmitMessage("  Webserver: ", src);
     logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_WEBSERVER_B, bin_param);
     EmitMessage(bin_param ? "on" : "off", src);
@@ -771,6 +788,21 @@ void SerialCommand::ReportConfiguration(CommandSource src)
     EmitMessage(" " + string_param, src);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_STATION_TIMEOUT_S, string_param);
     EmitMessage(" " + string_param + "\n", src);
+
+    EmitMessage("  Upload: ", src);
+    logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_UPLOAD_B, bin_param);
+    EmitMessage(bin_param ? "on" : "off", src);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_UPLOAD_SERVER_S, string_param);
+    EmitMessage(" " + string_param, src);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_UPLOAD_PORT_S, string_param);
+    EmitMessage(":" + string_param, src);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_UPLOAD_TIMEOUT_S, string_param);
+    EmitMessage(" " + string_param, src);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_UPLOAD_INTERVAL_S, string_param);
+    EmitMessage(" " + string_param, src);
+    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_UPLOAD_DURATION_S, string_param);
+    EmitMessage(" " + string_param + "\n", src);
+
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_MODULEID_S, string_param);
     EmitMessage("  Module ID String: " + string_param + "\n", src);
     logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_SHIPNAME_S, string_param);
@@ -1091,28 +1123,7 @@ void SerialCommand::ConfigureWebserver(String const& params, CommandSource src)
 
 void SerialCommand::ReportCurrentStatus(CommandSource src)
 {
-    DynamicJsonDocument status(10240);
-
-    status["version"]["firmware"] = logger::FirmwareVersion();
-    status["version"]["commandproc"] = SoftwareVersion();
-    status["version"]["nmea0183"] = nmea::N0183::Logger::SoftwareVersion();
-    status["version"]["nmea2000"] = nmea::N2000::Logger::SoftwareVersion();
-    status["version"]["imu"] = imu::Logger::SoftwareVersion();
-    status["version"]["serialiser"] = Serialiser::SoftwareVersion();
-
-    int now = millis();
-    status["elapsed"] = now;
-
-    String server_status, boot_status;
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WS_STATUS_S, server_status);
-    logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_WS_BOOTSTATUS_S, boot_status);
-    status["webserver"]["current"] = server_status;
-    status["webserver"]["boot"] = boot_status;
-
-    status["data"] = logger::metrics.LastKnownGood();
-
-    DynamicJsonDocument filelist(GenerateFilelist());
-    status["files"] = filelist["files"];
+    DynamicJsonDocument status(logger::status::CurrentStatus(m_logManager));
 
     if (src == CommandSource::SerialPort) {
         String json;
@@ -1287,7 +1298,7 @@ void SerialCommand::SnapshotResource(String const& resource, CommandSource src)
         url = "defaults.jsn";
         rc = m_logManager->WriteSnapshot(url, defaults);
     } else if (resource == "catalog") {
-        DynamicJsonDocument files(GenerateFilelist());
+        DynamicJsonDocument files(logger::status::GenerateFilelist(m_logManager));
         String contents;
         url = "catalog.jsn";
         serializeJson(files, contents);
@@ -1304,6 +1315,66 @@ void SerialCommand::SnapshotResource(String const& resource, CommandSource src)
     String response;
     serializeJson(responseJson, response);
     EmitJSON(response, src);
+}
+
+void SerialCommand::ReportUploadConfig(CommandSource src)
+{
+    if (src == CommandSource::SerialPort) {
+        bool enable;
+        String upload_address, upload_port, upload_timeout, upload_interval, upload_duration;
+        logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_UPLOAD_B, enable);
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_UPLOAD_SERVER_S, upload_address);
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_UPLOAD_PORT_S, upload_port);
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_UPLOAD_TIMEOUT_S, upload_timeout);
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_UPLOAD_INTERVAL_S, upload_interval);
+        logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_UPLOAD_DURATION_S, upload_duration);
+        EmitMessage(String("Upload is ") + (enable ? "on" : "off") +
+            " with URL http://" + upload_address + ":" + upload_port +
+            ", connection timeout " + upload_timeout + "s" +
+            ", upload interval " + upload_interval + "s" +
+            ", and upload duration " + upload_duration + "s\n", src);
+    } else if (src == CommandSource::WirelessPort) {
+        ReportConfigurationJSON(src);
+    } else {
+        EmitMessage("ERR: request from unknown CommandSource - who are you?\n", src);
+    }
+}
+
+void SerialCommand::ConfigureUpload(String const& command, CommandSource src)
+{
+    bool state;
+
+    if (command.startsWith("on")) {
+        state = true;
+    } else if (command.startsWith("off")) {
+        state = false;
+    } else {
+        EmitMessage("ERR: upload can be fonfigures 'on' or 'off' on boot only.\n", src);
+        if (src == CommandSource::WirelessPort && m_wifi != nullptr) {
+            m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
+        }
+        return;
+    }
+    int addr_position = command.indexOf(' ') + 1;
+    int port_position = command.indexOf(' ', addr_position) + 1;
+    int timeout_position = command.indexOf(' ', port_position) + 1;
+    int interval_position = command.indexOf(' ', timeout_position) + 1;
+    int duration_position = command.indexOf(' ', interval_position) + 1;
+    String addr(command.substring(addr_position, port_position-1));
+    String port(command.substring(port_position, timeout_position-1));
+    String timeout(command.substring(timeout_position, interval_position-1));
+    String interval(command.substring(interval_position, duration_position-1));
+    String duration(command.substring(duration_position));
+
+    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_UPLOAD_SERVER_S, addr);
+    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_UPLOAD_PORT_S, port);
+    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_UPLOAD_TIMEOUT_S, timeout);
+    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_UPLOAD_INTERVAL_S, interval);
+    logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_UPLOAD_DURATION_S, duration);
+    logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_UPLOAD_B, state);
+    if (src == CommandSource::WirelessPort) {
+        ReportConfigurationJSON(src);
+    }
 }
 
 /// Output a list of known commands, since there are now enough of them to make remembering them
@@ -1343,6 +1414,8 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  token [upload-token]                Set or report the logger's upload handshake token.\n", src);
     EmitMessage("  transfer file-number                Transfer log file [file-number] (WiFi and serial only).\n", src);
     EmitMessage("  uniqueid [logger-name]              Set or report the logger's unique identification string.\n", src);
+    EmitMessage("  upload on|off srvaddr srvport timeout interval duration\n", src);
+    EmitMessage("                                      Control whether files are auto-updated when connected\n", src);
     EmitMessage("  verbose on|off                      Control verbosity of reporting for serial input strings.\n", src);
     EmitMessage("  version                             Report NMEA0183 and NMEA2000 logger version numbers.\n", src);
     EmitMessage("  webserver on|off delay reties timeout\n", src);
@@ -1475,6 +1548,12 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         } else {
             SetIdentificationString(cmd.substring(9), src);
         }
+    } else if (cmd.startsWith("upload")) {
+        if (cmd.length() == 6) {
+            ReportUploadConfig(src);
+        } else {
+            ConfigureUpload(cmd.substring(7), src);
+        }
     } else if (cmd.startsWith("verbose")) {
         SetVerboseMode(cmd.substring(8));
     } else if (cmd == "version") {
@@ -1540,6 +1619,9 @@ void SerialCommand::ProcessCommand(void)
             Execute(cmd, CommandSource::WirelessPort);
             m_wifi->TransmitMessages("text/plain");
         }
+        if (m_uploadManager != nullptr) {
+            m_uploadManager->UploadCycle();
+        }
     }
 }
 
@@ -1572,6 +1654,7 @@ void SerialCommand::EmitMessage(String const& msg, CommandSource src)
             break;
     }
 }
+
 /// Generate a message on the output stream associated with the given source, with
 /// the message in JSON format.  This often happens with metadata, configuration,
 /// and status information.  The code decodes the JSON, which de facto validates
@@ -1614,41 +1697,4 @@ bool SerialCommand::EmitJSON(String const& source, CommandSource chan)
         EmitMessage(rc.c_str(), chan);
     }
     return rc.code() == DeserializationError::Ok;
-}
-
-/// Generate a list of all known files on the logger (and their attributes) into
-/// an existing JSON document.  This includes the number of files, their reference
-/// IDs, sizes, MD5 hashes, and filenames in the store.
-///
-/// @param filelist JsonDocument with the file list, ready to insert
-
-DynamicJsonDocument SerialCommand::GenerateFilelist(void)
-{
-    uint32_t filenumbers[logger::MaxLogFiles];
-    uint32_t n_files = m_logManager->CountLogFiles(filenumbers);
-    DynamicJsonDocument doc(100*n_files); // Approximate guess, but can expand
-
-    doc["files"]["count"] = n_files;
-    for (int n = 0; n < n_files; ++n) {
-        String filename;
-        uint32_t filesize;
-        logger::Manager::MD5Hash filehash;
-        m_logManager->EnumerateLogFile(filenumbers[n], filename, filesize, filehash);
-        StaticJsonDocument<256> entry;
-        entry["id"] = filenumbers[n];
-        entry["len"] = filesize;
-        if (!filehash.Empty())
-            entry["md5"] = filehash.Value();
-        entry["url"] = filename;
-
-        if (!doc["files"]["detail"].add(entry.as<JsonObject>())) {
-            // Out of memory, so make a new allocation
-            int capacity = doc.capacity() * 2;
-            DynamicJsonDocument new_doc(capacity);
-            new_doc.set(doc);
-            doc = new_doc;
-            doc["files"]["detail"].add(entry.as<JsonObject>());
-        }
-    }
-    return doc;
 }

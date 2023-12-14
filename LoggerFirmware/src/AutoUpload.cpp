@@ -28,29 +28,168 @@
  */
 
 #include "HTTPClient.h"
+#include "ArduinoJson.h"
 
 #include "AutoUpload.h"
 #include "Configuration.h"
+#include "Status.h"
 
 namespace net {
 
 UploadManager::UploadManager(logger::Manager *logManager)
+: m_logManager(logManager), m_timeout(-1), m_lastUploadCycle(0)
 {
-    String server, port;
-    LoggerConfig.GetConfigString(Config::CONFIG_UPLOAD_SERVER_S, server);
-    LoggerConfig.GetConfigString(Config::CONFIG_UPLOAD_PORT_S, port);
+    String server, port, upload_interval, upload_duration, timeout;
+    logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_UPLOAD_SERVER_S, server);
+    logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_UPLOAD_PORT_S, port);
+    logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_UPLOAD_INTERVAL_S, upload_interval);
+    logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_UPLOAD_DURATION_S, upload_duration);
+    logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_UPLOAD_TIMEOUT_S, timeout);
     if (server.isEmpty()) {
         m_logManager = nullptr;
         return;
     }
     if (port.isEmpty()) port = String("80");
     m_serverURL = String("http://") + server + ":" + port + "/";
-    m_logManager = logManager;
+    m_uploadInterval = static_cast<unsigned long>(upload_interval.toDouble() * 1000.0);
+    m_uploadDuration = static_cast<unsigned long>(upload_duration.toDouble() * 1000.0);
+    m_timeout = static_cast<int32_t>(timeout.toDouble() * 1000.0);
 }
 
 UploadManager::~UploadManager(void)
 {
 
+}
+
+void UploadManager::UploadCycle(void)
+{
+    unsigned long start_time = millis();
+    if ((start_time - m_lastUploadCycle) < m_uploadInterval) return; // Not time yet ...
+    m_lastUploadCycle = start_time;
+
+    if (!ReportStatus()) {
+        // Failed to report status ... means the server's not there, or we're not connected
+        Serial.printf("DBG: UploadManager::UploadCycle failed to report status at |%d|\n",
+            m_lastUploadCycle);
+        return;
+    }
+    DynamicJsonDocument files(logger::status::GenerateFilelist(m_logManager));
+    int filecount = files["files"]["count"].as<int>();
+    for (int n = 0; n < filecount; ++n) {
+        uint32_t file_id = files["files"]["detail"][n]["id"].as<uint32_t>();
+        if (TransferFile(m_logManager->FileSystem(), file_id)) {
+            // File transferred to the server successfully, so we can delete locally
+            m_logManager->RemoveLogFile(file_id);
+        } else {
+            // File did not transfer, so we update the upload attempt metadata and move on
+            
+        }
+        unsigned long current_elapsed = millis();
+        if ((current_elapsed - start_time) > m_uploadDuration) {
+            // We're only allowed to update for a specific length of time (since otherwise we'll
+            // halt all logging!)
+            break;
+        }
+    }
+}
+
+bool UploadManager::ReportStatus(void)
+{
+    DynamicJsonDocument status(logger::status::CurrentStatus(m_logManager));
+    String url = m_serverURL + "checkin";
+    String status_json;
+    deserializeJson(status, status_json);
+
+    WiFiClient wifi;
+    HTTPClient client;
+    bool rc = false; // By default ...
+    
+    client.setConnectTimeout(m_timeout);
+    if (client.begin(wifi, url)) {
+        client.setTimeout(static_cast<uint16_t>(m_timeout));
+        int http_rc;
+        if ((http_rc = client.POST(status_json)) == HTTP_CODE_OK) {
+            // 200OK is expected; in the future, there might also be some other information
+            rc = true;
+        } else {
+            // Didn't get expected response from server
+            Serial.printf("DBG: UploadManager::ReportStatus: error code %d = |%s|\n",
+                http_rc, client.errorToString(http_rc).c_str());
+            rc = false;
+        }
+    }
+    client.end();
+
+    return rc;
+}
+
+bool UploadManager::TransferFile(fs::FS& controller, uint32_t file_id)
+{
+    String                      file_name;
+    uint32_t                    file_size;
+    logger::Manager::MD5Hash    file_hash;
+    uint16_t                    upload_count;
+
+    m_logManager->EnumerateLogFile(file_id, file_name, file_size, file_hash, upload_count);
+    File f = controller.open(file_name, FILE_READ);
+    if (!f) {
+        Serial.printf("ERR: UploadManager::TransferFile failed to open file |%s| for auto-upload.\n",
+            file_name.c_str());
+        return false;
+    }
+
+    WiFiClient wifi;
+    HTTPClient client;
+    bool rc = false; // By default ...
+    String digest_header(String("md5=") + file_hash.Value());
+    String url(m_serverURL + "update");
+
+    client.setConnectTimeout(m_timeout);
+    if (client.begin(wifi, url)) {
+        client.setTimeout(static_cast<uint16_t>(m_timeout));
+        int http_rc;
+
+        client.addHeader(String("Digest"), digest_header);
+        client.addHeader(String("Content-Type"), String("application/octet-stream"), false, true);
+
+        if ((http_rc = client.sendRequest("POST", &f)) == HTTP_CODE_OK) {
+            // If we get a 200OK then the response body should be a JSON document with information
+            // about the upload (successful or unsuccesful).
+            String payload = client.getString();
+            DynamicJsonDocument response(1024);
+            deserializeJson(response, payload);
+            if (response.containsKey("status")) {
+                if (response["status"] == "success") {
+                    // Since the file is now transferred, delete from the logger
+                    // (but note that we don't do that here ...)
+                    rc = true;
+                } else if (response["status"] == "failure") {
+                    // Since the transfer failed, mark upload attempt and move on
+                    // (but note that we don't do that here ...)
+                    rc = false;
+                } else {
+                    // Invalid response!
+                    Serial.printf("DBG: UploadManager::TransferFile invalid status from server |%s|\n",
+                        response["status"].as<const char*>());
+                    rc = false; // Because we don't know if it worked or not ...
+                }
+            } else {
+                // Invalid response!
+                Serial.printf("DBG: UploadManager::TransferFile invalid response from server |%s|\n",
+                    payload.c_str());
+                rc = false; // Because we don't know if it worked or not ...
+            }
+        } else {
+            // Didn't get expected response from server
+            Serial.printf("DBG: UploadManager::TransferFile: error code %d = |%s|\n",
+                http_rc, client.errorToString(http_rc).c_str());
+            rc = false;
+        }
+    }
+    f.close();
+    client.end();
+
+    return rc;
 }
 
 };

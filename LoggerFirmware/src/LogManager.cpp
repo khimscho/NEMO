@@ -88,6 +88,7 @@ Manager::Inventory::Inventory(Manager *manager, bool verbose)
 {
     m_filesize.resize(MaxLogFiles);
     m_hashes.resize(MaxLogFiles);
+    m_uploadCount.resize(MaxLogFiles);
     Reinitialise();
 }
 
@@ -107,6 +108,7 @@ bool Manager::Inventory::Reinitialise(void)
     for (uint32_t entry = 0; entry < MaxLogFiles; ++entry) {
         m_filesize[entry] = 0;
         m_hashes[entry] = emptyhash;
+        m_uploadCount[entry] = 0;
     }
 
     for (uint32_t f = 0; f < filecount; ++f) {
@@ -116,12 +118,13 @@ bool Manager::Inventory::Reinitialise(void)
     return true;
 }
 
-bool Manager::Inventory::Lookup(uint32_t filenum, uint32_t& filesize, Manager::MD5Hash& hash)
+bool Manager::Inventory::Lookup(uint32_t filenum, uint32_t& filesize, Manager::MD5Hash& hash, uint16_t& uploads)
 {
     if (filenum >= MaxLogFiles) return false;
     if (m_filesize[filenum] == 0) return false;
     filesize = m_filesize[filenum];
     hash = m_hashes[filenum];
+    uploads = m_uploadCount[filenum];
     return true;
 }
 
@@ -146,6 +149,7 @@ void Manager::Inventory::RemoveLogFile(uint32_t filenum)
     if (filenum >= MaxLogFiles) return;
     m_filesize[filenum] = 0;
     m_hashes[filenum] = Manager::MD5Hash();
+    m_uploadCount[filenum] = 0;
 }
 
 uint32_t Manager::Inventory::CountLogFiles(uint32_t filenumbers[MaxLogFiles])
@@ -177,7 +181,8 @@ void Manager::Inventory::SerialiseCache(Stream& stream)
     stream.println("DBG: File Inventory Cache contents:");
     for (uint32_t entry = 0; entry < MaxLogFiles; ++entry) {
         if (m_filesize[entry] == 0) continue;
-        stream.printf("[%4u] %8u %s\n", entry, m_filesize[entry], m_hashes[entry].Value().c_str());
+        stream.printf("[%4u] %8u %5u %s\n", entry,
+            m_filesize[entry], m_uploadCount[entry], m_hashes[entry].Value().c_str());
     }
 }
 
@@ -186,6 +191,21 @@ uint32_t Manager::Inventory::Filesize(uint32_t filenum)
     if (filenum >= MaxLogFiles || m_filesize[filenum] == 0)
         return 0;
     return m_filesize[filenum];
+}
+
+uint16_t Manager::Inventory::UploadCount(uint32_t filenum)
+{
+    if (filenum >= MaxLogFiles || m_filesize[filenum] == 0)
+        return 0;
+    return m_uploadCount[filenum];
+}
+
+uint16_t Manager::Inventory::IncrementUploadCount(uint32_t filenum)
+{
+    if (filenum >= MaxLogFiles || m_filesize[filenum] == 0)
+        return 0;
+    uint16_t rc = m_uploadCount[filenum]++;
+    return rc;
 }
 
 #ifdef DEBUG_LOG_MANAGER
@@ -522,13 +542,15 @@ uint32_t Manager::CountLogFiles(uint32_t filenumbers[MaxLogFiles])
 /// \param lognumber  Number of the file to look up
 /// \param filename   Name of the file
 /// \param filesize   Size of the specified file in bytes (or 0 if file doesn't exist)
+/// \param uploadcount Number of times the file has attempted an upload
 
-void Manager::EnumerateLogFile(uint32_t lognumber, String& filename, uint32_t& filesize, MD5Hash& filehash)
+void Manager::EnumerateLogFile(uint32_t lognumber, String& filename, uint32_t& filesize, MD5Hash& filehash,
+    uint16_t& uploadcount)
 {
     filename = MakeLogName(lognumber);
 
     if (m_inventory != nullptr) {
-        m_inventory->Lookup(lognumber, filesize, filehash);
+        m_inventory->Lookup(lognumber, filesize, filehash, uploadcount);
     } else {
         File f = m_storage->Controller().open(filename);
         if (f) {
@@ -537,6 +559,7 @@ void Manager::EnumerateLogFile(uint32_t lognumber, String& filename, uint32_t& f
             filesize = 0;
         }
         filehash = MD5Hash(); // We're not going to rehash the file just for this!
+        uploadcount = 0;
     }
 }
 
@@ -578,6 +601,19 @@ void Manager::HashFile(uint32_t file_num, MD5Hash& filehash)
         String filename = MakeLogName(file_num);
         hash(filename, filehash);
     }
+}
+
+uint16_t Manager::IncrementUploadCount(uint32_t file_num)
+{
+    uint16_t rc;
+
+    if (m_inventory != nullptr) {
+        rc = m_inventory->IncrementUploadCount(file_num);
+    } else {
+        Serial.println("ERR: upload counts are only managed when an inventory object is running");
+        rc = 0;
+    }
+    return rc;
 }
 
 void Manager::AddInventory(bool verbose)

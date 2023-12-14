@@ -266,7 +266,7 @@ void Logger::HandleSystemTime(Timestamp::TimeDatum const& t, const tN2kMsg& msg)
             m_timeReference.Update(date, timestamp, t.RawElapsed());
 
             logger::DataObs obs(t.RawElapsed(), date, timestamp);
-            logger::metrics.RegisterObs(obs);
+            logger::Metrics.RegisterObs(obs);
 
             Serialisable s(sizeof(uint16_t) + sizeof(double) + sizeof(unsigned long) + 1);
             s += date;
@@ -321,7 +321,7 @@ void Logger::HandleDepth(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
     
     if (ParseN2kWaterDepth(msg, SID, depth, offset, range)) {
         logger::DataObs obs(t.RawElapsed(), depth, offset);
-        logger::metrics.RegisterObs(obs);
+        logger::Metrics.RegisterObs(obs);
 
         Serialisable s(t.SerialisationSize() + 3*sizeof(double));
         t.Serialise(s);
@@ -394,7 +394,7 @@ void Logger::HandleGNSS(Timestamp::TimeDatum const& t, tN2kMsg const& msg)
                      rec_type, rec_method, nSvs, hdop, pdop, sep, nRefStations,
                      refStationType, refStationID, correctionAge)) {
         logger::DataObs obs(t.RawElapsed(), longitude, latitude, altitude);
-        logger::metrics.RegisterObs(obs);
+        logger::Metrics.RegisterObs(obs);
         
         Serialisable s(t.SerialisationSize() + 2*sizeof(uint16_t) + 8*sizeof(double) + 5);
         t.Serialise(s); // Put in the standard timestamp, as well as the in-message one.

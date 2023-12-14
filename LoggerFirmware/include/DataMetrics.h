@@ -84,7 +84,7 @@ private:
     DataObs m_nmea2000[3];
 };
 
-extern DataMetrics metrics;
+extern DataMetrics Metrics;
 
 } // namespace logger
 

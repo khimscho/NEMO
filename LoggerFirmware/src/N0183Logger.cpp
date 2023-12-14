@@ -406,7 +406,7 @@ void Logger::ProcessMessages(void)
             }
 
             logger::DataObs obs(sentence->Timestamp(), sentence->Contents());
-            logger::metrics.RegisterObs(obs);
+            logger::Metrics.RegisterObs(obs);
 
             Serialisable s;
             s += (uint32_t)(sentence->Timestamp());

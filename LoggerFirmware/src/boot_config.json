@@ -9,7 +9,8 @@
         "powermonitor": false,
         "sdmmc":        false,
         "udpbridge":    false,
-        "webserver":    true
+        "webserver":    true,
+        "upload":       false
     },
     "wifi": {
         "mode":         "AP",
@@ -39,6 +40,7 @@
         "server": "192.168.4.2",
         "port": 80,
         "timeout": 5.0,
-        "interval": 1800.0
+        "interval": 1800.0,
+        "duration": 10.0
     }
 }

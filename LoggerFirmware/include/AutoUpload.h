@@ -39,11 +39,22 @@ public:
     UploadManager(logger::Manager *logManager);
     ~UploadManager();
 
+    void UploadCycle(void);
+
 private:
-    logger::Manager *m_logManager;
-    String m_serverURL;
+    logger::Manager *m_logManager;      ///< Pointer for the LogManager to use for file information
+    String          m_serverURL;        ///< Based URL for the server and port
+
+    int32_t         m_timeout;          ///< Timeout for upload requests (ms)
+    unsigned long   m_uploadInterval;   ///< Interval between upload events (ms)
+    unsigned long   m_uploadDuration;   ///< Maximum duration for a single upload cycle (ms)
+    
+    unsigned long   m_lastUploadCycle;  ///< Timestamp for the last upload cycle (ms)
+
+    bool ReportStatus(void);
+    bool TransferFile(fs::FS& controller, uint32_t file_id);
 };
 
-};
+}
 
 #endif
