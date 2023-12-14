@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 import logging
 
 import pytest
@@ -40,10 +39,5 @@ def localstack_url(docker_ip, docker_services):
 
 
 @pytest.fixture(scope="session")
-def s3_local(localstack_url):
+def s3_local_rsrc(localstack_url):
     return boto3.resource('s3', endpoint_url=localstack_url, region_name='us-east-1')
-
-
-@pytest.fixture(scope="session")
-def data_path() -> Path:
-    return Path(Path(__file__).parent, 'data')

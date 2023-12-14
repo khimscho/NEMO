@@ -1,15 +1,23 @@
+import os
 from pathlib import Path
+from typing import List, Dict, Any
+import tempfile
+import json
 
 import pytest
 
+from wibl.core.util import merge_geojson
+from wibl.core.util.aws import generate_get_s3_object
+
+from tests.fixtures import data_path
 # Note: need to import localstack_url fixture since other fixtures depend on it.
-from ..fixtures import localstack_url, data_path, s3_local
+from tests.aws.fixtures import localstack_url, s3_local_rsrc
 
 GEOJSON_BUCKET_NAME: str = 'geojson-test-bucket'
 
 
 @pytest.fixture(scope="module")
-def populated_data(data_path, s3_local):
+def populated_data(data_path, s3_local_rsrc):
     """
     Fixture used to amortize the cost of inserting soundings in to the database for the
     purposes of testing queries.
@@ -17,7 +25,7 @@ def populated_data(data_path, s3_local):
     :param dynamodb_local: Fixture representing boto3 DynamoDB resource
     :return: boto3 DynamoDB client
     """
-    bucket = s3_local.Bucket(GEOJSON_BUCKET_NAME)
+    bucket = s3_local_rsrc.Bucket(GEOJSON_BUCKET_NAME)
     bucket.create()
 
     geojson_path: Path = data_path / 'geojson'
@@ -27,10 +35,36 @@ def populated_data(data_path, s3_local):
     yield bucket
 
 
-def test_data_loaded(populated_data, data_path, s3_local):
-    waiter = s3_local.meta.client.get_waiter('object_exists')
+@pytest.fixture(scope="module")
+def merged_geojson_fp():
+    merged_geojson_fp = tempfile.NamedTemporaryFile(mode='w',
+                                                    encoding='utf-8',
+                                                    newline='\n',
+                                                    suffix='.json',
+                                                    delete=False)
+    yield merged_geojson_fp
+    os.unlink(merged_geojson_fp.name)
+
+
+def test_data_loaded(populated_data, data_path, s3_local_rsrc):
+    waiter = s3_local_rsrc.meta.client.get_waiter('object_exists')
     geojson_path: Path = data_path / 'geojson'
     for geojson_file in geojson_path.glob('*.json'):
         waiter.wait(Bucket=GEOJSON_BUCKET_NAME, Key=geojson_file.name)
-        response = s3_local.meta.client.head_object(Bucket=GEOJSON_BUCKET_NAME, Key=geojson_file.name)
+        response = s3_local_rsrc.meta.client.head_object(Bucket=GEOJSON_BUCKET_NAME, Key=geojson_file.name)
         assert geojson_file.stat().st_size == response['ContentLength']
+
+
+def test_merge_geojson_s3(data_path, s3_local_rsrc, populated_data, merged_geojson_fp):
+    geojson_path: Path = data_path / 'geojson'
+    files_to_merge: List[str] = [f.name for f in geojson_path.glob('*.json')]
+
+    merged_geojson_path: Path = Path(merged_geojson_fp.name)
+    merge_geojson(generate_get_s3_object(s3_local_rsrc.meta.client),
+                  GEOJSON_BUCKET_NAME, files_to_merge, merged_geojson_fp)
+    merged_geojson_fp.close()
+
+    assert merged_geojson_path.exists()
+    assert merged_geojson_path.is_file()
+    merged_dict: Dict[str, Any] = json.load(merged_geojson_path.open('r'))
+    assert len(merged_dict['features']) == 18013
