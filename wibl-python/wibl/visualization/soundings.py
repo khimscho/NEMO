@@ -3,10 +3,11 @@ from pathlib import Path
 import logging
 import tempfile
 
-import xarray
 import pygmt
 from osgeo import gdal
 import rasterio
+
+from wibl import get_logger
 
 gdal.UseExceptions()
 
@@ -17,8 +18,7 @@ REGION_INSET_MULT = 4
 
 GEBCO_PATH: str = os.getenv('WIBL_GEBCO_PATH')
 
-# TODO: Fix logging globally to provide a stdout handler appropriate for use in lambdas
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 def map_soundings(sounding_geojson: Path,

@@ -3,8 +3,10 @@ import logging
 import json
 from pathlib import Path
 
+from wibl import get_logger
 
-logger = logging.getLogger(__name__)
+
+logger = get_logger()
 
 
 def open_fs_file_read(directory: str, filename: str) -> Optional[IO[AnyStr]]:

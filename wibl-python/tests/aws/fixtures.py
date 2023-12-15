@@ -1,5 +1,4 @@
 import os
-import logging
 
 import pytest
 
@@ -8,8 +7,10 @@ from requests.exceptions import ConnectionError
 
 import boto3
 
+from wibl import config_logger_service
 
-logger = logging.getLogger(__name__)
+
+logger = config_logger_service()
 
 
 def is_responsive(url):

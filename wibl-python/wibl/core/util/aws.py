@@ -5,8 +5,10 @@ import logging
 from botocore.exceptions import ClientError
 import xarray
 
+from wibl import get_logger
 
-logger = logging.getLogger(__name__)
+
+logger = get_logger()
 
 
 def generate_get_s3_object(boto_s3_client) -> Callable[[str, str], Optional[IO[AnyStr]]]:

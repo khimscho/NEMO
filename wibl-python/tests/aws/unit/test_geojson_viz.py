@@ -4,9 +4,9 @@ from typing import List, Dict, Any
 import tempfile
 import json
 
-import xarray
 import pytest
 
+from wibl import config_logger_service
 from wibl.visualization.soundings import map_soundings
 from wibl.core.util import merge_geojson
 from wibl.core.util.aws import generate_get_s3_object, open_s3_hdf5_as_xarray
@@ -16,6 +16,9 @@ from tests.fixtures import data_path
 from tests.aws.fixtures import localstack_url, s3_local_rsrc
 
 GEOJSON_BUCKET_NAME: str = 'geojson-test-bucket'
+
+
+logger = config_logger_service()
 
 
 @pytest.fixture(scope="module")

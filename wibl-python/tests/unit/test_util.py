@@ -3,9 +3,13 @@ import tempfile
 from pathlib import Path
 from typing import List, Dict, Any
 
+from wibl import config_logger_service
 from wibl.core.util import merge_geojson, open_fs_file_read
 
 from tests.fixtures import data_path
+
+
+logger = config_logger_service()
 
 
 def test_merge_geojson(data_path):

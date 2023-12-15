@@ -1,5 +1,4 @@
 import unittest
-import logging
 from pathlib import Path
 import os
 import tempfile
@@ -7,6 +6,7 @@ import shutil
 from datetime import datetime
 import json
 
+from wibl import config_logger_service
 import wibl.core.config as conf
 from wibl.core import Lineage
 import wibl.core.timestamping as ts
@@ -16,7 +16,7 @@ from wibl.processing.cloud.aws.lambda_function import process_item
 from wibl.core.geojson_convert import FMT_OBS_TIME
 
 
-logger = logging.getLogger(__name__)
+logger = config_logger_service()
 
 
 def validate_depth(depth: float) -> bool:

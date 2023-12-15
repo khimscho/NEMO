@@ -6,13 +6,15 @@ from pathlib import Path
 
 import xmlrunner
 
-logger = logging.getLogger(__name__)
-
+from wibl import config_logger_service
 from wibl.core import config
 from wibl.processing.cloud.aws import get_config_file as get_config_file_processing
 from wibl.processing.cloud.aws import DEFAULT_CONFIG_RESOURCE_NAME as RSRC_PROC
 from wibl.submission.cloud.aws import get_config_file as get_config_file_submission
 from wibl.submission.cloud.aws import DEFAULT_CONFIG_RESOURCE_NAME as RSRC_SUB
+
+
+logger = config_logger_service()
 
 
 class TestConfig(unittest.TestCase):

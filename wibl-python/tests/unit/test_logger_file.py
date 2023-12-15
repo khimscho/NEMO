@@ -1,11 +1,11 @@
 import unittest
-import logging
 
 import xmlrunner
 
-logger = logging.getLogger(__name__)
-
+from wibl import config_logger_service
 import wibl.core.logger_file as lf
+
+logger = config_logger_service()
 
 
 class TestLoggerFile(unittest.TestCase):
