@@ -1,4 +1,4 @@
-# import os
+import os
 from pathlib import Path
 import logging
 import tempfile
@@ -15,15 +15,13 @@ RASTER_MAX = 40_000
 RASTER_RES = 0.0009
 REGION_INSET_MULT = 4
 
-# 'data/gebco_2023/GEBCO_2023.nc'
-# GEBCO_PATH: str = os.getenv('WIBL_GEBCO_PATH')
+GEBCO_PATH: str = os.getenv('WIBL_GEBCO_PATH')
 
 # TODO: Fix logging globally to provide a stdout handler appropriate for use in lambdas
 logger = logging.getLogger(__name__)
 
 
-def map_soundings(gebco_data: xarray.DataArray,
-                  sounding_geojson: Path,
+def map_soundings(sounding_geojson: Path,
                   observer_name: str,
                   map_filename_prefix: str) -> Path:
     # Prepare output file in a new temporary directory
@@ -87,12 +85,10 @@ def map_soundings(gebco_data: xarray.DataArray,
               projection='M16c',
               frame=["afg", f"+t{title}"])
 
-
-    f.grdimage(gebco_data,
+    f.grdimage(GEBCO_PATH,
                region=region,
                projection="M16c",
                cmap='terra')
-    del gebco_data
 
     f.colorbar(position="JBC", frame=["x+lGEBCO 2023 Bathymetry", "y+lm"])
 

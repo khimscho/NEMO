@@ -16,28 +16,6 @@ from tests.fixtures import data_path
 from tests.aws.fixtures import localstack_url, s3_local_rsrc
 
 GEOJSON_BUCKET_NAME: str = 'geojson-test-bucket'
-WIBL_STATIC_BUCKET_NAME: str = 'ccomjhc-wibl-static'
-GEBCO_KEY: str = 'GEBCO.nc'
-
-
-@pytest.fixture(scope="module")
-def gebco_data(s3_local_rsrc):
-    """
-    Note this fixture requires WIBL_GEBCO_PATH environment variable be set and points to GEBCO NetCDF file
-    :param s3_local_rsrc:
-    :return:
-    """
-    bucket = s3_local_rsrc.Bucket(WIBL_STATIC_BUCKET_NAME)
-    bucket.create()
-
-    gebco_path: str = os.getenv('WIBL_GEBCO_PATH')
-    assert gebco_path is not None
-    with open(gebco_path, 'rb') as f:
-        bucket.upload_fileobj(f, GEBCO_KEY)
-    waiter = s3_local_rsrc.meta.client.get_waiter('object_exists')
-    waiter.wait(Bucket=WIBL_STATIC_BUCKET_NAME, Key=GEBCO_KEY)
-
-    yield {'bucket': WIBL_STATIC_BUCKET_NAME, 'key': GEBCO_KEY}
 
 
 @pytest.fixture(scope="module")
@@ -94,7 +72,7 @@ def test_merge_geojson_s3(data_path, s3_local_rsrc, populated_geojson_data, merg
     assert len(merged_dict['features']) == 18013
 
 
-def test_map_soundings(data_path, s3_local_rsrc, populated_geojson_data, merged_geojson_fp, gebco_data):
+def test_map_soundings(data_path, s3_local_rsrc, populated_geojson_data, merged_geojson_fp):
     """
     :param data_path:
     :param s3_local_rsrc:
@@ -110,13 +88,9 @@ def test_map_soundings(data_path, s3_local_rsrc, populated_geojson_data, merged_
                   GEOJSON_BUCKET_NAME, files_to_merge, merged_geojson_fp)
     merged_geojson_fp.close()
 
-    gebco_el: xarray.DataArray = open_s3_hdf5_as_xarray(bucket=gebco_data['bucket'],
-                                                        key=gebco_data['key'],
-                                                        array_name='elevation')
-
-    map_filename: Path = map_soundings(gebco_el,
-                                       merged_geojson_path,
+    map_filename: Path = map_soundings(merged_geojson_path,
                                        '$VESSEL_NAME',
                                        'VESSEL_NAME')
+
     assert map_filename.exists() and map_filename.is_file()
     assert map_filename.stat().st_size > 0
