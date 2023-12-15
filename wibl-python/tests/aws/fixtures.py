@@ -34,6 +34,7 @@ def localstack_url(docker_ip, docker_services):
 
     os.environ['S3_HOST'] = docker_ip
     os.environ['S3_PORT'] = str(port)
+    os.environ['FSSPEC_S3_ENDPOINT_URL'] = url
 
     return url
 

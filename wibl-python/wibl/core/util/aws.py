@@ -3,6 +3,7 @@ from functools import partial
 import logging
 
 from botocore.exceptions import ClientError
+import xarray
 
 
 logger = logging.getLogger(__name__)
@@ -17,3 +18,13 @@ def generate_get_s3_object(boto_s3_client) -> Callable[[str, str], Optional[IO[A
             return None
 
     return partial(open_s3_object, boto_s3_client)
+
+
+def open_s3_hdf5_as_xarray(*, bucket: str, key: str, array_name: str) -> xarray.DataArray:
+    # Import fsspec here so that environment variables controlling its behaviour
+    #   (e.g. FSSPEC_S3_ENDPOINT_URL, which is used in automated tests to point to
+    #   localstack) can be set before import.
+    import fsspec
+    ncfile = fsspec.open(f"s3://{bucket}/{key}")
+    gebco_ds: xarray.Dataset = xarray.open_dataset(ncfile.open(), engine='h5netcdf')
+    return gebco_ds[array_name]

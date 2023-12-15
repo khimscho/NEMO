@@ -4,21 +4,44 @@ from typing import List, Dict, Any
 import tempfile
 import json
 
+import xarray
 import pytest
 
 from wibl.visualization.soundings import map_soundings
 from wibl.core.util import merge_geojson
-from wibl.core.util.aws import generate_get_s3_object
+from wibl.core.util.aws import generate_get_s3_object, open_s3_hdf5_as_xarray
 
 from tests.fixtures import data_path
 # Note: need to import localstack_url fixture since other fixtures depend on it.
 from tests.aws.fixtures import localstack_url, s3_local_rsrc
 
 GEOJSON_BUCKET_NAME: str = 'geojson-test-bucket'
+WIBL_STATIC_BUCKET_NAME: str = 'ccomjhc-wibl-static'
+GEBCO_KEY: str = 'GEBCO.nc'
 
 
 @pytest.fixture(scope="module")
-def populated_data(data_path, s3_local_rsrc):
+def gebco_data(s3_local_rsrc):
+    """
+    Note this fixture requires WIBL_GEBCO_PATH environment variable be set and points to GEBCO NetCDF file
+    :param s3_local_rsrc:
+    :return:
+    """
+    bucket = s3_local_rsrc.Bucket(WIBL_STATIC_BUCKET_NAME)
+    bucket.create()
+
+    gebco_path: str = os.getenv('WIBL_GEBCO_PATH')
+    assert gebco_path is not None
+    with open(gebco_path, 'rb') as f:
+        bucket.upload_fileobj(f, GEBCO_KEY)
+    waiter = s3_local_rsrc.meta.client.get_waiter('object_exists')
+    waiter.wait(Bucket=WIBL_STATIC_BUCKET_NAME, Key=GEBCO_KEY)
+
+    yield {'bucket': WIBL_STATIC_BUCKET_NAME, 'key': GEBCO_KEY}
+
+
+@pytest.fixture(scope="module")
+def populated_geojson_data(data_path, s3_local_rsrc):
     """
     Fixture used to amortize the cost of inserting soundings in to the database for the
     purposes of testing queries.
@@ -47,7 +70,7 @@ def merged_geojson_fp():
     os.unlink(merged_geojson_fp.name)
 
 
-def test_data_loaded(populated_data, data_path, s3_local_rsrc):
+def test_data_loaded(populated_geojson_data, data_path, s3_local_rsrc):
     waiter = s3_local_rsrc.meta.client.get_waiter('object_exists')
     geojson_path: Path = data_path / 'geojson'
     for geojson_file in geojson_path.glob('*.json'):
@@ -56,7 +79,7 @@ def test_data_loaded(populated_data, data_path, s3_local_rsrc):
         assert geojson_file.stat().st_size == response['ContentLength']
 
 
-def test_merge_geojson_s3(data_path, s3_local_rsrc, populated_data, merged_geojson_fp):
+def test_merge_geojson_s3(data_path, s3_local_rsrc, populated_geojson_data, merged_geojson_fp):
     geojson_path: Path = data_path / 'geojson'
     files_to_merge: List[str] = [f.name for f in geojson_path.glob('*.json')]
 
@@ -71,9 +94,8 @@ def test_merge_geojson_s3(data_path, s3_local_rsrc, populated_data, merged_geojs
     assert len(merged_dict['features']) == 18013
 
 
-def test_map_soundings(data_path, s3_local_rsrc, populated_data, merged_geojson_fp):
+def test_map_soundings(data_path, s3_local_rsrc, populated_geojson_data, merged_geojson_fp, gebco_data):
     """
-    Note this test requires WIBL_GEBCO_PATH environment variable be set and points to GEBCO NetCDF file
     :param data_path:
     :param s3_local_rsrc:
     :param populated_data:
@@ -88,7 +110,12 @@ def test_map_soundings(data_path, s3_local_rsrc, populated_data, merged_geojson_
                   GEOJSON_BUCKET_NAME, files_to_merge, merged_geojson_fp)
     merged_geojson_fp.close()
 
-    map_filename: Path = map_soundings(merged_geojson_path,
+    gebco_el: xarray.DataArray = open_s3_hdf5_as_xarray(bucket=gebco_data['bucket'],
+                                                        key=gebco_data['key'],
+                                                        array_name='elevation')
+
+    map_filename: Path = map_soundings(gebco_el,
+                                       merged_geojson_path,
                                        '$VESSEL_NAME',
                                        'VESSEL_NAME')
     assert map_filename.exists() and map_filename.is_file()
