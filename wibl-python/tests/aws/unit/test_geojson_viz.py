@@ -6,6 +6,7 @@ import json
 
 import pytest
 
+from wibl.visualization.soundings import map_soundings
 from wibl.core.util import merge_geojson
 from wibl.core.util.aws import generate_get_s3_object
 
@@ -68,3 +69,27 @@ def test_merge_geojson_s3(data_path, s3_local_rsrc, populated_data, merged_geojs
     assert merged_geojson_path.is_file()
     merged_dict: Dict[str, Any] = json.load(merged_geojson_path.open('r'))
     assert len(merged_dict['features']) == 18013
+
+
+def test_map_soundings(data_path, s3_local_rsrc, populated_data, merged_geojson_fp):
+    """
+    Note this test requires WIBL_GEBCO_PATH environment variable be set and points to GEBCO NetCDF file
+    :param data_path:
+    :param s3_local_rsrc:
+    :param populated_data:
+    :param merged_geojson_fp:
+    :return:
+    """
+    geojson_path: Path = data_path / 'geojson'
+    files_to_merge: List[str] = [f.name for f in geojson_path.glob('*.json')]
+
+    merged_geojson_path: Path = Path(merged_geojson_fp.name)
+    merge_geojson(generate_get_s3_object(s3_local_rsrc.meta.client),
+                  GEOJSON_BUCKET_NAME, files_to_merge, merged_geojson_fp)
+    merged_geojson_fp.close()
+
+    map_filename: Path = map_soundings(merged_geojson_path,
+                                       '$VESSEL_NAME',
+                                       'VESSEL_NAME')
+    assert map_filename.exists() and map_filename.is_file()
+    assert map_filename.stat().st_size > 0
