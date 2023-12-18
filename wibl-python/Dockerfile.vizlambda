@@ -1,0 +1,50 @@
+FROM public.ecr.aws/lambda/python:3.11 as builder
+
+RUN mkdir /tmp/code
+ADD ./ /tmp/code
+WORKDIR /tmp/code
+
+RUN dnf -y install wget tar gzip clang cmake \
+    sqlite-devel expat-devel libcurl-devel zlib-devel libtiff-devel libpng-devel libjpeg-turbo-devel
+
+# Download, build, and install PROJ
+RUN cd /tmp/code
+RUN wget https://download.osgeo.org/proj/proj-9.3.1.tar.gz
+RUN echo 'MD5 (proj-9.3.1.tar.gz) = b5c3f36fdca3bc425aca09d77c4ec25a' > proj-9.3.1.tar.gz.md5
+RUN md5sum -c proj-9.3.1.tar.gz.md5
+RUN tar xf proj-9.3.1.tar.gz
+RUN cd proj-9.3.1
+RUN mkdir build && \
+    cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release && \
+    cmake --build . && \
+    cmake --build . --target install
+
+# Download, build, and install libgeotiff
+RUN cd /tmp/code
+RUN wget https://github.com/OSGeo/libgeotiff/releases/download/1.7.1/libgeotiff-1.7.1.tar.gz
+RUN echo 'MD5 (libgeotiff-1.7.1.tar.gz) = 22879ac6f83460605f9c39147a2ccc7a' > libgeotiff-1.7.1.tar.gz.md5
+RUN md5sum -c libgeotiff-1.7.1.tar.gz.md5
+RUN tar xf libgeotiff-1.7.1.tar.gz
+RUN cd libgeotiff-1.7.1
+RUN mkdir build && \
+    cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release && \
+    cmake --build . && \
+    cmake --build . --target install
+
+# Download, build, and install GDAL
+RUN cd /tmp/code
+RUN wget https://github.com/OSGeo/gdal/releases/download/v3.8.1/gdal-3.8.1.tar.gz
+RUN echo 'MD5 (gdal-3.8.1.tar.gz) = 62191565949f1dd5985a04dcac831322' > gdal-3.8.1.tar.gz.md5
+RUN md5sum -c gdal-3.8.1.tar.gz.md5
+RUN tar xf gdal-3.8.1.tar.gz
+RUN cd gdal-3.8.1
+RUN mkdir build && \
+    cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release && \
+    cmake --build . && \
+    cmake --build . --target install
+
+# Install Python dependencies
+# TODO...
