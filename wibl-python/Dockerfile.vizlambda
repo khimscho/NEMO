@@ -1,6 +1,18 @@
 FROM public.ecr.aws/lambda/python:3.12 as builder
 
-RUN mkdir /tmp/src
+# Install OS-provided dependencies
+RUN dnf -y install wget tar gzip clang cmake \
+    sqlite-devel expat-devel libcurl-devel zlib-devel libtiff-devel libpng-devel libjpeg-turbo-devel
+
+# Download GEBCO data
+RUN mkdir -p /var/wibl/data
+WORKDIR /var/wibl/data
+RUN wget https://www.bodc.ac.uk/data/open_download/gebco/gebco_2023/zip/ -O gebco_2023.zip
+RUN unzip gebco_2023.zip -d gebco_2023
+RUN rm gebco_2023.zip gebco_2023/GEBCO_2023_Grid_documentation.pdf gebco_2023/GEBCO_Grid_terms_of_use.pdf
+ENV WIBL_GEBCO_PATH=/var/wibl/data/gebco_2023/GEBCO_2023.nc
+
+# Setup code for installation
 RUN mkdir /tmp/code
 COPY ./requirements-vizlambda.txt /tmp/code
 COPY ./wibl-manager /tmp/code/wibl-manager/
@@ -12,10 +24,8 @@ COPY ./requirements-vizlambda.txt /tmp/code
 COPY ./setup.cfg /tmp/code
 COPY ./setup.py /tmp/code
 
-RUN dnf -y install wget tar gzip clang cmake \
-    sqlite-devel expat-devel libcurl-devel zlib-devel libtiff-devel libpng-devel libjpeg-turbo-devel
-
 # Download, build, and install PROJ
+RUN mkdir /tmp/src
 WORKDIR /tmp/src
 RUN wget https://download.osgeo.org/proj/proj-9.3.1.tar.gz
 RUN echo 'MD5 (proj-9.3.1.tar.gz) = b5c3f36fdca3bc425aca09d77c4ec25a' > proj-9.3.1.tar.gz.md5
@@ -43,13 +53,13 @@ RUN cmake .. -DCMAKE_BUILD_TYPE=Release && \
 
 # Download, build, and install GDAL
 WORKDIR /tmp/src
-RUN wget https://github.com/OSGeo/gdal/releases/download/v3.8.1/gdal-3.8.1.tar.gz
-RUN echo 'MD5 (gdal-3.8.1.tar.gz) = 62191565949f1dd5985a04dcac831322' > gdal-3.8.1.tar.gz.md5
-RUN md5sum -c gdal-3.8.1.tar.gz.md5
-RUN tar xf gdal-3.8.1.tar.gz
-WORKDIR /tmp/src/gdal-3.8.1
+RUN wget https://github.com/OSGeo/gdal/releases/download/v3.8.2/gdal-3.8.2.tar.gz
+RUN echo 'MD5 (gdal-3.8.2.tar.gz) = 7a799d9d3ebc4ae6e3258f0044125bd1' > gdal-3.8.2.tar.gz.md5
+RUN md5sum -c gdal-3.8.2.tar.gz.md5
+RUN tar xf gdal-3.8.2.tar.gz
+WORKDIR /tmp/src/gdal-3.8.2
 RUN mkdir build
-WORKDIR /tmp/src/gdal-3.8.1/build
+WORKDIR /tmp/src/gdal-3.8.2/build
 # Don't build GDAL with -j (parallel) as it seems to break
 RUN cmake .. -DCMAKE_BUILD_TYPE=Release && \
     cmake --build . && \
@@ -62,6 +72,6 @@ RUN pip install ./wibl-manager
 RUN pip install --no-deps .
 
 FROM builder as final
-ENV PYTHONBUFFERED 1
+ENV PYTHONBUFFERED=1
 
 ENTRYPOINT /bin/bash
