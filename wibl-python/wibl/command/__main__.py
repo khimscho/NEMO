@@ -27,13 +27,13 @@ import sys
 import argparse
 
 from wibl import __version__ as version
-from wibl.cmd.edit_wibl_file import editwibl
-from wibl.cmd.datasim import datasim
-from wibl.cmd.upload_wibl_file import uploadwibl
-from wibl.cmd.parse_wibl_file import parsewibl
-from wibl.cmd.dcdb_upload import dcdb_upload
-from wibl.cmd.wibl_proc import wibl_proc
-from wibl.cmd.validate import geojson_validate
+from wibl.command.edit_wibl_file import editwibl
+from wibl.command.datasim import datasim
+from wibl.command.upload_wibl_file import uploadwibl
+from wibl.command.parse_wibl_file import parsewibl
+from wibl.command.dcdb_upload import dcdb_upload
+from wibl.command.wibl_proc import wibl_proc
+from wibl.command.validate import geojson_validate
 
 class WIBL:
     def __init__(self):

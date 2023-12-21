@@ -34,7 +34,7 @@ import sys
 
 import boto3
 
-from wibl.cmd import get_subcommand_prog
+from wibl.command import get_subcommand_prog
 
 
 def uploadwibl():

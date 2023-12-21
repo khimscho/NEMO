@@ -30,12 +30,10 @@
 
 import argparse as arg
 import sys
-import json
 import os
 
-from wibl.cmd import get_subcommand_prog
+from wibl.command import get_subcommand_prog
 import wibl.core.config as conf
-from wibl.core import getenv
 from wibl.submission.cloud.aws import get_config_file
 from wibl.submission.cloud.aws.lambda_function import transmit_geojson
 from wibl.core.datasource import LocalController, LocalSource

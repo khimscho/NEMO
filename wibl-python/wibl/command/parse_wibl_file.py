@@ -32,7 +32,7 @@ import sys
 import argparse as arg
 import wibl.core.logger_file as LoggerFile
 
-from wibl.cmd import get_subcommand_prog
+from wibl.command import get_subcommand_prog
 
 def parsewibl():
     parser = arg.ArgumentParser(description='Parse WIBL logger files locally and report contents.', prog=get_subcommand_prog())
