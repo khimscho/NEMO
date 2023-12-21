@@ -45,7 +45,7 @@
 
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple, Optional, List
 from urllib.parse import unquote_plus, urlencode
 import json
 import os
@@ -78,6 +78,22 @@ class DataItem:
     dest_key:       str
     # Destination file's size in bytes
     dest_size:      Optional[int]
+
+
+@dataclass
+class MultiDataItem:
+    """
+    A data item that has multiple inputs and produces a single output
+    """
+    # Source file(s)'s cloud store, typically the name of an S3 bucket
+    source_store: str
+    # Source file's key in the cloud store, typically the key in the S3 bucket
+    source_keys: List[str]
+    # Destination file's name to be written to dest_store
+    dest_key: str
+    # Arbitrary metadata
+    meta: Dict[str, Any] = None
+
 
 ## Abstract base class for a collection of data items to be processed
 #
@@ -263,6 +279,69 @@ class LocalSource(DataSource):
         return rc
 
 
+class MultiDataSource(ABC):
+    ## Default constructor, adapted to the cloud provider's data information
+    @abstractmethod
+    def __init__(self):
+        pass
+
+    ## Abstract method to extract the next \a DataItem object from the source information
+    @abstractmethod
+    def nextSource(self) -> MultiDataItem:
+        pass
+
+
+class AWSMultiSource(MultiDataSource):
+    ## Default constructor for AWS Lambda event sources where multiple data items are sent to a single
+    # lambda, such as when visualizing one or more GeoJSON files.
+
+    # This parses out all of the S3 objects specified in each AWS Lambda trigger record, and prepares
+    # them as \a MultiDataItems to be returned to the user in sequence.
+    #
+    # \param event      AWS Lambda event to parse
+    # \param config     Configuration dictionary for the algorithm
+    def __init__(self, event, config):
+        self.items: List[MultiDataItem] = []
+        for record in event['Records']:
+            if 'Sns' not in record:
+                print('error: no SNS notification in event.')
+            else:
+                message = json.loads(record['Sns']['Message'])
+                if 'bucket' not in message or 'filename' not in message:
+                    print('error: malformed SNS message packet: {message}.')
+                else:
+                    source_bucket = message['bucket']
+                    source_keys = [unquote_plus(fname) for fname in message['source_keys']]
+                    dest_key = message['dest_key']
+                    if 'meta' in message:
+                        meta = message['meta']
+                    else:
+                        meta = None
+
+                    self.items.append(
+                        MultiDataItem(source_bucket, source_keys, dest_key, meta=meta)
+                    )
+        if config['verbose']:
+            n_items = len(self.items)
+            print(f'Total {n_items} input items to process:')
+            for item in self.items:
+                print(f'Item: {item}')
+
+    ## Concrete implementation of S3 object specification return from AWS Lambda events
+    #
+    # Since the code converts all of the information about the S3 objects to be processed in the Lambda call
+    # into a list in the initialiser, this code simply pops the next item off the list and returns to the
+    # caller, or None if there are none left.
+    #
+    # \return Specification for the next S3 object to process
+    def nextSource(self) -> Optional[MultiDataItem]:
+        if self.items:
+            rc = self.items.pop()
+        else:
+            rc = None
+        return rc
+
+
 ## Abstract base class for an encapsulation of how to interact with a specific cloud provider
 #
 # Each cloud provider acts a little differently with respect to how you extract objects from their
@@ -313,6 +392,14 @@ class CloudController(ABC):
     @abstractmethod
     def transmit(self, meta: DataItem, SourceID: str, Logger: str, Soundings: int, data: str) -> None:
         pass
+
+    ## Upload local (temp) file to cloud provider's object store
+    #
+    # \param localname      Name of local file to uplaod
+    # \param dest_key       Key of object to store file in within bucket defined by self.destination.
+    def upload(self, localname: str, dest_key: str) -> None:
+        pass
+
 
 ## Concrete implementation of the CloudController model for AWS S3 buckets
 #
@@ -400,6 +487,16 @@ class AWSController(CloudController):
         })
         s3.Bucket(self.destination).put_object(Key=meta.dest_key, Body=data,
                                                Tagging=tags)
+
+    ## Upload local (temp) file to an AWS S3 bucket/key
+    #
+    # \param localname      Name of local file to uplaod
+    # \param dest_key       Key of object to store file in within bucket defined by self.destination.
+    def upload(self, localname: str, dest_key: str) -> None:
+        if self.verbose:
+            print(f'Uploading {localname} to bucket {self.destination}, key {dest_key}.')
+        s3.Bucket(self.destination).upload_file(localname, dest_key)
+
 
 ## \class LocalController
 #

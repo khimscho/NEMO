@@ -9,7 +9,7 @@ import pytest
 from wibl import config_logger_service
 from wibl.visualization.soundings import map_soundings
 from wibl.core.util import merge_geojson
-from wibl.core.util.aws import generate_get_s3_object, open_s3_hdf5_as_xarray
+from wibl.core.util.aws import generate_get_s3_object
 
 from tests.fixtures import data_path
 # Note: need to import localstack_url fixture since other fixtures depend on it.

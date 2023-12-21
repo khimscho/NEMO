@@ -74,4 +74,4 @@ RUN pip install --no-deps .
 FROM builder as final
 ENV PYTHONBUFFERED=1
 
-ENTRYPOINT /bin/bash
+CMD [ "wibl.visualization.cloud.aws.lambda_function.lambda_handler" ]
