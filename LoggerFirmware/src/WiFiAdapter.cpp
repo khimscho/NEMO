@@ -29,7 +29,7 @@
 #include <WiFi.h>
 #include <WiFIAP.h>
 #include <WebServer.h>
-#include <SPIFFS.h>
+#include <LittleFS.h>
 
 #include "LogManager.h"
 #include "WiFiAdapter.h"
@@ -359,7 +359,7 @@ private:
             m_server->on("/heartbeat", HTTPMethod::HTTP_GET, std::bind(&ESP32WiFiAdapter::heartbeat, this));
             m_server->on("/command", HTTPMethod::HTTP_POST, std::bind(&ESP32WiFiAdapter::handleCommand, this));
             m_server->serveStatic("/logs", m_storage->Controller(), "/logs/");
-            m_server->serveStatic("/", SPIFFS, "/website/"); // Note trailing '/' since this is a directory being served.
+            m_server->serveStatic("/", LittleFS, "/website/"); // Note trailing '/' since this is a directory being served.
         }
         //m_state.Verbose(true);
         m_state.Start();
@@ -426,19 +426,19 @@ private:
 
     void accumulateMessage(String const& message)
     {
-        if (!(*m_messages)["messages"].add(message)) {
-            // False means there wasn't enough memory in the document.
+        if ((m_messages->memoryUsage() + message.length()) > 0.95*m_messages->capacity()) {
+            // Expand capacity to ensure that the message will be added successfully
             size_t new_capacity = m_messages->capacity() * 2;
             DynamicJsonDocument *new_doc = new DynamicJsonDocument(new_capacity);
             if (new_doc != nullptr) {
                 new_doc->set(*m_messages);
-                (*new_doc)["messages"].add(message);
                 delete m_messages;
                 m_messages = new_doc;
-            } else {
-                Serial.printf("ERR: failed to expand WiFi message accumulation buffer to %d bytes; messages may be truncated.\n",
-                    new_capacity);
             }
+        }
+        if (!(*m_messages)["messages"].add(message)) {
+            Serial.printf("ERR: failed to add message to accumulation buffer (capacity %d bytes); messages may be truncated.\n",
+                m_messages->capacity());
         }
     }
 

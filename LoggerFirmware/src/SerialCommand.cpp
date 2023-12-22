@@ -736,7 +736,7 @@ void SerialCommand::ConfigurePassthrough(String const& params, CommandSource src
 
 void SerialCommand::ReportConfigurationJSON(CommandSource src, bool secure)
 {
-    DynamicJsonDocument json = logger::ConfigJSON::ExtractConfig();
+    DynamicJsonDocument json(logger::ConfigJSON::ExtractConfig());
     if (src == CommandSource::SerialPort) {
         String s;
         serializeJsonPretty(json, s);
@@ -1669,32 +1669,21 @@ bool SerialCommand::EmitJSON(String const& source, CommandSource chan)
 {
     if (source.length() == 0) {
         EmitMessage("No data in JSON.\n", chan);
-        return true;
+        return false;
     }
-    int capacity = 1024; // Initial guess for size required
-    DynamicJsonDocument json(capacity);
-    DeserializationError rc;
-    while ((rc = deserializeJson(json, source + "\n")) == DeserializationError::NoMemory) {
-        capacity *= 2;
-        DynamicJsonDocument larger(capacity);
-        json = larger;
+    DynamicJsonDocument json(logger::status::GenerateJSON(source));
+    switch (chan) {
+        case CommandSource::SerialPort:
+            serializeJsonPretty(json, Serial);
+            break;
+        case CommandSource::WirelessPort:
+            if (m_wifi != nullptr) {
+                m_wifi->SetMessage(json);
+            }
+            break;
+        default:
+            Serial.println("ERR: command source not recognised.");
+            break;
     }
-    if (rc.code() == DeserializationError::Ok) {
-        switch (chan) {
-            case CommandSource::SerialPort:
-                serializeJsonPretty(json, Serial);
-                break;
-            case CommandSource::WirelessPort:
-                if (m_wifi != nullptr) {
-                    m_wifi->SetMessage(json);
-                }
-                break;
-            default:
-                Serial.println("ERR: command source not recognised.");
-                break;
-        }
-    } else {
-        EmitMessage(rc.c_str(), chan);
-    }
-    return rc.code() == DeserializationError::Ok;
+    return true;
 }

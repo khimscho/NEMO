@@ -26,24 +26,26 @@
 
 #include <set>
 #include "NVMFile.h"
-#include "SPIFFS.h"
+#include "LittleFS.h"
 #include "LogManager.h"
 #include "serialisation.h"
 #include "ArduinoJson.h"
+#include "Status.h"
 
 namespace logger {
 
 /// Open a file from the non-volatile memory space on the logger, and read the contents ready
-/// for use.  The files are stored in JSON format in the NVM, but the code reads/writes strings,
-/// and holds the string internally.  Note that the name of the file used for the NVM must meet
-/// the standards of the backing store (typically SPIFFS, so often 8.3 names).
+/// for use.  The internal store is a minified, stringified JSON format, which is converted to
+/// a JSON document when required.  The NVM file is simply the stringified version of the JSON.
+/// Note that the name of the file used for the NVM must meet the standards of the backing store
+/// (potentially SPIFFS, so often 8.3 names, but here LittleFS, which is a little more forgiving).
 ///
 /// @param filename Name of the file in the NVM to open.
 
 NVMFile::NVMFile(String const& filename)
 : m_backingStore(filename), m_changed(false)
 {
-    File f = SPIFFS.open(filename.c_str(), "r", true); // Create if it doesn't already exist
+    File f = LittleFS.open(filename.c_str(), "r", true); // Create if it doesn't already exist
     if (!f) {
         Serial.printf("ERR: failed to open \"%s\" for NVM file read.\n", filename.c_str());
         m_backingStore = "";
@@ -70,7 +72,7 @@ NVMFile::~NVMFile(void)
 {
     if (Valid()) {
         if (m_changed) {
-            File f = SPIFFS.open(m_backingStore.c_str(), "w", true);
+            File f = LittleFS.open(m_backingStore.c_str(), "w", true);
             if (!f) {
                 Serial.printf("ERR: failed to open |%s| for NVM file write.\n", m_backingStore.c_str());
                 return;
@@ -93,20 +95,7 @@ NVMFile::~NVMFile(void)
 
 DynamicJsonDocument NVMFile::BeginTransaction(void)
 {
-    size_t capacity = EstimateCapacity(m_contents);
-    DynamicJsonDocument doc(capacity);
-    Serial.printf("DBG: NVM document capacity request %d, got %d\n",
-        capacity, doc.capacity());
-    Serial.printf("DBG: deserialising |%s| into %d byte buffer.\n", m_contents.c_str(), doc.capacity());
-    DeserializationError err = deserializeJson(doc, m_contents);
-    if (err != DeserializationError::Ok) {
-        Serial.printf("ERR: failed to parse JSON for NVM file |%s| (lib said: %s).\n",
-            m_backingStore.c_str(), err.c_str());
-    } else {
-        Serial.printf("DBG: deserialised JSON for NVM file |%s|, capacity %d, memory used %d\n",
-            m_backingStore.c_str(), doc.capacity(), doc.memoryUsage());
-    }
-    return doc;
+    return logger::status::GenerateJSON(m_contents);
 }
 
 /// Complete a transaction updating the contents of the object, updating the contents to the
@@ -141,8 +130,7 @@ String NVMFile::JSONRepresentation(bool indented)
         m_contents.c_str(), m_backingStore.c_str());
     if (indented) {
         // Since the contents string is minified, we need to deserialise, and then re-serialise ...
-        DynamicJsonDocument doc(EstimateCapacity(m_contents));
-        deserializeJson(doc, m_contents);
+        DynamicJsonDocument doc(logger::status::GenerateJSON(m_contents));
         serializeJsonPretty(doc, rtn);
     } else {
         rtn = m_contents;
@@ -158,17 +146,7 @@ String NVMFile::JSONRepresentation(bool indented)
 
 DynamicJsonDocument NVMFile::GetContents(void)
 {
-    DynamicJsonDocument dest(1024);
-    DeserializationError rc;
-
-    while ((rc = deserializeJson(dest, m_contents)) == DeserializationError::NoMemory) {
-        // Increase capacity in the destination document
-        size_t capacity = dest.capacity() * 2;
-        DynamicJsonDocument new_doc(capacity);
-        new_doc.set(dest);
-        dest = new_doc;
-    }
-    return dest;
+    return logger::status::GenerateJSON(m_contents);
 }
 
 /// Replace the contents of the object with the specified document.  The previous contents of the
@@ -276,6 +254,12 @@ ScalesStore::ScalesStore(void)
 void ScalesStore::AddScale(String const& group, String const& name, double value)
 {
     DynamicJsonDocument doc(BeginTransaction());
+    if (doc.containsKey("error")) {
+        // The internal JSON didn't convert
+        Serial.printf("ERR: scales update failed (%s/%s)\n",
+            doc["error"]["message"].as<const char *>(), doc["error"]["detail"].as<const char*>());
+        return;
+    }
     doc[group][name] = value;
     EndTransaction(doc);
 }
@@ -283,6 +267,12 @@ void ScalesStore::AddScale(String const& group, String const& name, double value
 void ScalesStore::AddScales(String const& group, const char *names[], double *values, int count)
 {
     DynamicJsonDocument doc(BeginTransaction());
+    if (doc.containsKey("error")) {
+        // The internal JSON didn't convert
+        Serial.printf("ERR: scales update failed (%s/%s)\n",
+            doc["error"]["message"].as<const char *>(), doc["error"]["detail"].as<const char*>());
+        return;
+    }
     for (int n = 0; n < count; ++n) {
         doc[group][names[n]] = values[n];
     }
@@ -342,9 +332,24 @@ AlgoRequestStore::AlgoRequestStore(void)
 void AlgoRequestStore::AddAlgorithm(String const& alg_name, String const& alg_params)
 {
     DynamicJsonDocument doc(BeginTransaction());
+    if (doc.containsKey("error")) {
+        // The internal JSON didn't convert
+        Serial.printf("ERR: algorithm update failed (%s/%s)\n",
+            doc["error"]["message"].as<const char *>(), doc["error"]["detail"].as<const char*>());
+        return;
+    }
     int count = doc["count"];
-    doc["algorithm"][count]["name"] = alg_name;
-    doc["algorithm"][count]["parameters"] = alg_params;
+    StaticJsonDocument<256> entry;
+    entry["name"] = alg_name;
+    entry["parameters"] = alg_params;
+    if ((doc.memoryUsage() + entry.capacity()) > 0.95*doc.capacity()) {
+        // The document needs to be bigger to handle the new entry
+        int capacity = doc.memoryUsage() + entry.capacity() + 256;
+        DynamicJsonDocument new_doc(capacity);
+        new_doc.set(doc);
+        doc = new_doc;
+    }
+    doc["algorithm"].add(entry.as<JsonObject>());
     doc["count"] = count + 1;
     EndTransaction(doc);
 
@@ -409,6 +414,12 @@ N0183IDStore::N0183IDStore(void)
 bool N0183IDStore::AddIDs(String const& msg_set)
 {
     DynamicJsonDocument doc(BeginTransaction());
+    if (doc.containsKey("error")) {
+        // The internal JSON didn't convert
+        Serial.printf("ERR: NMEA0183 filter update failed (%s/%s)\n",
+            doc["error"]["message"].as<const char *>(), doc["error"]["detail"].as<const char*>());
+        return false;
+    }
     int count = doc["count"];
     int start_point = 0, split_point;
 

@@ -104,6 +104,8 @@ DataObs::DataObs(uint32_t elapsed, uint16_t date, double time)
 
 DynamicJsonDocument DataObs::Render(void) const
 {
+    // Note the fixed size of the document here.  This should be sufficient for one
+    // observation, but you should re-assess if you add a lot more into the payload.
     DynamicJsonDocument summary(256);
     uint32_t now = millis();
     uint32_t time_difference = now - m_receivedTime;
@@ -144,25 +146,31 @@ void DataMetrics::RegisterObs(DataObs const& obs)
 
 DynamicJsonDocument DataMetrics::LastKnownGood(void) const
 {
-    DynamicJsonDocument summary(1024);
+    // The rendering of each DataObs is maximum 256 bytes, so if we compute
+    // the number of valid outputs, then add a bit for the fixed overhead,
+    // we should be able to estimate the total capacity required for the
+    // document.
+    int n_0183_valid = 0, n_2000_valid = 0;
+    for (int n = 0; n < DATA_UNKNOWN; ++n) {
+        if (m_nmea0183[n].Valid()) ++n_0183_valid;
+        if (m_nmea2000[n].Valid()) ++n_2000_valid;
+    }
+    int capacity = 256*(n_0183_valid + n_2000_valid) + 1024;
+    DynamicJsonDocument summary(capacity);
 
-    int n_valid = 0;
     for (int n = 0; n < DATA_UNKNOWN; ++n) {
         if (m_nmea0183[n].Valid()) {
             summary["nmea0183"]["detail"][n] = m_nmea0183[n].Render();
-            ++n_valid;
         }
     }
-    summary["nmea0183"]["count"] = n_valid;
+    summary["nmea0183"]["count"] = n_0183_valid;
     
-    n_valid = 0;
     for (int n = 0; n < DATA_UNKNOWN; ++n) {
         if (m_nmea2000[n].Valid()) {
             summary["nmea2000"]["detail"][n] = m_nmea2000[n].Render();
-            ++n_valid;
         }
     }
-    summary["nmea2000"]["count"] = n_valid;
+    summary["nmea2000"]["count"] = n_2000_valid;
 
     return summary;
 }

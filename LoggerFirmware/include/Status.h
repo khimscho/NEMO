@@ -10,5 +10,8 @@ DynamicJsonDocument GenerateFilelist(logger::Manager *m);
 /// @brief Generate a JSON document representing the current status of the logger
 DynamicJsonDocument CurrentStatus(logger::Manager *m);
 
+/// @brief Generate a correctly-sized JSON document from a minified string
+DynamicJsonDocument GenerateJSON(String const& s);
+
 }
 }

@@ -154,7 +154,7 @@ bool UploadManager::TransferFile(fs::FS& controller, uint32_t file_id)
 
         if ((http_rc = client.sendRequest("POST", &f)) == HTTP_CODE_OK) {
             // If we get a 200OK then the response body should be a JSON document with information
-            // about the upload (successful or unsuccesful).
+            // about the upload (successful or unsuccessful).
             String payload = client.getString();
             DynamicJsonDocument response(1024);
             deserializeJson(response, payload);

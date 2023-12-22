@@ -57,7 +57,7 @@ const int MaxLogFiles = 1000; ///< Maximum number of log files that we will crea
 class Manager {
 public:
     /// \brief Default constructor
-    Manager(StatusLED *led);
+    Manager(StatusLED *led, mem::MemController *storage);
     /// \brief Default destructor
     ~Manager(void);
     

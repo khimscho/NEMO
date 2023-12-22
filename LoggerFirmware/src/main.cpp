@@ -109,7 +109,7 @@ void setup()
         }
     } else {
         Serial.println("INF: Configuration is now:");
-        DynamicJsonDocument config = logger::ConfigJSON::ExtractConfig(true);
+        DynamicJsonDocument config(logger::ConfigJSON::ExtractConfig(true));
         String config_str;
         serializeJsonPretty(config, config_str);
         Serial.println(config_str);
@@ -135,7 +135,7 @@ void setup()
 
     Serial.printf("DBG: After memory interface start, free heap = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
     Serial.println("Configuring logger manager ...");
-    logManager = new logger::Manager(LEDs);
+    logManager = new logger::Manager(LEDs, memController);
     Serial.printf("DBG: After log manager start, free heap = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
     logManager->AddInventory();
     Serial.printf("DBG: After inventory object start, free heap = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());

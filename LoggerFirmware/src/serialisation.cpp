@@ -225,10 +225,10 @@ Serialiser::Serialiser(File& file)
 
     rawProcess(logger::Manager::PacketIDs::Pkt_Metadata, meta);
 
-    Serialisable setup(1024);
-    DynamicJsonDocument json_setup = logger::ConfigJSON::ExtractConfig(true);
+    DynamicJsonDocument json_setup(logger::ConfigJSON::ExtractConfig(true));
     String json_str;
     serializeJson(json_setup, json_str);
+    Serialisable setup(json_str.length() + sizeof(size_t));
     setup += json_str.length();
     setup += json_str.c_str();
 

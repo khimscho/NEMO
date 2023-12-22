@@ -193,6 +193,9 @@ Config LoggerConfig;    ///< Static parameter to use for lookups (rather than ma
 DynamicJsonDocument ConfigJSON::ExtractConfig(bool secure)
 {
     using namespace ArduinoJson;
+    // Note fixed size of document here.  Since what's being rendered into it is pretty well
+    // controlled here, it's probably relatively safe; you should assess if you add anything
+    // into the payload, however.
     DynamicJsonDocument params(1024);
     params["version"]["firmware"] = FirmwareVersion();
     params["version"]["commandproc"] = SerialCommand::SoftwareVersion();
@@ -284,6 +287,9 @@ DynamicJsonDocument ConfigJSON::ExtractConfig(bool secure)
 
 bool ConfigJSON::SetConfig(String const& json_string)
 {
+    // Note fixed size of document here.  Since the configuration string is typically of well-
+    // known size, this shouldn't be too dangerous, but it's probably wise to review this if
+    // you add anything into the payload.
     DynamicJsonDocument params(1024);
     deserializeJson(params, json_string);
 

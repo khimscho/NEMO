@@ -28,7 +28,7 @@
 #include <stdint.h>
 #include <utility>
 #include "MD5Builder.h"
-#include "SPIFFS.h"
+#include "LittleFS.h"
 #include "LogManager.h"
 #include "StatusLED.h"
 #include "MemController.h"
@@ -387,10 +387,9 @@ void Manager::TransferLogFile(int file_num, Stream& output)
 ///
 /// \param led  Pointer to the LED controller for the logger (external owner)
 
-Manager::Manager(StatusLED *led)
-: m_led(led), m_inventory(nullptr)
+Manager::Manager(StatusLED *led, mem::MemController *storage)
+: m_storage(storage), m_led(led), m_inventory(nullptr)
 {
-    m_storage = mem::MemControllerFactory::Create();
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
     m_consoleLog = m_storage->Controller().open("/console.log", FILE_APPEND);
 #else
@@ -413,8 +412,6 @@ Manager::~Manager(void)
         delete m_inventory;
     m_consoleLog.println("INFO: shutting down log manager under control.");
     m_consoleLog.close();
-    m_storage->Stop();
-    delete m_storage;
 }
 
 /// Start logging data to a new log file, generating the next log number in sequence that

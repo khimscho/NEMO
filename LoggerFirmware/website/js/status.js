@@ -87,9 +87,12 @@ function assembleDetailHeader() {
     sizeCol.textContent = 'Size';
     const md5Col = document.createElement('th');
     md5Col.textContent = 'MD5 Checksum';
+    const uploadCol = document.createElement('th');
+    uploadCol.textContent = 'Upload Count';
     headerRow.appendChild(idCol);
     headerRow.appendChild(sizeCol);
     headerRow.appendChild(md5Col);
+    headerRow.appendChild(uploadCol);
     return headerRow;
 }
 
@@ -121,7 +124,7 @@ function assembleDataRow(id, source, time, data) {
     return row;
 }
 
-function assembleDetailRow(id, len, md5, url) {
+function assembleDetailRow(id, len, md5, url, uploadCount) {
     let row = document.createElement('tr');
     let idEl = document.createElement('td');
     let linkEl = document.createElement('a');
@@ -132,9 +135,12 @@ function assembleDetailRow(id, len, md5, url) {
     sizeEl.textContent = translateSize(len);
     let md5El = document.createElement('td');
     md5El.textContent = md5;
+    let uploadEl = document.createElement('td');
+    uploadEl.textContent = uploadCount;
     row.appendChild(idEl);
     row.appendChild(sizeEl);
     row.appendChild(md5El);
+    row.appendChild(uploadEl);
     return row; 
 }
 
@@ -166,7 +172,9 @@ function updateStatus(tablePrefix) {
     
         let totalFileSize = 0;
         for (let n = 0; n < data.files.count; ++n) {
-            totalFileSize += data.files.detail[n].len;
+            if ('len' in data.files.detail[n] && isFinite(data.files.detail[n].len)) {
+                totalFileSize += data.files.detail[n].len;
+            }
         }
     
         let stats = document.getElementById(statsTable);
@@ -211,7 +219,20 @@ function updateStatus(tablePrefix) {
         if (detail !== null) {
             detail.replaceChildren(assembleDetailHeader());
             for (let n = 0; n < data.files.count; ++n) {
-                detail.appendChild(assembleDetailRow(data.files.detail[n].id, data.files.detail[n].len, data.files.detail[n].md5, data.files.detail[n].url));
+                if (data.files.detail[n].hasOwnProperty('id') &&
+                    data.files.detail[n].hasOwnProperty('len') &&
+                    data.files.detail[n].hasOwnProperty('md5') &&
+                    data.files.detail[n].hasOwnProperty('url') &&
+                    data.files.detail[n].hasOwnProperty('uploads'))
+                    detail.appendChild(
+                        assembleDetailRow(
+                            data.files.detail[n].id,
+                            data.files.detail[n].len,
+                            data.files.detail[n].md5,
+                            data.files.detail[n].url,
+                            data.files.detail[n].uploads
+                        )
+                    );
             }
         }
     });

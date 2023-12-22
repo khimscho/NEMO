@@ -36,9 +36,26 @@ DynamicJsonDocument GenerateFilelist(logger::Manager *m)
         if (!filehash.Empty())
             entry["md5"] = filehash.Value();
         entry["url"] = filename;
+        entry["uploads"] = uploadCount;
 
+        int entry_size = entry.memoryUsage();
+        if (doc.memoryUsage() + entry_size > 0.95*doc.capacity()) {
+            // It's likely that adding the entry will cause the document to run out of
+            // space.  We therefore double the capacity (since it's expensive, and we
+            // don't want to have to do it more than once) before we attempt the addition.
+            int capacity = doc.capacity() * 2;
+            DynamicJsonDocument new_doc(capacity);
+            new_doc.set(doc);
+            doc = new_doc;
+        }
         if (!doc["files"]["detail"].add(entry.as<JsonObject>())) {
-            // Out of memory, so make a new allocation
+            // Out of memory, even after adding more above (most likely),
+            // so make a new allocation.  Note that the addition can partially
+            // work, so you can end up with a malformed entry in the array (and
+            // one more entry than you expect).  We therefore remove this last
+            // element before continuing -- luckily, it should be at the index in
+            // the array of the file number.
+            doc["files"]["detail"].remove(n);
             int capacity = doc.capacity() * 2;
             DynamicJsonDocument new_doc(capacity);
             new_doc.set(doc);
@@ -51,7 +68,16 @@ DynamicJsonDocument GenerateFilelist(logger::Manager *m)
 
 DynamicJsonDocument CurrentStatus(logger::Manager *m)
 {
-    DynamicJsonDocument status(10240);
+    DynamicJsonDocument filelist(GenerateFilelist(m));
+    DynamicJsonDocument lkg(logger::Metrics.LastKnownGood());
+
+    // The total capacity should be, approximately, the sum of the biggest components
+    // (above), plus some limited information on versions, elapsed time, and boot
+    // status.  We're assuming here that 1024B is enough for the extras ... that
+    // might not always be the case.
+    int capacity = filelist.capacity() + lkg.capacity() + 1024;
+
+    DynamicJsonDocument status(capacity);
 
     status["version"]["firmware"] = logger::FirmwareVersion();
     status["version"]["commandproc"] = SerialCommand::SoftwareVersion();
@@ -69,12 +95,34 @@ DynamicJsonDocument CurrentStatus(logger::Manager *m)
     status["webserver"]["current"] = server_status;
     status["webserver"]["boot"] = boot_status;
 
-    status["data"] = logger::Metrics.LastKnownGood();
-
-    DynamicJsonDocument filelist(GenerateFilelist(m));
+    status["data"] = lkg;
     status["files"] = filelist["files"];
 
     return status;
+}
+
+DynamicJsonDocument GenerateJSON(String const& source)
+{
+    size_t capacity = std::max<size_t>(source.length()*2, 1024);
+    bool done = false;
+    DeserializationError err;
+    while (true) {
+        DynamicJsonDocument doc(capacity);
+        if ((err = deserializeJson(doc, source)) == DeserializationError::NoMemory) {
+            capacity *= 2;
+        } else if (err == DeserializationError::Ok) {
+            return doc;
+        } else {
+            done = true;
+        }
+    }
+    // If we get to here, then something went wrong on the deserialisation that wasn't
+    // not having enough memory, so we need to report that to the end user.  This really
+    // shouldn't happen, because the internal JSON should always be well formed, but ...
+    DynamicJsonDocument doc(256 + strlen(err.c_str()));
+    doc["error"]["message"] = String("failed to render internal string to JSON for transaction");
+    doc["error"]["detail"] = err.c_str();
+    return doc;
 }
 
 }
