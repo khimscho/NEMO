@@ -69,9 +69,9 @@ private:
     
     bool set_key(String const& key, String const& value)
     {
-        fs::File f = SPIFFS.open(String("/") + key + ".par", FILE_WRITE);
+        fs::File f = SPIFFS.open(String("/") + key + ".par", FILE_WRITE, true);
         if (!f) {
-            Serial.println("ERR: failed to write key to filesystem.");
+            Serial.printf("ERR: failed to write config key |%s| to filesystem.\n", key.c_str());
             return false;
         }
         f.print(value);
@@ -88,11 +88,14 @@ private:
     
     bool get_key(String const& key, String& value)
     {
-        fs::File f = SPIFFS.open(String("/") + key + ".par", FILE_READ);
+        String filename(String("/") + key + ".par");
+        if (!SPIFFS.exists(filename)) {
+            File f = SPIFFS.open(filename, FILE_WRITE, true);
+            f.close();
+        }
+        fs::File f = SPIFFS.open(filename, FILE_READ);
         if (!f) {
-            Serial.print("ERR: failed to find key \"");
-            Serial.print(key);
-            Serial.println("\" in filesystem.");
+            Serial.printf("ERR: failed to find config key |%s| in filesystem.\n", key.c_str());
             value = "";
             return false;
         }
@@ -120,7 +123,7 @@ public:
         }
         size_t filesystem_size = LittleFS.totalBytes();
         size_t used_size = LittleFS.usedBytes();
-        Serial.println(String("INFO: SPI FFS total ") + filesystem_size + "B, used " + used_size + "B");
+        Serial.println(String("INFO: LittleFS total ") + filesystem_size + "B, used " + used_size + "B");
     }
     
     /// Empty default destructor to allow for sub-classing if required.
@@ -139,9 +142,9 @@ private:
     
     bool set_key(String const& key, String const& value)
     {
-        fs::File f = LittleFS.open(String("/") + key + ".par", FILE_WRITE);
+        fs::File f = LittleFS.open(String("/") + key + ".par", FILE_WRITE, true);
         if (!f) {
-            Serial.println("ERR: failed to write key to filesystem.");
+            Serial.printf("ERR: failed to write config key |%s| to filesystem.\n", key.c_str());
             return false;
         }
         f.print(value);
@@ -158,11 +161,14 @@ private:
     
     bool get_key(String const& key, String& value)
     {
-        fs::File f = LittleFS.open(String("/") + key + ".par", FILE_READ);
+        String filename(String("/") + key + ".par");
+        if (!LittleFS.exists(filename)) {
+            File f = LittleFS.open(filename, FILE_WRITE, true);
+            f.close();
+        }
+        fs::File f = LittleFS.open(filename, FILE_READ);
         if (!f) {
-            Serial.print("ERR: failed to find key \"");
-            Serial.print(key);
-            Serial.println("\" in filesystem.");
+            Serial.printf("ERR: failed to find config key |%s| in filesystem.\n", key.c_str());
             value = "";
             return false;
         }

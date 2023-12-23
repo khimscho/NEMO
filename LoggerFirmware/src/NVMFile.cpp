@@ -45,7 +45,11 @@ namespace logger {
 NVMFile::NVMFile(String const& filename)
 : m_backingStore(filename), m_changed(false)
 {
-    File f = LittleFS.open(filename.c_str(), "r", true); // Create if it doesn't already exist
+    if (!LittleFS.exists(filename)) {
+        File f = LittleFS.open(filename, "w", true);
+        f.close();
+    }
+    File f = LittleFS.open(filename.c_str(), "r"); // Create if it doesn't already exist
     if (!f) {
         Serial.printf("ERR: failed to open \"%s\" for NVM file read.\n", filename.c_str());
         m_backingStore = "";
