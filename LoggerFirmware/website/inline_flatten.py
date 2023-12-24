@@ -22,6 +22,11 @@ def convert_file(input: str, output: str) -> None:
         for script in scripts:
             try:
                 src = os.sep.join((inbase, script['src']))
+                print(f'Info: looking for source {src} for JavaScript.')
+                compiled_src = src.replace('.js', '_compiled.js')
+                if os.path.isfile(compiled_src):
+                    src = compiled_src
+                    print(f'Info: using compiled source {compiled_src} for JavaScript.')
                 tag = soup.new_tag('script')
                 with open(src) as s:
                     contents = s.read()
