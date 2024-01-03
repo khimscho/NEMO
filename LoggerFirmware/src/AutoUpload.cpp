@@ -67,9 +67,12 @@ void UploadManager::UploadCycle(void)
     if ((start_time - m_lastUploadCycle) < m_uploadInterval) return; // Not time yet ...
     m_lastUploadCycle = start_time;
 
+    uint32_t filenumbers[logger::MaxLogFiles];
+    if (m_logManager->CountLogFiles(filenumbers) == 0) return; // Nothing to transfer, so no need to get in touch ...
+
     if (!ReportStatus()) {
         // Failed to report status ... means the server's not there, or we're not connected
-        Serial.printf("DBG: UploadManager::UploadCycle failed to report status at |%d|\n",
+        Serial.printf("DBG: UploadManager::UploadCycle failed to report status at %d ms elapsed.\n",
             m_lastUploadCycle);
         return;
     }
@@ -98,7 +101,7 @@ bool UploadManager::ReportStatus(void)
     DynamicJsonDocument status(logger::status::CurrentStatus(m_logManager));
     String url = m_serverURL + "checkin";
     String status_json;
-    deserializeJson(status, status_json);
+    serializeJson(status, status_json);
 
     WiFiClient wifi;
     HTTPClient client;
@@ -152,7 +155,9 @@ bool UploadManager::TransferFile(fs::FS& controller, uint32_t file_id)
         client.addHeader(String("Digest"), digest_header);
         client.addHeader(String("Content-Type"), String("application/octet-stream"), false, true);
 
-        if ((http_rc = client.sendRequest("POST", &f)) == HTTP_CODE_OK) {
+        Serial.printf("DBG: UploadManager::TransferFile POST starting ...\n");
+        if ((http_rc = client.sendRequest("POST", &f, file_size)) == HTTP_CODE_OK) {
+            Serial.printf("DBG: UploadManager::TransferFile POST completed with 200OK\n");
             // If we get a 200OK then the response body should be a JSON document with information
             // about the upload (successful or unsuccessful).
             String payload = client.getString();

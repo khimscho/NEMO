@@ -21,7 +21,7 @@ DynamicJsonDocument GenerateFilelist(logger::Manager *m)
 {
     uint32_t filenumbers[logger::MaxLogFiles];
     uint32_t n_files = m->CountLogFiles(filenumbers);
-    DynamicJsonDocument doc(100*n_files); // Approximate guess, but can expand
+    DynamicJsonDocument doc(100*n_files + 256); // Approximate guess, but can expand
 
     doc["files"]["count"] = n_files;
     for (int n = 0; n < n_files; ++n) {

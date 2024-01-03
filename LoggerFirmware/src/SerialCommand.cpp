@@ -532,7 +532,7 @@ void SerialCommand::TransferLogFile(String const& filenum, CommandSource src)
             m_logManager->TransferLogFile(file_number, filehash, Serial);
             break;
         case CommandSource::WirelessPort:
-            Serial.printf("DBG: Transfering \"%s\", total %u bytes.\n", filename.c_str(), filesize);
+            Serial.printf("DBG: Transferring \"%s\", total %u bytes.\n", filename.c_str(), filesize);
             tx_start = millis();
             m_wifi->TransferFile(filename, filesize, filehash);
             tx_end = millis();
@@ -1349,7 +1349,7 @@ void SerialCommand::ConfigureUpload(String const& command, CommandSource src)
     } else if (command.startsWith("off")) {
         state = false;
     } else {
-        EmitMessage("ERR: upload can be fonfigures 'on' or 'off' on boot only.\n", src);
+        EmitMessage("ERR: upload can be configured 'on' or 'off' on boot only.\n", src);
         if (src == CommandSource::WirelessPort && m_wifi != nullptr) {
             m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
         }
@@ -1360,6 +1360,14 @@ void SerialCommand::ConfigureUpload(String const& command, CommandSource src)
     int timeout_position = command.indexOf(' ', port_position) + 1;
     int interval_position = command.indexOf(' ', timeout_position) + 1;
     int duration_position = command.indexOf(' ', interval_position) + 1;
+
+    if (addr_position == 0 || port_position == 0 || timeout_position == 0 || interval_position == 0 || duration_position == 0) {
+        EmitMessage("ERR: malformed upload specification; see syntax for details.\n", src);
+        if (src == CommandSource::WirelessPort && m_wifi != nullptr) {
+            m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
+        }
+        return;
+    }
     String addr(command.substring(addr_position, port_position-1));
     String port(command.substring(port_position, timeout_position-1));
     String timeout(command.substring(timeout_position, interval_position-1));

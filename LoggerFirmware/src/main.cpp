@@ -83,7 +83,7 @@ void setup()
 
     Serial.begin(115200);
 
-    Serial.printf("*\n*\n*\nBOOTING WIBL DATA LOGGER, FIRMWARE VERSION %s\n*\nFor more information: http://wibl.ccom.unh.edu\n*\n*\n", logger::FirmwareVersion());
+    Serial.printf("*\n*\n*\n* BOOTING WIBL DATA LOGGER, FIRMWARE VERSION %s\n*\n* For more information: http://wibl.ccom.unh.edu\n*\n*\n", logger::FirmwareVersion());
 
     Serial.printf("DBG: At boot, heap is %d B (%d B free)\n", heap_size, heap_free);
     Serial.printf("DBG: ");
@@ -159,7 +159,7 @@ void setup()
 
     if (logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_MOTION_B, start_motion_sensor)
             && start_motion_sensor) {
-        Serial.println("Configurating IMU logger ...");
+        Serial.println("Configuring IMU logger ...");
         IMULogger = new imu::Logger(logManager);
 
         Serial.printf("DBG: After IMU logger start, free heap = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());

@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"ccom.unh.edu/wibl-monitor/src/api"
 	"ccom.unh.edu/wibl-monitor/src/support"
@@ -38,7 +39,8 @@ func main() {
 	http.HandleFunc("/", syntax)
 	http.HandleFunc("/checkin", status_updates)
 	http.HandleFunc("/update", file_transfer)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf("localhost:%d", config.API.Port), nil))
+	address := fmt.Sprintf(":%d", config.API.Port)
+	log.Fatal(http.ListenAndServe(address, nil))
 
 }
 
@@ -61,11 +63,12 @@ func status_updates(w http.ResponseWriter, r *http.Request) {
 
 	if err = json.Unmarshal(body, &status); err != nil {
 		support.Errorf("API: failed to unmarshall request: %s\n", err)
+		support.Errorf("API: body was |%s|\n", body)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	support.Infof("INF: status update from logger with firmware %s, command processor %s, total %d files.\n",
+	support.Infof("CHECKIN: status update from logger with firmware %s, command processor %s, total %d files.\n",
 		status.Versions.Firmware, status.Versions.CommandProcessor, status.Files.Count)
 }
 
@@ -74,24 +77,33 @@ func file_transfer(w http.ResponseWriter, r *http.Request) {
 	var err error
 	var result api.TransferResult
 
+	support.Infof("TRANS: File transfer request with headers:\n")
+	for k, v := range r.Header {
+		support.Infof("TRANS: %s = %s\n", k, v)
+	}
 	if body, err = io.ReadAll(r.Body); err != nil {
 		support.Errorf("API: failed to read file body from POST: %s.\n", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	r.Body.Close()
+	support.Infof("TRANS: File from logger with %d bytes in body.\n", len(body))
 	md5digest := r.Header.Get("Digest")
 	if len(md5digest) == 0 {
 		support.Errorf("API: no digest in headers for file transfer.\n")
 		w.WriteHeader(http.StatusBadRequest)
 		return
+	} else {
+		md5digest = strings.Split(md5digest, "=")[1]
+		support.Infof("TRANS: MD5 Digest |%s|\n", md5digest)
 	}
-	md5hash := fmt.Sprintf("%x", md5.Sum(body))
+	md5hash := fmt.Sprintf("%X", md5.Sum(body))
 	if md5hash != md5digest {
 		support.Errorf("API: recomputed MD5 digest doesn't match that sent from logger (%s != %s).\n",
 			md5digest, md5hash)
 		result.Status = "failure"
 	} else {
+		support.Infof("TRANS: successful recomputation of MD5 hash for transmitted contents.\n")
 		result.Status = "success"
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -100,5 +112,7 @@ func file_transfer(w http.ResponseWriter, r *http.Request) {
 		support.Errorf("API: failed to marshal response as JSON for file upload: %s\n", err)
 		return
 	}
+	support.Infof("TRANS: sending |%s| to logger as response.\n", result_string)
 	w.Write(result_string)
+	support.Infof("TRANS: upload transaction complete.\n")
 }

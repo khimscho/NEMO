@@ -62,7 +62,7 @@ NVMFile::NVMFile(String const& filename)
         // so that the string will parse without failing in the ArduinoJson library.
         m_contents = String("{}");
     }
-    Serial.printf("DBG: NVMFile() read |%s| from |%s|\n", m_contents.c_str(), m_backingStore.c_str());
+    //Serial.printf("DBG: NVMFile() read |%s| from |%s|\n", m_contents.c_str(), m_backingStore.c_str());
 }
 
 /// Write the contents of the object to non-volatile memory space on the logger as a simple
@@ -81,7 +81,7 @@ NVMFile::~NVMFile(void)
                 Serial.printf("ERR: failed to open |%s| for NVM file write.\n", m_backingStore.c_str());
                 return;
             }
-            Serial.printf("DBG: ~NVMFile() writing |%s| to |%s|.\n", m_contents.c_str(), m_backingStore.c_str());
+            //Serial.printf("DBG: ~NVMFile() writing |%s| to |%s|.\n", m_contents.c_str(), m_backingStore.c_str());
             f.print(m_contents);
             f.close();
         }
@@ -130,8 +130,8 @@ String NVMFile::JSONRepresentation(bool indented)
     String rtn;
     if (!Valid()) return rtn;
 
-    Serial.printf("DBG: making JSON representation for NVM contents |%s| from |%s|\n",
-        m_contents.c_str(), m_backingStore.c_str());
+    //Serial.printf("DBG: making JSON representation for NVM contents |%s| from |%s|\n",
+    //   m_contents.c_str(), m_backingStore.c_str());
     if (indented) {
         // Since the contents string is minified, we need to deserialise, and then re-serialise ...
         DynamicJsonDocument doc(logger::status::GenerateJSON(m_contents));
@@ -358,7 +358,7 @@ void AlgoRequestStore::AddAlgorithm(String const& alg_name, String const& alg_pa
     EndTransaction(doc);
 
     String temp(JSONRepresentation());
-    Serial.printf("DBG: AlgStore now |%s|\n", temp.c_str());
+    //Serial.printf("DBG: AlgStore now |%s|\n", temp.c_str());
 }
 
 /// Empty the list of algorithms being stored by the logger, so that no requests are made of the
@@ -427,7 +427,7 @@ bool N0183IDStore::AddIDs(String const& msg_set)
     int count = doc["count"];
     int start_point = 0, split_point;
 
-    Serial.printf("DBG: NMEA0183 ID count currently %d\n", count);
+    //Serial.printf("DBG: NMEA0183 ID count currently %d\n", count);
 
     while ((split_point = msg_set.indexOf(' ', start_point)) >= 0) {
         String msgid = msg_set.substring(start_point, split_point);
@@ -452,7 +452,7 @@ bool N0183IDStore::AddIDs(String const& msg_set)
     EndTransaction(doc);
 
     String temp(JSONRepresentation());
-    Serial.printf("DBG: Filter store now |%s|\n", temp.c_str());
+    //Serial.printf("DBG: Filter store now |%s|\n", temp.c_str());
 
     return true;
 }

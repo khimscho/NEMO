@@ -12,4 +12,7 @@ python inline_flatten.py
 
 rm js/*_compiled.js
 
+cp images/* ../data/website/images
+cp favicon.png ../data/website
+
 exit 0
