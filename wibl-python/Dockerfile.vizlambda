@@ -5,12 +5,12 @@ RUN dnf -y install wget tar gzip clang cmake \
     sqlite-devel expat-devel libcurl-devel zlib-devel libtiff-devel libpng-devel libjpeg-turbo-devel
 
 # Download GEBCO data
-RUN mkdir -p /var/wibl/data
-WORKDIR /var/wibl/data
-RUN wget https://www.bodc.ac.uk/data/open_download/gebco/gebco_2023/zip/ -O gebco_2023.zip
-RUN unzip gebco_2023.zip -d gebco_2023
-RUN rm gebco_2023.zip gebco_2023/GEBCO_2023_Grid_documentation.pdf gebco_2023/GEBCO_Grid_terms_of_use.pdf
-ENV WIBL_GEBCO_PATH=/var/wibl/data/gebco_2023/GEBCO_2023.nc
+#RUN mkdir -p /var/wibl/data
+#WORKDIR /var/wibl/data
+#RUN wget https://www.bodc.ac.uk/data/open_download/gebco/gebco_2023/zip/ -O gebco_2023.zip
+#RUN unzip gebco_2023.zip -d gebco_2023
+#RUN rm gebco_2023.zip gebco_2023/GEBCO_2023_Grid_documentation.pdf gebco_2023/GEBCO_Grid_terms_of_use.pdf
+#ENV WIBL_GEBCO_PATH=/var/wibl/data/gebco_2023/GEBCO_2023.nc
 
 # Setup code for installation
 RUN mkdir /tmp/code

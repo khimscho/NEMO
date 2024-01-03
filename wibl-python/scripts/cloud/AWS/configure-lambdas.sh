@@ -444,18 +444,47 @@ echo $'\e[31mConversion start lambda URL:' ${CONVERSION_START_URL} $'\e[0m'
 
 ########################
 # Phase 7: Generate the vizualization HTTP lambda
+# Create ingress rule to allow NFS connections from the subnet (e.g., EFS mount point)
+aws --region $AWS_REGION ec2 authorize-security-group-ingress \
+  --group-id "$(cat ${WIBL_BUILD_LOCATION}/create_security_group_public.json | jq -r '.GroupId')" \
+  --ip-permissions '[{"IpProtocol": "tcp", "FromPort": 2049, "ToPort": 2049, "IpRanges": [{"CidrIp": "10.0.2.0/24"}]}]' \
+  | tee ${WIBL_BUILD_LOCATION}/create_security_group_public_rule_efs.json
+
+# Tag the NFS ingress rule with a name:
+aws --region $AWS_REGION ec2 create-tags --resources "$(cat ${WIBL_BUILD_LOCATION}/create_security_group_public_rule_efs.json | jq -r '.SecurityGroupRules[0].SecurityGroupRuleId')" \
+  --tags 'Key=Name,Value=wibl-vizlambda-efs-mount-point'
+
 # Create EFS volume for storing GEBCO data on
 aws --region $AWS_REGION efs create-file-system \
-  --creation-token wibl-manager-ecs-task-efs \
+  --creation-token wibl-vizlambda-efs \
   --no-encrypted \
   --no-backup \
   --performance-mode generalPurpose \
   --throughput-mode bursting \
   --tags 'Key=Name,Value=wibl-vizlambda-efs' \
   | tee ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_file_system.json
+WIBL_VIZ_LAMBDA_EFS_ID=$(cat ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_file_system.json | jq -r '.FileSystemId')
+
+# To delete:
+# aws --region $AWS_REGION efs delete-file-system \
+#  --file-system-id $(cat ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_file_system.json | jq -r '.FileSystemId')
+
+# Create mount target for EFS volume within our VPC subnet
+aws --region $AWS_REGION efs create-mount-target \
+  --file-system-id "$(cat ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_file_system.json | jq -r '.FileSystemId')" \
+  --subnet-id "$(cat ${WIBL_BUILD_LOCATION}/create_subnet_public.txt)" \
+  --security-groups "$(cat ${WIBL_BUILD_LOCATION}/create_security_group_public.json | jq -r '.GroupId')" \
+  | tee ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_mount_target.json
+
+echo $'\e[31mWaiting for 30 seconds to allow EFS-related security group rule to propagate ...\e[0m'
+sleep 30
+
+# To delete:
+# aws --region $AWS_REGION efs delete-mount-target \
+#  --mount-target-id $(cat ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_mount_target.json | jq -r '.MountTargetId')
 
 # Create SSH key pair to access temporary EC2 instance
-aws ec2 create-key-pair \
+aws --region $AWS_REGION ec2 create-key-pair \
   --key-name wibl-tmp-key \
   --key-type rsa \
   --key-format pem \
@@ -463,7 +492,7 @@ aws ec2 create-key-pair \
   --output text > "${WIBL_BUILD_LOCATION}/wibl-tmp-key.pem"
 chmod 400 "${WIBL_BUILD_LOCATION}/wibl-tmp-key.pem"
 
-aws ec2 run-instances --image-id ami-0d9b5e9b3272cff13 --count 1 --instance-type t4g.nano \
+aws --region $AWS_REGION ec2 run-instances --image-id ami-0d9b5e9b3272cff13 --count 1 --instance-type t4g.nano \
 	--key-name wibl-tmp-key \
 	--associate-public-ip-address \
 	--security-group-ids \
@@ -472,26 +501,41 @@ aws ec2 run-instances --image-id ami-0d9b5e9b3272cff13 --count 1 --instance-type
 	| tee ${WIBL_BUILD_LOCATION}/run-wibl-test-ec2-instance.json
 
 # Tag the instance with a name
-aws ec2 create-tags \
+aws --region $AWS_REGION ec2 create-tags \
   --resources "$(cat ${WIBL_BUILD_LOCATION}/run-wibl-test-ec2-instance.json| jq -r '.Instances[0].InstanceId')" \
   --tags 'Key=Name,Value=wibl-test'
 
-echo $'\e[31mWaiting for 10 seconds to allow EC2 instance to start ...\e[0m'
-sleep 10
+echo $'\e[31mWaiting for 30 seconds to allow EC2 instance to start ...\e[0m'
+sleep 30
 
 TEST_INSTANCE_IP=$(aws ec2 describe-instances \
   --instance-ids "$(cat ${WIBL_BUILD_LOCATION}/run-wibl-test-ec2-instance.json | jq -r '.Instances[0].InstanceId')" \
   | jq -r '.Reservations[0].Instances[0].PublicIpAddress')
 
-# TODO: Connect to EC2 instance via SSH, mount EFS, download GEBCO data
-ssh  -i "${WIBL_BUILD_LOCATION}/wibl-tmp-key.pem" ec2-user@${TEST_INSTANCE_IP} 'bash -s' <<-EOF
-cmd1
-cmd2
-cmd3
+# Connect to EC2 instance via SSH, mount EFS, download GEBCO data
+ssh -o StrictHostKeyChecking=accept-new -i "${WIBL_BUILD_LOCATION}/wibl-tmp-key.pem" ec2-user@${TEST_INSTANCE_IP} <<-EOF
+sudo dnf install -y wget amazon-efs-utils && \
+  mkdir -p efs && \
+  sudo mount -t efs "$WIBL_VIZ_LAMBDA_EFS_ID" efs && \
+  cd efs && \
+  sudo mkdir -p -m 777 gebco && \
+  cd gebco && \
+  echo 'Downloading GEBCO data to EFS volume (this will take several minutes)...' && \
+  wget -q https://www.bodc.ac.uk/data/open_download/gebco/gebco_2023/zip/ -O gebco_2023.zip && \
+  unzip gebco_2023.zip && \
+  chmod 755 GEBCO_2023.nc && \
+  rm gebco_2023.zip *.pdf && \
+  cd && \
+  sudo umount efs
 EOF
+test_aws_cmd_success $?
 
-# TODO: Terminate EC2 instance
+# Terminate EC2 instance
+aws --region $AWS_REGION ec2 terminate-instances \
+  --instance-ids "$(cat ${WIBL_BUILD_LOCATION}/run-wibl-test-ec2-instance.json | jq -r '.Instances[0].InstanceId')"
 
+# Phase 7b: Now we can create the container image for the lambda and create the lambda that mounts the EFS volume
+#   created above.
 
 # Create ECR repo
 aws --region $AWS_REGION ecr create-repository \
@@ -509,6 +553,9 @@ docker build -f ../../../Dockerfile.vizlambda -t wibl/vizlambda:latest ../../../
 docker tag wibl/vizlambda:latest "${ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/wibl/vizlambda:latest"
 docker push "${ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/wibl/vizlambda:latest" | tee "${WIBL_BUILD_LOCATION}/docker_push_vizlambda_to_ecr.txt"
 
+# TODO: Create and configure EFS access point to allow lambda to access GEBCO data
+#       see: https://docs.aws.amazon.com/lambda/latest/dg/configuration-filesystem.html
+
 # Create the vizualization HTTP lambda
 echo $'\e[31mGenerating vizualization HTTP lambda...\e[0m'
 aws --region ${AWS_REGION} lambda create-function \
@@ -520,8 +567,9 @@ aws --region ${AWS_REGION} lambda create-function \
 	--package-type Image \
 	--code ImageUri="${ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/wibl/vizlambda:latest" \
 	--architectures ${ARCHITECTURE} \
+	--file-system-configs "Arn=$(),LocalMountPath=/mnt/efs0" \
 	--vpc-config "SubnetIds=${LAMBDA_SUBNETS},SecurityGroupIds=${LAMBDA_SECURITY_GROUP}" \
-	--environment "Variables={DEST_BUCKET=${VIZ_BUCKET},STAGING_BUCKET=${STAGING_BUCKET},MANAGEMENT_URL=${MANAGEMENT_URL}}" \
+	--environment "Variables={WIBL_GEBCO_PATH=/mnt/efs0/gebco/GEBCO_2023.nc,DEST_BUCKET=${VIZ_BUCKET},STAGING_BUCKET=${STAGING_BUCKET},MANAGEMENT_URL=${MANAGEMENT_URL}}" \
 	| tee "${WIBL_BUILD_LOCATION}/create_lambda_viz.json"
 
 echo $'\e[31mConfiguring S3 access policy so that viz lambda can access S3 staging and viz buckets...\e[0m'
