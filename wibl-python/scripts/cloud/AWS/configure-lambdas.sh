@@ -476,6 +476,13 @@ aws --region $AWS_REGION efs create-mount-target \
   --security-groups "$(cat ${WIBL_BUILD_LOCATION}/create_security_group_public.json | jq -r '.GroupId')" \
   | tee ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_mount_target.json
 
+# Create access point to later be used by lambda
+# TODO: Create an access point in another AZ
+aws --region ${AWS_REGION} efs create-access-point \
+  --file-system-id "$(cat ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_file_system.json | jq -r '.FileSystemId')" \
+  | tee ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_access_point.json
+VIZ_LAMBDA_EFS_AP_ARN=$(cat ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_access_point.json | jq -r '.AccessPointArn')
+
 echo $'\e[31mWaiting for 30 seconds to allow EFS-related security group rule to propagate ...\e[0m'
 sleep 30
 
@@ -514,6 +521,7 @@ TEST_INSTANCE_IP=$(aws ec2 describe-instances \
 
 # Connect to EC2 instance via SSH, mount EFS, download GEBCO data
 ssh -o StrictHostKeyChecking=accept-new -i "${WIBL_BUILD_LOCATION}/wibl-tmp-key.pem" ec2-user@${TEST_INSTANCE_IP} <<-EOF
+ssh -o StrictHostKeyChecking=accept-new -i "wibl-tmp-key.pem" ec2-user@${TEST_INSTANCE_IP} <<-EOF
 sudo dnf install -y wget amazon-efs-utils && \
   mkdir -p efs && \
   sudo mount -t efs "$WIBL_VIZ_LAMBDA_EFS_ID" efs && \
@@ -553,10 +561,7 @@ docker build -f ../../../Dockerfile.vizlambda -t wibl/vizlambda:latest ../../../
 docker tag wibl/vizlambda:latest "${ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/wibl/vizlambda:latest"
 docker push "${ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/wibl/vizlambda:latest" | tee "${WIBL_BUILD_LOCATION}/docker_push_vizlambda_to_ecr.txt"
 
-# TODO: Create and configure EFS access point to allow lambda to access GEBCO data
-#       see: https://docs.aws.amazon.com/lambda/latest/dg/configuration-filesystem.html
-
-# Create the vizualization HTTP lambda
+# Create the vizualization HTTP lambda which mounts the vizlambda EFS volume to provide access to GEBCO data
 echo $'\e[31mGenerating vizualization HTTP lambda...\e[0m'
 aws --region ${AWS_REGION} lambda create-function \
   --function-name ${VIZ_LAMBDA} \
@@ -567,7 +572,7 @@ aws --region ${AWS_REGION} lambda create-function \
 	--package-type Image \
 	--code ImageUri="${ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/wibl/vizlambda:latest" \
 	--architectures ${ARCHITECTURE} \
-	--file-system-configs "Arn=$(),LocalMountPath=/mnt/efs0" \
+	--file-system-configs "Arn=${VIZ_LAMBDA_EFS_AP_ARN},LocalMountPath=/mnt/efs0" \
 	--vpc-config "SubnetIds=${LAMBDA_SUBNETS},SecurityGroupIds=${LAMBDA_SECURITY_GROUP}" \
 	--environment "Variables={WIBL_GEBCO_PATH=/mnt/efs0/gebco/GEBCO_2023.nc,DEST_BUCKET=${VIZ_BUCKET},STAGING_BUCKET=${STAGING_BUCKET},MANAGEMENT_URL=${MANAGEMENT_URL}}" \
 	| tee "${WIBL_BUILD_LOCATION}/create_lambda_viz.json"
