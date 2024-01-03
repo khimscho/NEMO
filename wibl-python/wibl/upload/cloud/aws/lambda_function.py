@@ -32,7 +32,7 @@ def lambda_handler(event, context):
 
     s3_object = body['object']
 
-    # Make sure object exists in staging bucket
+    # Make sure object exists in incoming bucket
     s3_bucket = getenv('INCOMING_BUCKET')
     # Use the same values for source and destination store and key so that we can use both the cloud controller
     # (which reads from the source attributes) and the notifier (which reads from the destination attributes)

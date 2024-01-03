@@ -45,7 +45,7 @@ cat > "${WIBL_BUILD_LOCATION}/lambda-trust-policy.json" <<-HERE
 HERE
 
 # Generate roles that allow lambdas to assume its execution role, one each for conversion, validation, submission,
-# and conversion start
+# conversion start, and visualization
 aws --region ${AWS_REGION} iam create-role \
 	--role-name ${CONVERSION_LAMBDA_ROLE} \
 	--assume-role-policy-document file://"${WIBL_BUILD_LOCATION}/lambda-trust-policy.json"
@@ -63,6 +63,11 @@ test_aws_cmd_success $?
 
 aws --region ${AWS_REGION} iam create-role \
 	--role-name ${CONVERSION_START_LAMBDA_ROLE} \
+	--assume-role-policy-document file://"${WIBL_BUILD_LOCATION}/lambda-trust-policy.json"
+test_aws_cmd_success $?
+
+aws --region ${AWS_REGION} iam create-role \
+	--role-name ${VIZ_LAMBDA_ROLE} \
 	--assume-role-policy-document file://"${WIBL_BUILD_LOCATION}/lambda-trust-policy.json"
 test_aws_cmd_success $?
 
@@ -81,6 +86,10 @@ aws --region ${AWS_REGION} iam attach-role-policy \
 
 aws --region ${AWS_REGION} iam attach-role-policy \
 	--role-name ${CONVERSION_START_LAMBDA_ROLE} \
+	--policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole || exit $?
+
+aws --region ${AWS_REGION} iam attach-role-policy \
+	--role-name ${VIZ_LAMBDA_ROLE} \
 	--policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole || exit $?
 
 # Create policy to allow lambdas to join our VPC
@@ -119,17 +128,22 @@ aws --region ${AWS_REGION} iam attach-role-policy \
 aws --region ${AWS_REGION} iam attach-role-policy \
   --role-name ${VALIDATION_LAMBDA_ROLE} \
   --policy-arn "$(cat ${WIBL_BUILD_LOCATION}/create_lambda_nic_policy.json | jq -r '.Policy.Arn')" \
-  | tee "${WIBL_BUILD_LOCATION}/attach_role_policy_lamda_nic_validation.json"
+  | tee "${WIBL_BUILD_LOCATION}/attach_role_policy_lambda_nic_validation.json"
 
 aws --region ${AWS_REGION} iam attach-role-policy \
   --role-name ${SUBMISSION_LAMBDA_ROLE} \
   --policy-arn "$(cat ${WIBL_BUILD_LOCATION}/create_lambda_nic_policy.json | jq -r '.Policy.Arn')" \
-  | tee "${WIBL_BUILD_LOCATION}/attach_role_policy_lamda_nic_submission.json"
+  | tee "${WIBL_BUILD_LOCATION}/attach_role_policy_lambda_nic_submission.json"
 
 aws --region ${AWS_REGION} iam attach-role-policy \
   --role-name ${CONVERSION_START_LAMBDA_ROLE} \
   --policy-arn "$(cat ${WIBL_BUILD_LOCATION}/create_lambda_nic_policy.json | jq -r '.Policy.Arn')" \
-  | tee "${WIBL_BUILD_LOCATION}/attach_role_policy_lamda_nic_conversion_start.json"
+  | tee "${WIBL_BUILD_LOCATION}/attach_role_policy_lambda_nic_conversion_start.json"
+
+aws --region ${AWS_REGION} iam attach-role-policy \
+  --role-name ${VIZ_LAMBDA_ROLE} \
+  --policy-arn "$(cat ${WIBL_BUILD_LOCATION}/create_lambda_nic_policy.json | jq -r '.Policy.Arn')" \
+  | tee "${WIBL_BUILD_LOCATION}/attach_role_policy_lambda_nic_viz.json"
 
 echo $'\e[31mWaiting for 10 seconds to allow roles to propagate ...\e[0m'
 sleep 10
@@ -151,7 +165,7 @@ aws --region ${AWS_REGION} lambda create-function \
 	--architectures ${ARCHITECTURE} \
 	--layers ${NUMPY_LAYER_NAME} \
 	--vpc-config "SubnetIds=${LAMBDA_SUBNETS},SecurityGroupIds=${LAMBDA_SECURITY_GROUP}" \
-	--environment "Variables={NOTIFICATION_ARN=${TOPIC_ARN_VALIDATION},PROVIDER_ID=${DCDB_PROVIDER_ID},STAGING_BUCKET=${STAGING_BUCKET},UPLOAD_POINT=${DCDB_UPLOAD_URL},MANAGEMENT_URL=${MANAGEMENT_URL}}" \
+	--environment "Variables={NOTIFICATION_ARN=${TOPIC_ARN_VALIDATION},PROVIDER_ID=${DCDB_PROVIDER_ID},DEST_BUCKET=${STAGING_BUCKET},UPLOAD_POINT=${DCDB_UPLOAD_URL},MANAGEMENT_URL=${MANAGEMENT_URL}}" \
 	| tee "${WIBL_BUILD_LOCATION}/create_lambda_conversion.json"
 
 echo $'\e[31mConfiguring S3 access policy so that conversion lambda can access S3 incoming and staging buckets...\e[0m'
@@ -345,7 +359,7 @@ aws --region ${AWS_REGION} iam put-role-policy \
 	--policy-document file://"${WIBL_BUILD_LOCATION}/lambda-sns-access-submitted.json" || exit $?
 
 ########################
-# Phase 5: Generate the conversion start HTTP lambda, which initiates conversion by publishing to the conversion topic
+# Phase 6: Generate the conversion start HTTP lambda, which initiates conversion by publishing to the conversion topic
 # Create the conversion start HTTP lambda
 echo $'\e[31mGenerating conversion start HTTP lambda...\e[0m'
 aws --region ${AWS_REGION} lambda create-function \
@@ -360,10 +374,10 @@ aws --region ${AWS_REGION} lambda create-function \
 	--architectures ${ARCHITECTURE} \
 	--layers ${NUMPY_LAYER_NAME} \
 	--vpc-config "SubnetIds=${LAMBDA_SUBNETS},SecurityGroupIds=${LAMBDA_SECURITY_GROUP}" \
-	--environment "Variables={NOTIFICATION_ARN=${TOPIC_ARN_CONVERSION},INCOMING_BUCKET=${INCOMING_BUCKET},STAGING_BUCKET=${STAGING_BUCKET},MANAGEMENT_URL=${MANAGEMENT_URL}}" \
+	--environment "Variables={NOTIFICATION_ARN=${TOPIC_ARN_CONVERSION},INCOMING_BUCKET=${INCOMING_BUCKET}}" \
 	| tee "${WIBL_BUILD_LOCATION}/create_lambda_conversion_start.json"
 
-echo $'\e[31mConfiguring S3 access policy so that conversion start lambda can access S3 incoming and staging buckets...\e[0m'
+echo $'\e[31mConfiguring S3 access policy so that conversion start lambda can access S3 incoming bucket...\e[0m'
 cat > "${WIBL_BUILD_LOCATION}/lambda-s3-access-incoming.json" <<-HERE
 {
     "Version": "2012-10-17",
@@ -427,6 +441,135 @@ aws lambda create-function-url-config \
 
 CONVERSION_START_URL="$(cat ${WIBL_BUILD_LOCATION}/create_url_lambda_conversion_start.json | jq -r '.FunctionUrl')"
 echo $'\e[31mConversion start lambda URL:' ${CONVERSION_START_URL} $'\e[0m'
+
+########################
+# Phase 7: Generate the vizualization HTTP lambda
+# Create EFS volume for storing GEBCO data on
+aws --region $AWS_REGION efs create-file-system \
+  --creation-token wibl-manager-ecs-task-efs \
+  --no-encrypted \
+  --no-backup \
+  --performance-mode generalPurpose \
+  --throughput-mode bursting \
+  --tags 'Key=Name,Value=wibl-vizlambda-efs' \
+  | tee ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_file_system.json
+
+# Create SSH key pair to access temporary EC2 instance
+aws ec2 create-key-pair \
+  --key-name wibl-tmp-key \
+  --key-type rsa \
+  --key-format pem \
+  --query "KeyMaterial" \
+  --output text > "${WIBL_BUILD_LOCATION}/wibl-tmp-key.pem"
+chmod 400 "${WIBL_BUILD_LOCATION}/wibl-tmp-key.pem"
+
+aws ec2 run-instances --image-id ami-0d9b5e9b3272cff13 --count 1 --instance-type t4g.nano \
+	--key-name wibl-tmp-key \
+	--associate-public-ip-address \
+	--security-group-ids \
+	  "$(cat ${WIBL_BUILD_LOCATION}/create_security_group_public.json | jq -r '.GroupId')" \
+	--subnet-id "$(cat ${WIBL_BUILD_LOCATION}/create_subnet_public.txt)" \
+	| tee ${WIBL_BUILD_LOCATION}/run-wibl-test-ec2-instance.json
+
+# Tag the instance with a name
+aws ec2 create-tags \
+  --resources "$(cat ${WIBL_BUILD_LOCATION}/run-wibl-test-ec2-instance.json| jq -r '.Instances[0].InstanceId')" \
+  --tags 'Key=Name,Value=wibl-test'
+
+echo $'\e[31mWaiting for 10 seconds to allow EC2 instance to start ...\e[0m'
+sleep 10
+
+TEST_INSTANCE_IP=$(aws ec2 describe-instances \
+  --instance-ids "$(cat ${WIBL_BUILD_LOCATION}/run-wibl-test-ec2-instance.json | jq -r '.Instances[0].InstanceId')" \
+  | jq -r '.Reservations[0].Instances[0].PublicIpAddress')
+
+# TODO: Connect to EC2 instance via SSH, mount EFS, download GEBCO data
+ssh  -i "${WIBL_BUILD_LOCATION}/wibl-tmp-key.pem" ec2-user@${TEST_INSTANCE_IP} 'bash -s' <<-EOF
+cmd1
+cmd2
+cmd3
+EOF
+
+# TODO: Terminate EC2 instance
+
+
+# Create ECR repo
+aws --region $AWS_REGION ecr create-repository \
+  --repository-name wibl/vizlambda | tee ${WIBL_BUILD_LOCATION}/create_ecr_repository_vizlambda.json
+
+# `docker login` to the repo so that we can push to it
+aws --region $AWS_REGION ecr get-login-password | docker login \
+  --username AWS \
+  --password-stdin \
+  "$(cat ${WIBL_BUILD_LOCATION}/create_ecr_repository_vizlambda.json | jq -r '.repository.repositoryUri')"
+# If `docker login` is successful, you should see `Login Succeeded` printed to STDOUT.
+
+# Build image and push to ECR repo
+docker build -f ../../../Dockerfile.vizlambda -t wibl/vizlambda:latest ../../../
+docker tag wibl/vizlambda:latest "${ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/wibl/vizlambda:latest"
+docker push "${ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/wibl/vizlambda:latest" | tee "${WIBL_BUILD_LOCATION}/docker_push_vizlambda_to_ecr.txt"
+
+# Create the vizualization HTTP lambda
+echo $'\e[31mGenerating vizualization HTTP lambda...\e[0m'
+aws --region ${AWS_REGION} lambda create-function \
+  --function-name ${VIZ_LAMBDA} \
+  --no-cli-pager \
+	--role arn:aws:iam::${ACCOUNT_NUMBER}:role/${VIZ_LAMBDA_ROLE} \
+  --timeout ${LAMBDA_TIMEOUT} \
+  --memory-size ${LAMBDA_MEMORY} \
+	--package-type Image \
+	--code ImageUri="${ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/wibl/vizlambda:latest" \
+	--architectures ${ARCHITECTURE} \
+	--vpc-config "SubnetIds=${LAMBDA_SUBNETS},SecurityGroupIds=${LAMBDA_SECURITY_GROUP}" \
+	--environment "Variables={DEST_BUCKET=${VIZ_BUCKET},STAGING_BUCKET=${STAGING_BUCKET},MANAGEMENT_URL=${MANAGEMENT_URL}}" \
+	| tee "${WIBL_BUILD_LOCATION}/create_lambda_viz.json"
+
+echo $'\e[31mConfiguring S3 access policy so that viz lambda can access S3 staging and viz buckets...\e[0m'
+cat > "${WIBL_BUILD_LOCATION}/lambda-s3-access-viz.json" <<-HERE
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "LambdaAllowS3AccessAll",
+            "Effect": "Allow",
+            "Action": [
+                "s3:*"
+            ],
+            "Resource": [
+                "arn:aws:s3:::${STAGING_BUCKET}",
+                "arn:aws:s3:::${STAGING_BUCKET}/*",
+                "arn:aws:s3:::${VIZ_BUCKET}",
+                "arn:aws:s3:::${VIZ_BUCKET}/*"
+            ]
+        }
+    ]
+}
+HERE
+aws --region ${AWS_REGION} iam put-role-policy \
+	--role-name "${VIZ_LAMBDA_ROLE}" \
+	--policy-name lambda-s3-access-viz \
+	--policy-document file://"${WIBL_BUILD_LOCATION}/lambda-s3-access-viz.json" || exit $?
+
+# Begin, TODO
+echo $'\e[31mAdd policy to viz lambda granting permissions to allow public access from function URL\e[0m'
+# TODO: This URL should only be accessible on the private subnet
+aws --region ${AWS_REGION} lambda add-permission \
+    --function-name ${VIZ_LAMBDA} \
+    --action lambda:InvokeFunctionUrl \
+    --principal "*" \
+    --function-url-auth-type "NONE" \
+    --statement-id url \
+    | tee "${WIBL_BUILD_LOCATION}/url_invoke_lambda_viz.json"
+
+echo $'\e[31mCreate a URL endpoint for viz lambda...\e[0m'
+aws lambda create-function-url-config \
+    --function-name ${VIZ_LAMBDA} \
+    --auth-type NONE \
+    | tee "${WIBL_BUILD_LOCATION}/create_url_lambda_viz.json"
+
+VIZ_URL="$(cat ${WIBL_BUILD_LOCATION}/create_url_lambda_viz.json | jq -r '.FunctionUrl')"
+echo $'\e[31mVisualization lambda URL:' ${VIZ_URL} $'\e[0m'
+# End, TODO
 
 ########################
 # Phase 6: Configure SNS subscriptions for lambdas

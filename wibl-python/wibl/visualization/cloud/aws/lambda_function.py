@@ -34,7 +34,7 @@ def lambda_handler(event, context):
 
     if config['verbose']:
         logger.info(f"event: {event}")
-        logger.info(f"notifier: {getenv('NOTIFICATION_ARN')}")
+        # logger.info(f"notifier: {getenv('NOTIFICATION_ARN')}")
 
     # source: ds.MultiDataSource = ds.AWSMultiSource(event, config)
     controller = ds.AWSController(config)

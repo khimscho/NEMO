@@ -139,7 +139,7 @@ class AWSSource(DataSource):
                     source_object = unquote_plus(message['filename'])
                     source_size = message['size']
                     local_file = f'/tmp/{source_object}'
-                    dest_bucket = getenv('STAGING_BUCKET')
+                    dest_bucket = getenv('DEST_BUCKET')
                     if '.wibl' in source_object:
                         dest_object = source_object.replace('.wibl', '.json')
                     else:
@@ -211,7 +211,7 @@ class AWSSourceSNSTrigger(DataSource):
                     source_object = unquote_plus(s3_object['key'])
                     source_size = s3_object['size']
                     local_file = f'/tmp/{source_object}'
-                    dest_bucket = getenv('STAGING_BUCKET')
+                    dest_bucket = getenv('DEST_BUCKET')
                     if '.wibl' in source_object:
                         dest_object = source_object.replace('.wibl', '.json')
                     else:
@@ -416,7 +416,7 @@ class AWSController(CloudController):
     #
     # \param config Configuration dictionary for the algorithm
     def __init__(self, config: Dict[str,Any]):
-        self.destination = getenv('STAGING_BUCKET')
+        self.destination = getenv('DEST_BUCKET')
         self.verbose = config['verbose']
 
     ## Test whether a specified object exists in the provider's cloud store

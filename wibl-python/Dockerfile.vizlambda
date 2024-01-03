@@ -14,15 +14,6 @@ ENV WIBL_GEBCO_PATH=/var/wibl/data/gebco_2023/GEBCO_2023.nc
 
 # Setup code for installation
 RUN mkdir /tmp/code
-COPY ./requirements-vizlambda.txt /tmp/code
-COPY ./wibl-manager /tmp/code/wibl-manager/
-COPY ./wibl /tmp/code/wibl/
-COPY ./LICENSE.txt /tmp/code
-COPY ./MANIFEST.in /tmp/code
-COPY ./pyproject.toml /tmp/code
-COPY ./requirements-vizlambda.txt /tmp/code
-COPY ./setup.cfg /tmp/code
-COPY ./setup.py /tmp/code
 
 # Download, build, and install PROJ
 RUN mkdir /tmp/src
@@ -66,10 +57,24 @@ RUN cmake .. -DCMAKE_BUILD_TYPE=Release && \
     cmake --build . --target install
 
 # Install Python dependencies for wibl-python and wibl-python
+COPY ./requirements-vizlambda.txt /tmp/code
+COPY ./wibl-manager /tmp/code/wibl-manager/
+COPY ./wibl /tmp/code/wibl/
+COPY ./LICENSE.txt /tmp/code
+COPY ./MANIFEST.in /tmp/code
+COPY ./pyproject.toml /tmp/code
+COPY ./requirements-vizlambda.txt /tmp/code
+COPY ./setup.cfg /tmp/code
+COPY ./setup.py /tmp/code
+
 WORKDIR /tmp/code
 RUN pip install -r requirements-vizlambda.txt
 RUN pip install ./wibl-manager
 RUN pip install --no-deps .
+
+# Clean-up
+WORKDIR ${LAMBDA_TASK_ROOT}
+RUN rm -rf /tmp/src && rm -rf /tmp/code
 
 FROM builder as final
 ENV PYTHONBUFFERED=1
