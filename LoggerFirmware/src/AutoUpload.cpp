@@ -67,8 +67,9 @@ void UploadManager::UploadCycle(void)
     if ((start_time - m_lastUploadCycle) < m_uploadInterval) return; // Not time yet ...
     m_lastUploadCycle = start_time;
 
-    uint32_t filenumbers[logger::MaxLogFiles];
-    if (m_logManager->CountLogFiles(filenumbers) == 0) return; // Nothing to transfer, so no need to get in touch ...
+    if (m_logManager->CountLogFiles() == 0) {
+        return; // Nothing to transfer, so no need to get in touch ...
+    }
 
     if (!ReportStatus()) {
         // Failed to report status ... means the server's not there, or we're not connected
@@ -145,7 +146,13 @@ bool UploadManager::TransferFile(fs::FS& controller, uint32_t file_id)
     HTTPClient client;
     bool rc = false; // By default ...
     String digest_header(String("md5=") + file_hash.Value());
+    String upload_token, upload_header;
     String url(m_serverURL + "update");
+
+    if (logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_UPLOAD_TOKEN_S, upload_token) &&
+        !upload_token.isEmpty()) {
+        upload_header = String("Basic ") + upload_token;
+    }
 
     client.setConnectTimeout(m_timeout);
     if (client.begin(wifi, url)) {
@@ -154,6 +161,9 @@ bool UploadManager::TransferFile(fs::FS& controller, uint32_t file_id)
 
         client.addHeader(String("Digest"), digest_header);
         client.addHeader(String("Content-Type"), String("application/octet-stream"), false, true);
+        if (!upload_header.isEmpty()) {
+            client.addHeader(String("Authentication"), upload_header);
+        }
 
         Serial.printf("DBG: UploadManager::TransferFile POST starting ...\n");
         if ((http_rc = client.sendRequest("POST", &f, file_size)) == HTTP_CODE_OK) {

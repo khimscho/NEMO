@@ -98,7 +98,7 @@ Manager::Inventory::~Inventory(void)
 
 bool Manager::Inventory::Reinitialise(void)
 {
-    uint32_t    filenumbers[MaxLogFiles];
+    uint32_t    *filenumbers = new uint32_t[MaxLogFiles];
     uint32_t    filecount = m_logManager->count(filenumbers);
     String      filename;
     Manager::MD5Hash emptyhash;
@@ -115,6 +115,8 @@ bool Manager::Inventory::Reinitialise(void)
         Update(filenumbers[f]);
     }
 
+    delete[] filenumbers;
+    
     return true;
 }
 
@@ -160,6 +162,15 @@ uint32_t Manager::Inventory::CountLogFiles(uint32_t filenumbers[MaxLogFiles])
             filenumbers[filecount] = entry;
             ++filecount;
         }
+    }
+    return filecount;
+}
+
+uint32_t Manager::Inventory::CountLogFiles(void)
+{
+    uint32_t filecount = 0;
+    for (uint32_t entry = 0; entry < MaxLogFiles; ++entry) {
+        if (m_filesize[entry] != 0) ++filecount;
     }
     return filecount;
 }
@@ -475,7 +486,7 @@ void Manager::CloseLogfile(void)
 bool Manager::RemoveLogFile(uint32_t file_num)
 {
     String filename = MakeLogName(file_num);
-    boolean rc = m_storage->Controller().remove(filename);
+    bool rc = m_storage->Controller().remove(filename);
 
     if (rc) {
         m_consoleLog.printf("INFO: erased log file %d by user command.\n", file_num);
@@ -494,7 +505,7 @@ bool Manager::RemoveLogFile(uint32_t file_num)
 
 void Manager::RemoveAllLogfiles(void)
 {
-    uint32_t filenumbers[MaxLogFiles];
+    uint32_t *filenumbers = new uint32_t[MaxLogFiles];
 
     CloseLogfile(); // All means all ...
     
@@ -512,6 +523,7 @@ void Manager::RemoveAllLogfiles(void)
             m_consoleLog.printf("ERR: failed to erase log file \"%s\" by user command.\n", filename.c_str());
         }
     }
+    delete[] filenumbers;
     m_consoleLog.printf("INFO: erased %u log files of %u.\n", files_closed, filecount);
     m_consoleLog.flush();
     StartNewLog(); // We need to have something running for the logging effort!
@@ -530,6 +542,16 @@ uint32_t Manager::CountLogFiles(uint32_t filenumbers[MaxLogFiles])
         filecount = m_inventory->CountLogFiles(filenumbers);
     } else
         filecount = count(filenumbers);
+    return filecount;
+}
+
+uint32_t Manager::CountLogFiles(void)
+{
+    uint32_t filecount;
+    if (m_inventory != nullptr) {
+        filecount = m_inventory->CountLogFiles();
+    } else
+        filecount = count(nullptr);
     return filecount;
 }
 
@@ -620,6 +642,10 @@ void Manager::AddInventory(bool verbose)
 
 bool Manager::WriteSnapshot(String& name, String const& contents)
 {
+    // Since the /logs directory is served out as the second static website, we need to
+    // put the snapshots into the same directory so they can be seen.  This causes some
+    // complexity in running through the directory (e.g., when making an Inventory from
+    // scratch), but avoids other issues.
     name = String("/logs/") + name;
     File f = m_storage->Controller().open(name, FILE_WRITE);
     if (f) {
@@ -643,7 +669,6 @@ bool Manager::WriteSnapshot(String& name, String const& contents)
 
 uint32_t Manager::GetNextLogNumber(void)
 {
- 
     if (!m_storage->Controller().exists("/logs")) {
         m_storage->Controller().mkdir("/logs");
     }
@@ -683,6 +708,22 @@ String Manager::MakeLogName(uint32_t log_num)
     String filename("/logs/wibl-raw.");
     filename += log_num;
     return filename;
+}
+
+/// Generate a log number given a filename that is presumably a log file.  This converts
+/// the extension of the filename into a number, if possible, but returns -1 if the contents
+/// of the extension are non-integer.
+
+int32_t Manager::ExtractLogNumber(String const& filename)
+{
+    if (filename.indexOf(String("wibl-raw")) < 0) {
+        // This is not a log file, so converting the extension would not be useful
+        return -1;
+    }
+    // Since we know that it's a log file (test above) then we know that it must have an
+    // extension that can be converted into an integer (since they are only made by
+    // MakeLogName() here, and therefore always have the same format)
+    return filename.substring(filename.indexOf('.')+1).toInt();
 }
 
 /// Output the contents of the system console log to something that implements the Stream
@@ -759,16 +800,21 @@ void Manager::TransferLogFile(uint32_t file_num, MD5Hash const& filehash, Stream
     Serial.printf("Sent %u B in %lu s.\n", bytes_transferred, duration);
 }
 
-uint32_t Manager::count(uint32_t filenumbers[MaxLogFiles])
+uint32_t Manager::count(uint32_t *filenumbers)
 {
     uint32_t file_count = 0;
     File logdir = m_storage->Controller().open("/logs");
     File entry = logdir.openNextFile();
 
     while (entry) {
-        int dot_position = String(entry.name()).indexOf(".");
-        filenumbers[file_count] = String(entry.name()).substring(dot_position+1).toInt();
-        ++file_count;
+        // Because we can store snapshots of configuration information in the /logs directory
+        // (so that they can be seen through the webserver's static website for download), we
+        // need to count only the valid log files in the directory.
+        int32_t lognumber = ExtractLogNumber(String(entry.name()));
+        if (lognumber >= 0) {
+            if (filenumbers != nullptr) filenumbers[file_count] = lognumber;
+            ++file_count;
+        }
         entry.close();
         entry = logdir.openNextFile();
     }

@@ -1051,8 +1051,7 @@ void SerialCommand::ReportScalesElement(CommandSource src)
 
 void SerialCommand::ReportFileCount(CommandSource src)
 {
-    uint32_t filenumber[logger::MaxLogFiles];
-    uint32_t file_count = m_logManager->CountLogFiles(filenumber);
+    uint32_t file_count = m_logManager->CountLogFiles();
     EmitMessage(String(file_count) + "\n", src);
 }
 
@@ -1342,26 +1341,33 @@ void SerialCommand::ReportUploadConfig(CommandSource src)
 
 void SerialCommand::ConfigureUpload(String const& command, CommandSource src)
 {
-    bool state;
-
-    if (command.startsWith("on")) {
-        state = true;
-    } else if (command.startsWith("off")) {
-        state = false;
-    } else {
-        EmitMessage("ERR: upload can be configured 'on' or 'off' on boot only.\n", src);
-        if (src == CommandSource::WirelessPort && m_wifi != nullptr) {
-            m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
+    if (command == "on" || command == "off") {
+        // Change of upload enable state only
+        bool state;
+        if (command == "on") {
+            state = true;
+        } else if (command == "off") {
+            state = false;
+        } else {
+            EmitMessage("ERR: unrecognised 'upload' enable state (only 'on' and 'off' are allowed).\n", src);
+            if (src == CommandSource::WirelessPort && m_wifi != nullptr) {
+                m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
+            }
+            return;
         }
+        logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_UPLOAD_B, state);
         return;
     }
-    int addr_position = command.indexOf(' ') + 1;
+
+    // Note that anything like "upload on x y" will drop through since the test is for equivalence above.
+
+    int addr_position = 0; // Address should be first in the command, but this helps clarity below.
     int port_position = command.indexOf(' ', addr_position) + 1;
     int timeout_position = command.indexOf(' ', port_position) + 1;
     int interval_position = command.indexOf(' ', timeout_position) + 1;
     int duration_position = command.indexOf(' ', interval_position) + 1;
 
-    if (addr_position == 0 || port_position == 0 || timeout_position == 0 || interval_position == 0 || duration_position == 0) {
+    if (port_position == 0 || timeout_position == 0 || interval_position == 0 || duration_position == 0) {
         EmitMessage("ERR: malformed upload specification; see syntax for details.\n", src);
         if (src == CommandSource::WirelessPort && m_wifi != nullptr) {
             m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
@@ -1374,12 +1380,25 @@ void SerialCommand::ConfigureUpload(String const& command, CommandSource src)
     String interval(command.substring(interval_position, duration_position-1));
     String duration(command.substring(duration_position));
 
+    // We need to check that the components of the specification are valid, although we can't do much
+    // about the address.
+    long port_value = port.toInt(),
+         timeout_value = timeout.toInt(), interval_value = interval.toInt(), duration_value = duration.toInt();
+    
+    if (port_value <= 0 || port_value > 65535 || timeout_value <= 0 || interval_value <= 0 || duration_value <= 0) {
+        EmitMessage("ERR: malformed upload specification; see syntax for details.\n", src);
+        if (src == CommandSource::WirelessPort && m_wifi != nullptr) {
+            m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
+        }
+        return;
+    }
+
     logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_UPLOAD_SERVER_S, addr);
     logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_UPLOAD_PORT_S, port);
     logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_UPLOAD_TIMEOUT_S, timeout);
     logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_UPLOAD_INTERVAL_S, interval);
     logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_UPLOAD_DURATION_S, duration);
-    logger::LoggerConfig.SetConfigBinary(logger::Config::ConfigParam::CONFIG_UPLOAD_B, state);
+    
     if (src == CommandSource::WirelessPort) {
         ReportConfigurationJSON(src);
     }
@@ -1422,7 +1441,7 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  token [upload-token]                Set or report the logger's upload handshake token.\n", src);
     EmitMessage("  transfer file-number                Transfer log file [file-number] (WiFi and serial only).\n", src);
     EmitMessage("  uniqueid [logger-name]              Set or report the logger's unique identification string.\n", src);
-    EmitMessage("  upload on|off srvaddr srvport timeout interval duration\n", src);
+    EmitMessage("  upload [on|off]|[srvaddr srvport timeout interval duration]\n", src);
     EmitMessage("                                      Control whether files are auto-updated when connected\n", src);
     EmitMessage("  verbose on|off                      Control verbosity of reporting for serial input strings.\n", src);
     EmitMessage("  version                             Report NMEA0183 and NMEA2000 logger version numbers.\n", src);

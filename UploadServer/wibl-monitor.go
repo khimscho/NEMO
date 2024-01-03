@@ -79,7 +79,7 @@ func file_transfer(w http.ResponseWriter, r *http.Request) {
 
 	support.Infof("TRANS: File transfer request with headers:\n")
 	for k, v := range r.Header {
-		support.Infof("TRANS: %s = %s\n", k, v)
+		support.Infof("TRANS:    %s = %s\n", k, v)
 	}
 	if body, err = io.ReadAll(r.Body); err != nil {
 		support.Errorf("API: failed to read file body from POST: %s.\n", err)
@@ -105,6 +105,11 @@ func file_transfer(w http.ResponseWriter, r *http.Request) {
 	} else {
 		support.Infof("TRANS: successful recomputation of MD5 hash for transmitted contents.\n")
 		result.Status = "success"
+		// TODO: Further transfer of the file:
+		//    1. Make a UUID for the transferred data.
+		//    2. Store the received data into the appropriate S3 bucket for the current instance
+		//       with the UUID.wibl extension.
+		//    3. Trigger SNS topic for new file arrival.
 	}
 	w.Header().Set("Content-Type", "application/json")
 	var result_string []byte
@@ -114,5 +119,4 @@ func file_transfer(w http.ResponseWriter, r *http.Request) {
 	}
 	support.Infof("TRANS: sending |%s| to logger as response.\n", result_string)
 	w.Write(result_string)
-	support.Infof("TRANS: upload transaction complete.\n")
 }

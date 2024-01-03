@@ -1,7 +1,7 @@
 /*!\file LoggerFirmware.ino
  * \brief Arduino sketch for the NMEA2000 depth/position logger with network time
  *
- * This provides the Ardunio-style interface to a NMEA2000 network data logger that's
+ * This provides the Arduino-style interface to a NMEA2000 network data logger that's
  * suitable for recording data for Volunteer Geographic Information collection at sea
  * (in keeping with IHO Crowdsourced Bathymetry Working Group recommendations as defined
  * in IHO publication B-12).
@@ -83,7 +83,7 @@ void setup()
 
     Serial.begin(115200);
 
-    Serial.printf("*\n*\n*\n* BOOTING WIBL DATA LOGGER, FIRMWARE VERSION %s\n*\n* For more information: http://wibl.ccom.unh.edu\n*\n*\n", logger::FirmwareVersion());
+    Serial.printf("*\n*\n*\n* BOOTING WIBL DATA LOGGER, FIRMWARE VERSION %s\n*\n* For more information: http://wibl.ccom.unh.edu\n*\n*\n*\n", logger::FirmwareVersion());
 
     Serial.printf("DBG: At boot, heap is %d B (%d B free)\n", heap_size, heap_free);
     Serial.printf("DBG: ");
