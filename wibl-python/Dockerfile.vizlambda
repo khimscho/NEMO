@@ -1,22 +1,30 @@
 FROM public.ecr.aws/lambda/python:3.12 as builder
 
 # Install OS-provided dependencies
-RUN dnf -y install wget tar gzip clang cmake amazon-efs-utils \
+RUN dnf -y install wget tar gzip bzip2 clang cmake ninja-build amazon-efs-utils m4 \
+    ghostscript pcre-devel glib2-devel lapack-devel openblas-devel fftw-devel libcurl-devel libxml2-devel \
     sqlite-devel expat-devel libcurl-devel zlib-devel libtiff-devel libpng-devel libjpeg-turbo-devel
 
-# Download GEBCO data
-#RUN mkdir -p /var/wibl/data
-#WORKDIR /var/wibl/data
-#RUN wget https://www.bodc.ac.uk/data/open_download/gebco/gebco_2023/zip/ -O gebco_2023.zip
-#RUN unzip gebco_2023.zip -d gebco_2023
-#RUN rm gebco_2023.zip gebco_2023/GEBCO_2023_Grid_documentation.pdf gebco_2023/GEBCO_Grid_terms_of_use.pdf
-#ENV WIBL_GEBCO_PATH=/var/wibl/data/gebco_2023/GEBCO_2023.nc
-
-# Setup code for installation
+# Setup directories for code and source
 RUN mkdir /tmp/code
+RUN mkdir /tmp/src
+RUN mkdir -p /var/gmt/data
+ENV GMT_DATA=/var/gmt/data
+
+# Download, build, and install GEOS
+WORKDIR /tmp/src
+RUN wget https://download.osgeo.org/geos/geos-3.12.1.tar.bz2
+RUN echo 'MD5 (geos-3.12.1.tar.bz2) = 36d16fbea7e923c50b33ddb83516c36e' > geos-3.12.1.tar.bz2.md5
+RUN md5sum -c geos-3.12.1.tar.bz2.md5
+RUN tar xf geos-3.12.1.tar.bz2
+WORKDIR /tmp/src/geos-3.12.1
+RUN mkdir build
+WORKDIR /tmp/src/geos-3.12.1/build
+RUN cmake -G Ninja .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr && \
+    cmake --build . -j && \
+    cmake --build . --target install
 
 # Download, build, and install PROJ
-RUN mkdir /tmp/src
 WORKDIR /tmp/src
 RUN wget https://download.osgeo.org/proj/proj-9.3.1.tar.gz
 RUN echo 'MD5 (proj-9.3.1.tar.gz) = b5c3f36fdca3bc425aca09d77c4ec25a' > proj-9.3.1.tar.gz.md5
@@ -25,7 +33,33 @@ RUN tar xf proj-9.3.1.tar.gz
 WORKDIR /tmp/src/proj-9.3.1
 RUN mkdir build
 WORKDIR /tmp/src/proj-9.3.1/build
-RUN cmake .. -DCMAKE_BUILD_TYPE=Release && \
+RUN cmake -G Ninja .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr && \
+    cmake --build . -j && \
+    cmake --build . --target install
+
+# Download, build, and install HDF5
+WORKDIR /tmp/src
+RUN wget https://hdf-wordpress-1.s3.amazonaws.com/wp-content/uploads/manual/HDF5/HDF5_1_14_3/src/hdf5-1.14.3.tar.bz2
+RUN echo 'MD5 (hdf5-1.14.3.tar.bz2) = 90d2568cb0250d70559999da0cbe6cb9' > hdf5-1.14.3.tar.bz2.md5
+RUN md5sum -c hdf5-1.14.3.tar.bz2.md5
+RUN tar xf hdf5-1.14.3.tar.bz2
+WORKDIR /tmp/src/hdf5-1.14.3
+RUN mkdir build
+WORKDIR /tmp/src/hdf5-1.14.3/build
+RUN cmake -G Ninja .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr && \
+    cmake --build . -j && \
+    cmake --build . --target install
+
+# TODO: Download, build, and install NetCDF4
+WORKDIR /tmp/src
+RUN wget https://downloads.unidata.ucar.edu/netcdf-c/4.9.2/netcdf-c-4.9.2.tar.gz
+RUN echo 'MD5 (netcdf-c-4.9.2.tar.gz) = f48ee01534365006934f0c63d4055ea0' > netcdf-c-4.9.2.tar.gz.md5
+RUN md5sum -c netcdf-c-4.9.2.tar.gz.md5
+RUN tar xf netcdf-c-4.9.2.tar.gz
+WORKDIR /tmp/src/netcdf-c-4.9.2
+RUN mkdir build
+WORKDIR /tmp/src/netcdf-c-4.9.2/build
+RUN cmake -G Ninja .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr && \
     cmake --build . -j && \
     cmake --build . --target install
 
@@ -38,7 +72,7 @@ RUN tar xf libgeotiff-1.7.1.tar.gz
 WORKDIR /tmp/src/libgeotiff-1.7.1
 RUN mkdir build
 WORKDIR /tmp/src/libgeotiff-1.7.1/build
-RUN cmake .. -DCMAKE_BUILD_TYPE=Release && \
+RUN cmake -G Ninja .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr && \
     cmake --build . -j && \
     cmake --build . --target install
 
@@ -52,8 +86,31 @@ WORKDIR /tmp/src/gdal-3.8.2
 RUN mkdir build
 WORKDIR /tmp/src/gdal-3.8.2/build
 # Don't build GDAL with -j (parallel) as it seems to break
-RUN cmake .. -DCMAKE_BUILD_TYPE=Release && \
-    cmake --build . && \
+RUN cmake -G Ninja .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr && \
+    cmake --build . -j && \
+    cmake --build . --target install
+
+# TODO: Download and install GMT support data
+WORKDIR /tmp/src
+RUN wget https://github.com/GenericMappingTools/dcw-gmt/releases/download/2.1.2/dcw-gmt-2.1.2.tar.gz
+RUN tar xf dcw-gmt-2.1.2.tar.gz -C $GMT_DATA
+ENV DCW_ROOT=$GMT_DATA/dcw-gmt-2.1.2
+RUN wget https://github.com/GenericMappingTools/gshhg-gmt/releases/download/2.3.7/gshhg-gmt-2.3.7.tar.gz
+RUN tar xf gshhg-gmt-2.3.7.tar.gz -C $GMT_DATA
+ENV GSHHG_ROOT=$GMT_DATA/gshhg-gmt-2.3.7
+
+# TODO: Download, build, and install GMT
+WORKDIR /tmp/src
+RUN wget https://github.com/GenericMappingTools/gmt/releases/download/6.4.0/gmt-6.4.0-src.tar.gz
+RUN echo 'MD5 (gmt-6.4.0-src.tar.gz) = 4fe162932425feff35b01107b9b427b9' > gmt-6.4.0-src.tar.gz.md5
+RUN md5sum -c gmt-6.4.0-src.tar.gz.md5
+RUN tar xf gmt-6.4.0-src.tar.gz
+WORKDIR /tmp/src/gmt-6.4.0
+RUN mkdir build
+WORKDIR /tmp/src/gmt-6.4.0/build
+RUN cmake -G Ninja .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_PREFIX=/usr \
+      -DDCW_ROOT=$DCW_ROOT -DGSHHG_ROOT=$GSHHG_ROOT && \
+    cmake --build . -j && \
     cmake --build . --target install
 
 # Install Python dependencies for wibl-python and wibl-python
@@ -78,5 +135,7 @@ RUN rm -rf /tmp/src && rm -rf /tmp/code
 
 FROM builder as final
 ENV PYTHONBUFFERED=1
+# Set LD_LIBRARY_PATH so that pygmt can find libgmt.so (which it expects to find in /usr/lib64 on this platform)
+ENV LD_LIBRARY_PATH=/usr/lib
 
 CMD [ "wibl.visualization.cloud.aws.lambda_function.lambda_handler" ]
