@@ -469,19 +469,13 @@ WIBL_VIZ_LAMBDA_EFS_ID=$(cat ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_file_sy
 # aws --region $AWS_REGION efs delete-file-system \
 #  --file-system-id $(cat ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_file_system.json | jq -r '.FileSystemId')
 
-# Create mount target for EFS volume within our VPC subnet
+# Create mount target for EFS volume within our EC2 subnet (this is only needed temporarily while mounted from
+# an EC2 instance to load data onto the volume)
 aws --region $AWS_REGION efs create-mount-target \
   --file-system-id "$(cat ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_file_system.json | jq -r '.FileSystemId')" \
   --subnet-id "$(cat ${WIBL_BUILD_LOCATION}/create_subnet_public.txt)" \
   --security-groups "$(cat ${WIBL_BUILD_LOCATION}/create_security_group_public.json | jq -r '.GroupId')" \
   | tee ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_mount_target.json
-
-# Create access point to later be used by lambda
-# TODO: Create an access point in another AZ
-aws --region ${AWS_REGION} efs create-access-point \
-  --file-system-id "$(cat ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_file_system.json | jq -r '.FileSystemId')" \
-  | tee ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_access_point.json
-VIZ_LAMBDA_EFS_AP_ARN=$(cat ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_access_point.json | jq -r '.AccessPointArn')
 
 echo $'\e[31mWaiting for 30 seconds to allow EFS-related security group rule to propagate ...\e[0m'
 sleep 30
@@ -542,6 +536,10 @@ test_aws_cmd_success $?
 aws --region $AWS_REGION ec2 terminate-instances \
   --instance-ids "$(cat ${WIBL_BUILD_LOCATION}/run-wibl-test-ec2-instance.json | jq -r '.Instances[0].InstanceId')"
 
+# Delete EC2 mount target so that we can later create one in the private subnet for use by lambdas
+aws --region $AWS_REGION efs delete-mount-target \
+  --mount-target-id "$(cat ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_mount_target.json | jq -r '.MountTargetId')"
+
 # Phase 7b: Now we can create the container image for the lambda and create the lambda that mounts the EFS volume
 #   created above.
 
@@ -560,6 +558,60 @@ aws --region $AWS_REGION ecr get-login-password | docker login \
 docker build -f ../../../Dockerfile.vizlambda -t wibl/vizlambda:latest ../../../
 docker tag wibl/vizlambda:latest "${ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/wibl/vizlambda:latest"
 docker push "${ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/wibl/vizlambda:latest" | tee "${WIBL_BUILD_LOCATION}/docker_push_vizlambda_to_ecr.txt"
+
+## Create ingress rule to allow NFS connections to the private lambda subnet (e.g., EFS mount point)
+#aws --region $AWS_REGION ec2 authorize-security-group-ingress \
+#  --group-id "$(cat ${WIBL_BUILD_LOCATION}/create_security_group_private.json | jq -r '.GroupId')" \
+#  --ip-permissions '[{"IpProtocol": "tcp", "FromPort": 2049, "ToPort": 2049, "IpRanges": [{"CidrIp": "10.0.0.0/24"}]}]' \
+#  | tee ${WIBL_BUILD_LOCATION}/create_security_group_private_rule_efs.json
+#
+## Tag the NFS ingress rule with a name:
+#aws --region $AWS_REGION ec2 create-tags --resources "$(cat ${WIBL_BUILD_LOCATION}/create_security_group_public_rule_efs.json | jq -r '.SecurityGroupRules[0].SecurityGroupRuleId')" \
+#  --tags 'Key=Name,Value=wibl-vizlambda-efs-private'
+
+# TODO
+
+# Create policy to allow lambdas to mount EFS read-only
+# Define policy
+cat > "${WIBL_BUILD_LOCATION}/lambda-efs-ro-policy.json" <<-HERE
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "elasticfilesystem:ClientMount"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+HERE
+
+# Create policy
+aws --region ${AWS_REGION} iam create-policy \
+  --policy-name 'Lambda-EFS-RO' \
+  --policy-document file://"${WIBL_BUILD_LOCATION}/lambda-efs-ro-policy.json" \
+  | tee "${WIBL_BUILD_LOCATION}/create_lambda-efs-ro-policy.json"
+
+aws --region ${AWS_REGION} iam attach-role-policy \
+  --role-name ${VIZ_LAMBDA_ROLE} \
+  --policy-arn "$(cat ${WIBL_BUILD_LOCATION}/create_lambda-efs-ro-policy.json | jq -r '.Policy.Arn')" \
+  | tee "${WIBL_BUILD_LOCATION}/attach_role_policy_lambda_efs_ro_viz.json"
+
+# ODOT
+
+# Create mount target and access point to later be used by lambda
+aws --region $AWS_REGION efs create-mount-target \
+  --file-system-id "$(cat ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_file_system.json | jq -r '.FileSystemId')" \
+  --subnet-id "$(cat ${WIBL_BUILD_LOCATION}/create_subnet_private.txt)" \
+  --security-groups "$(cat ${WIBL_BUILD_LOCATION}/create_security_group_private.json | jq -r '.GroupId')" \
+  | tee ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_mount_target_private.json
+
+aws --region ${AWS_REGION} efs create-access-point \
+  --file-system-id "$(cat ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_file_system.json | jq -r '.FileSystemId')" \
+  | tee ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_access_point.json
+VIZ_LAMBDA_EFS_AP_ARN=$(cat ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_access_point.json | jq -r '.AccessPointArn')
 
 # Create the vizualization HTTP lambda which mounts the vizlambda EFS volume to provide access to GEBCO data
 echo $'\e[31mGenerating vizualization HTTP lambda...\e[0m'
@@ -625,7 +677,7 @@ echo $'\e[31mVisualization lambda URL:' ${VIZ_URL} $'\e[0m'
 # End, TODO
 
 ########################
-# Phase 6: Configure SNS subscriptions for lambdas
+# Phase 8: Configure SNS subscriptions for lambdas
 #
 
 # Optional: If you want to automatically trigger the conversion lambda on upload to the incoming S3 bucket
