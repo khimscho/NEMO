@@ -130,12 +130,14 @@ RUN pip install ./wibl-manager
 RUN pip install --no-deps .
 
 # Clean-up
-WORKDIR ${LAMBDA_TASK_ROOT}
 RUN rm -rf /tmp/src && rm -rf /tmp/code
 
 FROM builder as final
+WORKDIR /tmp
 ENV PYTHONBUFFERED=1
 # Set LD_LIBRARY_PATH so that pygmt can find libgmt.so (which it expects to find in /usr/lib64 on this platform)
 ENV LD_LIBRARY_PATH=/usr/lib
+# Set GMT_USERDIR to make sure GMT doesn't try to use /, which lambdas can't write to
+ENV GMT_USERDIR=/tmp
 
 CMD [ "wibl.visualization.cloud.aws.lambda_function.lambda_handler" ]

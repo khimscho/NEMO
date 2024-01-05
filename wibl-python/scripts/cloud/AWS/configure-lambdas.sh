@@ -547,6 +547,8 @@ aws --region $AWS_REGION efs delete-mount-target \
 aws --region $AWS_REGION ecr create-repository \
   --repository-name wibl/vizlambda | tee ${WIBL_BUILD_LOCATION}/create_ecr_repository_vizlambda.json
 
+# Delete: aws --region $AWS_REGION ecr delete-repository --repository-name wibl/vizlambda
+
 # `docker login` to the repo so that we can push to it
 aws --region $AWS_REGION ecr get-login-password | docker login \
   --username AWS \
@@ -628,6 +630,12 @@ aws --region ${AWS_REGION} lambda create-function \
 	--vpc-config "SubnetIds=${LAMBDA_SUBNETS},SecurityGroupIds=${LAMBDA_SECURITY_GROUP}" \
 	--environment "Variables={WIBL_GEBCO_PATH=/mnt/efs0/gebco/GEBCO_2023.nc,DEST_BUCKET=${VIZ_BUCKET},STAGING_BUCKET=${STAGING_BUCKET},MANAGEMENT_URL=${MANAGEMENT_URL}}" \
 	| tee "${WIBL_BUILD_LOCATION}/create_lambda_viz.json"
+
+# To update function (i.e., after new image has been pushed), use update-function-code:
+#aws --region ${AWS_REGION} lambda update-function-code \
+#  --function-name ${VIZ_LAMBDA} \
+#  --image-uri "${ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/wibl/vizlambda:latest" \
+#  | tee "${WIBL_BUILD_LOCATION}/update_lambda_viz.json"
 
 echo $'\e[31mConfiguring S3 access policy so that viz lambda can access S3 staging and viz buckets...\e[0m'
 cat > "${WIBL_BUILD_LOCATION}/lambda-s3-access-viz.json" <<-HERE
