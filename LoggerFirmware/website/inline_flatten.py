@@ -1,3 +1,32 @@
+#! @file inline_flatten.py
+# @brief Inline all of the CSS and JS requested by each HTML file in the current directory
+#
+# Due to the nature of the webserver in the firmware, if you attempt to request multiple files
+# in quick succession, the server can't respond quickly enough, and the requests fail.  This code
+# inlines the CSS and JS components required for each HTML file, therefore, so that you're really
+# only going for a single file on each page (except for the logo).  This can make the resulting
+# website a little larger than required (since you have copies of the various files in each HTML
+# document), but does resolve the issue.
+#
+# Copyright (c) 2024, University of New Hampshire, Center for Coastal and Ocean Mapping.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+# and associated documentation files (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+# and/or sell copies of the Software, and to permit persons to whom the Software is furnished
+# to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all copies or
+# substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+# FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS
+# OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF
+# OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
 from bs4 import BeautifulSoup
 import re
 from typing import List

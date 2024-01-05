@@ -38,7 +38,7 @@
     "udpbridge":    12345,
     "upload": {
         "server": "192.168.4.2",
-        "port": 80,
+        "port": 8000,
         "timeout": 5.0,
         "interval": 1800.0,
         "duration": 10.0
