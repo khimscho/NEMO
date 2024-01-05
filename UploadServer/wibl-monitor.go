@@ -1,3 +1,51 @@
+/*! @file wibl-monitor.go
+ * @brief Demonstration upload server for WIBL loggers with auto-upload enabled.
+ *
+ * Although it is generally the case that WIBL loggers run without internet connection (most
+ * small boats of opportunity don't have always-on connectivity), there are some use cases where
+ * connectivity may be available, and the logger can upload files automatically to a server
+ * (at which point it can be proxied into the S3 bucket for processing).  This code provides
+ * the minimal core functionality for the server side of the protocol (the client side is in the
+ * logger firmware) as a demonstration of what's required for an industrial-grade server
+ * implementation.
+ *
+ * Copyright (c) 2024, University of New Hampshire, Center for Coastal and Ocean Mapping.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+ * and associated documentation files (the "Software"), to deal in the Software without restriction,
+ * including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the Software is furnished
+ * to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or
+ * substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+ * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS
+ * OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF
+ * OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+/*
+Wibl-monitor demonstrates the server end of the WIBL logger upload protocol.
+The code generates an HTTP server with two end-points:
+  - checkin, which is used by loggers to report status information (and check the server is accessible)
+  - update, which is used by loggers to transfer files for processing
+
+Usage:
+
+	wibl-monitor [flags]
+
+The flags are:
+
+	-config
+		Specify a JSON format file to configure the server
+
+Without flags, the code generates a default configuration for the server, typically
+bringing it up on a non-constrained port (see support/config.go for details).
+*/
 package main
 
 import (
@@ -36,19 +84,29 @@ func main() {
 	} else {
 		config = support.NewDefaultConfig()
 	}
-	http.HandleFunc("/", syntax)
-	http.HandleFunc("/checkin", status_updates)
-	http.HandleFunc("/update", file_transfer)
+
+	// ENDPOINTS:
+	http.HandleFunc("/", syntax)                // Syntax list for the endpoints the server provides
+	http.HandleFunc("/checkin", status_updates) // Status updates, also used to check the server is alive
+	http.HandleFunc("/update", file_transfer)   // File uploads
+
 	address := fmt.Sprintf(":%d", config.API.Port)
 	log.Fatal(http.ListenAndServe(address, nil))
 
 }
 
+// Generate a list of the end-points that the server provides.
 func syntax(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "checkin\n")
 	fmt.Fprintf(w, "update\n")
 }
 
+// Accept a status message from the logger client (which should list all of the files on the logger,
+// along with other status information like the uptime, firmware version, etc.).  The server responds
+// with HTTP 200 (OK) if the status message parses according to the definition in support/config.go,
+// and HTTP 400 (Bad Request) if the body of the message fails to read or convert.  Any response should
+// be used by the client to indicate that the server exists.  More sophisticated implementations might
+// use the status information to update a local dB of logger status, health, etc.
 func status_updates(w http.ResponseWriter, r *http.Request) {
 	var body []byte
 	var err error
@@ -72,6 +130,18 @@ func status_updates(w http.ResponseWriter, r *http.Request) {
 		status.Versions.Firmware, status.Versions.CommandProcessor, status.Files.Count)
 }
 
+// Accept a file transfer from the logger client (which should contain a binary-encoded body
+// with the WIBL raw file).  The client must specify the Content-Length header, the Digest header
+// (with the MD5 hash of the contents of the body of the request), and the Authentication header
+// with type "Basic" and the upload token specified by the server's operator when the logger was
+// configured as a (very simple, and not terribly secure, identification mechanism).  The server
+// responds with a JSON body containing only a "status" tag with either "success" or "failure" as
+// appropriate.  Typical verification models would include checking the upload token from the
+// Authentication header is one of those that was pre-shared, recomputing the MD5 hash for the
+// payload and comparing it against that specified in the Digest header, etc.  A full implementation
+// of the server would take the payload body, then transfer it to the appropriate S3 bucket for
+// processing (using a UUID4 for the name), and finally trigger the SNS topic indicating that the
+// file was ready for processing.
 func file_transfer(w http.ResponseWriter, r *http.Request) {
 	var body []byte
 	var err error
