@@ -38,13 +38,17 @@ import datetime as dt
 
 import pynmea2 as nmea
 
+from wibl.core import Lineage
 from wibl.core.statistics import PktStats, PktFaults
 import wibl.core.logger_file as LoggerFile
+from wibl.core.algorithm import AlgorithmPhase, AlgorithmDescriptor
+from wibl.core.algorithm.runner import run_algorithms
 
 
 ## Exception to report that no adequate source of real-world time information is available
 class NoTimeSource(Exception):
     pass
+
 
 ## Encapsulate the types of real-world time information that can be used
 #
@@ -111,10 +115,11 @@ def determine_time_source(stats: PktStats) -> TimeSource:
 # \param filename       Filename to load for WIBL data
 # \param verbose        Flag: set True to report more information on parsing.
 # \param maxreports     Limit on how many errors should be reported before suppressing and summarising
-# \return Tuple of PktStats, TimeSource, and a list of DataPacket entries from the file
-
-
-def load_file(filename: str, verbose: bool, maxreports: int) -> Tuple[PktStats, TimeSource, List[LoggerFile.DataPacket]]:
+# \param process_algorithms Flag: set to True to enable execution of algorithms for phase `AlgorithmPhase.ON_LOAD`
+# \return Tuple of PktStats, TimeSource, a list of DataPacket, and a list of AlgorithmDescriptor entries from the file
+def load_file(filename: str, lineage: Lineage, verbose: bool, maxreports: int, *,
+              process_algorithms: bool = True) -> \
+        Tuple[PktStats, TimeSource, List[LoggerFile.DataPacket], List[AlgorithmDescriptor]]:
     """Load the entirety of a WIBL binary file into memory, in the process determining the type of time
        source that can be used to add timestamps to the data, and fixing up any messages that don't have
        any elapsed time (i.e., time of reception) stamps.  This provides a set of data where it should
@@ -123,40 +128,71 @@ def load_file(filename: str, verbose: bool, maxreports: int) -> Tuple[PktStats, 
 
        Inputs:
             filename        Local filesystem name of the WIBL file to open and read
+            lineage         `wibl.core.Lineage` instance used to track any processing done on data from `filename`
             verbose         Flag: set True to extra information on the process
             maxreports      Maximum number of errors per packet to report before summarising
+            process_algorithms Flag: set to True to enable execution of algorithms for phase `AlgorithmPhaseON_LOAD`
 
         Outputs:
             stats           (PktStats) Statistics on which packets have been seen, and any problems
             time-source     (TimeSource) Indicator of which source of time should be used for real-time information
-            packets         List[DataPacket] List if packets derived from the WIBL file
+            packets         List[LoggerFile.DataPacket] List if packets derived from the WIBL file
+            alg_desc        List[AlgorithmDescriptor] List of algorithms derived from the WIBL file
     """
-    stats = PktStats(maxreports)
-    packets = []
-    needs_elapsed_time_fixup = False
+    stats: PktStats = PktStats(maxreports)
+    packets: List[LoggerFile.DataPacket] = []
+    alg_desc: List[AlgorithmDescriptor]
+
+    # First read all packets into packets_raw so that we can find algorithm packets
+    packets_raw: List[LoggerFile.DataPacket] = []
+    algorithms_raw = []
     with open(filename, 'rb') as file:
         source = LoggerFile.PacketFactory(file)
-        packet_count = 0
         while source.has_more():
             pkt = source.next_packet()
             if pkt is not None:
-                if isinstance(pkt, LoggerFile.SerialString):
-                    # We need to pull out the NMEA0183 recognition string
-                    try:
-                        name = pkt.data[3:6].decode('UTF-8')
-                        stats.Observed(name)
-                    except UnicodeDecodeError:
-                        stats.Fault(name, PktFaults.DecodeFault)
-                        continue
-                else:
+                packets_raw.append(pkt)
+                # Check for algorithm packet
+                if isinstance(pkt, LoggerFile.AlgorithmRequest):
                     stats.Observed(pkt.name())
-                packet_count += 1
-                if pkt.elapsed == 0:
-                    needs_elapsed_time_fixup = True
-                if verbose and packet_count % 50000 == 0:
-                    print(f'Reading file: passing {packet_count} packets ...')
-                packets.append(pkt)
-    
+                    algorithms_raw.append(AlgorithmDescriptor(name=pkt.algorithm.decode('UTF-8'),
+                                                              params=pkt.parameters.decode('UTF-8'))
+                    )
+    # Store algorithm descriptors in a list using value-less dict, which are ordered by key,
+    # to filter duplicates without using a set, which does not preserve order
+    alg_desc = list(dict.fromkeys(algorithms_raw))
+    del algorithms_raw
+
+    if process_algorithms:
+        packets_raw = run_algorithms(packets_raw,
+                                     alg_desc,
+                                     AlgorithmPhase.ON_LOAD,
+                                     filename,
+                                     lineage,
+                                     verbose)
+
+    # Now iterate over stored packets to record stats needed for timestamp interpolation
+    needs_elapsed_time_fixup = False
+    packet_count = 0
+    for pkt in packets_raw:
+        if isinstance(pkt, LoggerFile.SerialString):
+            # We need to pull out the NMEA0183 recognition string
+            try:
+                name = pkt.data[3:6].decode('UTF-8')
+                stats.Observed(name)
+            except UnicodeDecodeError:
+                stats.Fault(str(pkt), PktFaults.DecodeFault)
+                continue
+        else:
+            stats.Observed(pkt.name())
+        packet_count += 1
+        if pkt.elapsed == 0:
+            needs_elapsed_time_fixup = True
+        if verbose and packet_count % 50000 == 0:
+            print(f'Reading file: passing {packet_count} packets ...')
+        packets.append(pkt)
+    del packets_raw
+
     # We need some form of connection from elapsed time stamps (i.e., when the packet is received
     # at the logger) and a real time, so that we can interpolate to real-time information for all
     # of the data.  There are a number of potential sources, including (in descending order of
@@ -240,4 +276,4 @@ def load_file(filename: str, verbose: bool, maxreports: int) -> Tuple[PktStats, 
             if packets[n].elapsed == 0:
                packets[n].elapsed = None
 
-    return stats, timesource, packets
+    return stats, timesource, packets, alg_desc

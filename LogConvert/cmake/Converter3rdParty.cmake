@@ -26,3 +26,9 @@ if(MINGW)
 endif(MINGW)
 set(LIBS ${LIBS} ${Boost_LIBRARIES})
 include_directories(${Boost_INCLUDE_DIRS})
+
+# Add JSON library
+include(FetchContent)
+FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.2/json.tar.xz)
+FetchContent_MakeAvailable(json)
+set(LIBS ${LIBS} nlohmann_json::nlohmann_json)

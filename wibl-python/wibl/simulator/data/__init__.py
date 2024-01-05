@@ -24,7 +24,7 @@
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
 import math
-from typing import NamedTuple, NoReturn
+from typing import NamedTuple, NoReturn, Union, TypeVar, Tuple, Any
 from datetime import datetime, date, timedelta
 import binascii
 import struct
@@ -46,6 +46,9 @@ MAX_RAD = math.pi * 2
 DUMMY_YAW = random.random() * MAX_RAD
 DUMMY_PITCH = random.random() * MAX_RAD
 DUMMY_ROLL = random.random() * MAX_RAD
+NA_DATA_DOUBLE: float = -1e9
+NA_DATA_UINT32: int = 0xFFFFFFFF
+
 
 def unit_uniform() -> float:
     return random.uniform(0, MAX_RAND) / MAX_RAND
@@ -106,12 +109,16 @@ class ComponentDateTime(TickCountMillisecondsMixin):
     information to be converted into a number of different formats as required by the NMEA0183 and
     NMEA2000 packets.
     """
-    def __init__(self, tick_count: int):
+    def __init__(self, tick_count: int, *,
+                 datetime_timestamp: int = None):
         """
 
         :param tick_count:
         """
-        self._dt: datetime = datetime(2020, 1, 1, 0, 0, 0, 0)
+        if datetime_timestamp:
+            self._dt: datetime = datetime.utcfromtimestamp(datetime_timestamp)
+        else:
+            self._dt: datetime = datetime(2020, 1, 1, 0, 0, 0, 0)
         self.tick_count = tick_count
         self._init_time_ticks: int = tick_count
         self._init_time_sec: int = int(self._init_time_ticks / CLOCKS_PER_SEC)
@@ -294,13 +301,16 @@ class DataGenerator:
     data source.
     """
     def __init__(self, emit_nmea0183: bool = True, emit_nmea2000: bool = True, *,
-                 use_data_constructor: bool = True):
+                 use_data_constructor: bool = True,
+                 duplicate_depth_prob: float = 0.0,
+                 no_data_prob: float = 0.0):
         """
         Default constructor, given the NMEA2000 object that's doing the data capture
         :param emit_nmea0183:
         :param emit_nmea2000:
         :param use_data_constructor: When True, use data constructor for data packets. When False,
             use buffer constructor for data packets.
+        :param duplicate_depth_prob: Probability of generating duplicate depth values
         :return:
         """
         # Flag for verbose debug output
@@ -312,10 +322,22 @@ class DataGenerator:
         # Emit binary data for NMEA2000
         self._m_binary: bool = emit_nmea2000
         self._use_data_constructor = use_data_constructor
+        self._duplicate_depth_prob = duplicate_depth_prob
+        self._no_data_prob = no_data_prob
 
         if not emit_nmea0183 and not emit_nmea2000:
             logger.warning('User asked for neither NMEA0183 or NMEA2000; defaulting to generating NMEA2000')
             self._m_binary = True
+
+    V = TypeVar('V', bound=Union[Any])
+    def _get_possible_na_values(self,
+                                na_values: Tuple[V, ...],
+                                valid_values: Tuple[V, ...]) -> Tuple[V, ...]:
+        if self._no_data_prob > 0.0 and \
+                random.random() <= self._no_data_prob:
+            return na_values
+        else:
+            return valid_values
 
     def emit_time(self, state: State, output: Writer) -> None:
         """
@@ -368,20 +390,24 @@ class DataGenerator:
         :param output: Output writer to use for serialisation of the simulated system time report
         :return:
         """
+        ref_time, = self._get_possible_na_values((ComponentDateTime(NA_DATA_UINT32,
+                                                                    datetime_timestamp=NA_DATA_UINT32),),
+                                                 (state.ref_time,))
+
         if self._use_data_constructor:
             data = {
-                'date': state.ref_time.days_since_epoch(),
-                'timestamp': state.ref_time.seconds_in_day(),
-                'elapsed_time': state.ref_time.tick_count_to_milliseconds(),
+                'date': ref_time.days_since_epoch(),
+                'timestamp': ref_time.seconds_in_day(),
+                'elapsed_time': ref_time.tick_count_to_milliseconds(),
                 'data_source': 0
             }
             pkt: lf.DataPacket = lf.SystemTime(**data)
         else:
             # Use buffer constructor
             buffer = struct.pack('<HdLB',
-                                 state.ref_time.days_since_epoch(),
-                                 state.ref_time.seconds_in_day(),
-                                 state.ref_time.tick_count_to_milliseconds(),
+                                 ref_time.days_since_epoch(),
+                                 ref_time.seconds_in_day(),
+                                 ref_time.tick_count_to_milliseconds(),
                                  0)
             pkt: lf.DataPacket = lf.SystemTime(buffer=buffer)
 
@@ -424,6 +450,9 @@ class DataGenerator:
         :param output: Output writer to use for serialisation of the simulated GNSS report
         :return:
         """
+        # Simulate random generation of no-data values
+        lat, lon = self._get_possible_na_values((NA_DATA_DOUBLE, NA_DATA_DOUBLE),
+                                                (state.current_latitude, state.current_longitude,))
         if self._use_data_constructor:
             data = {
                 'date': state.sim_time.days_since_epoch(),
@@ -431,8 +460,8 @@ class DataGenerator:
                 'elapsed_time': state.sim_time.tick_count_to_milliseconds(),
                 'msg_date': state.sim_time.days_since_epoch(),
                 'msg_timestamp': state.sim_time.seconds_in_day(),
-                'latitude': state.current_latitude,
-                'longitude': state.current_longitude,
+                'latitude': lat,
+                'longitude': lon,
                 'altitude': -19.323,
                 'rx_type': 0,   # GPS
                 'rx_method': 2, # DGNSS
@@ -473,8 +502,8 @@ class DataGenerator:
                                  state.sim_time.tick_count_to_milliseconds(),
                                  state.sim_time.days_since_epoch(),
                                  state.sim_time.seconds_in_day(),
-                                 state.current_latitude,
-                                 state.current_longitude,
+                                 lat,
+                                 lon,
                                  -19.323,
                                  0,  # GPS
                                  2,  # DGNSS
@@ -498,12 +527,15 @@ class DataGenerator:
         :param output: Output writer to use for serialisation of the simulated depth report
         :return:
         """
+        # Simulate random generation of no-data values
+        depth, = self._get_possible_na_values((NA_DATA_DOUBLE,), (state.current_depth,))
+
         if self._use_data_constructor:
             data = {
                 'date': state.sim_time.days_since_epoch(),
                 'timestamp': state.sim_time.seconds_in_day(),
                 'elapsed_time': state.sim_time.tick_count_to_milliseconds(),
-                'depth': state.current_depth,
+                'depth': depth,
                 'offset': 0.0,
                 'range': 200.0
             }
@@ -521,13 +553,17 @@ class DataGenerator:
                                  state.sim_time.days_since_epoch(),
                                  state.sim_time.seconds_in_day(),
                                  state.sim_time.tick_count_to_milliseconds(),
-                                 state.current_depth,
+                                 depth,
                                  0.0, # offset hard-coded to 0
                                  200.0 # range hard-coded to 200
                                  )
             pkt: lf.DataPacket = lf.Depth(buffer=buffer)
 
         output.record(pkt)
+        if self._duplicate_depth_prob > 0.0 and \
+                random.random() <= self._duplicate_depth_prob:
+            # Duplicate the packet
+            output.record(pkt)
 
     def generate_zda(self, state: State, output: Writer) -> None:
         """
@@ -647,6 +683,10 @@ class DataGenerator:
             pkt: lf.DataPacket = lf.SerialString(buffer=buffer)
 
         output.record(pkt)
+        if self._duplicate_depth_prob > 0.0 and \
+                random.random() <= self._duplicate_depth_prob:
+            # Duplicate the packet
+            output.record(pkt)
 
     @staticmethod
     def compute_checksum(msg: str) -> int:

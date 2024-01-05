@@ -163,6 +163,16 @@ class DataPacket(ABC):
     def id(self) -> int:
         pass
 
+    ## Provide the fixed-text string name for this data packet
+    #
+    # This simply reports the human-readable name for the class so that reporting is possible
+    #
+    # \param self   Pointer to the object
+    # \return String with the human-readable name of the packet
+    @abstractmethod
+    def name(self):
+        pass
+
     ## Serialise the data in the current packet into the given file
     #
     # This wraps up the requirements to write a packet into a streamable binary output file.
@@ -185,6 +195,7 @@ class DataPacket(ABC):
     def __str__(self):
         rtn = f'[{self.date} days, {self.timestamp} s., {self.elapsed} ms elapsed]'
         return rtn
+
 
 ## Implementation of the SystemTime NMEA2000 packet
 #

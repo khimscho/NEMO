@@ -24,6 +24,9 @@
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
 import os
+from datetime import datetime
+from typing import List, Dict
+from copy import deepcopy
 
 
 class EnvVarUndefinedException(Exception):
@@ -35,3 +38,42 @@ def getenv(var_name: str) -> str:
     if var_name not in os.environ:
         raise EnvVarUndefinedException(var_name)
     return os.environ[var_name]
+
+
+## \brief Algorithm support for lineage metadata manipulation
+# As we apply algorithms to the data, we need to make sure that we provide some record
+# that we did.  This code provides a "lineage" section in the JSON metadata associated
+# with the data, adding elements as required.
+class Lineage:
+    def __init__(self) -> None:
+        self.lineage: List[Dict] = []
+
+    @staticmethod
+    def create_algorithm_element(name: str, **kwargs) -> Dict:
+        timestamp = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+        element = {
+            "type": "Algorithm",
+            "timestamp": timestamp,
+            "name": name
+        }
+        for key in kwargs:
+            element[key] = kwargs[key]
+        return element
+
+    def add_element(self, element: Dict):
+        self.lineage.append(element)
+
+    def add_algorithm_element(self, name: str, **kwargs) -> None:
+        self.lineage.append(Lineage.create_algorithm_element(name, **kwargs))
+
+    def export(self) -> List[Dict]:
+        lin_exp: List[Dict] = deepcopy(self.lineage)
+        for e in lin_exp:
+            if 'parameters' in e:
+                # Convert parameters from a string of comma-separated key-value pairs to a dict
+                # for export to JSON
+                e['parameters'] = dict([kvp.split('=') for kvp in e['parameters'].split(',')])
+        return lin_exp
+
+    def empty(self) -> bool:
+        return len(self.lineage) == 0

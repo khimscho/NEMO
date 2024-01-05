@@ -27,6 +27,7 @@
 #include <memory>
 #include <stdint.h>
 #include <string>
+#include <string.h>
 #include "serialisation.h"
 
 /// Constructor for a serialisable buffer of data.  The buffer is allocated to the \a size_hint but

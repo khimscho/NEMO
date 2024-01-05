@@ -1,0 +1,11 @@
+services:
+  logconvert-arm64:
+    platform: "linux/arm64"
+    build: .
+    stdin_open: true
+    tty: true
+    entrypoint: ./scripts/docker-build/build-logconvert.bash
+    volumes:
+      - type: bind
+        source: .
+        target: /usr/src/wibl/LogConvert

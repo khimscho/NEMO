@@ -137,6 +137,7 @@ public:
     void HashFile(uint32_t file_num, MD5Hash& hash);
     uint16_t IncrementUploadCount(uint32_t file_num);
     void AddInventory(bool verbose = false);
+    void EmitNoDataReject(void);
 
     bool WriteSnapshot(String& name, String const& contents);
 
@@ -181,6 +182,8 @@ private:
     Serialiser  *m_serialiser;      ///< Object to handle serialisation of data
     StatusLED   *m_led;             ///< Pointer for status (data event) handling
     Inventory   *m_inventory;       ///< Cache for file information, if available
+
+    bool m_noDataAlgEmitted;    ///< Flag for whether the "NoDataReject" algorithm packet has been emitted
     
     /// \brief Find the next log number in sequence that doesn't already exist
     uint32_t GetNextLogNumber(void);
@@ -196,6 +199,8 @@ private:
     void hash(String const& filename, MD5Hash& hash);
     /// \brief Rotate the console log files, if necessary
     void RotateConsoleLogs(void);
+    /// \brief Reset the indicators for dynamic algorithm requests
+    void ResetDynamicAlgorithms(void);
 };
 
 }

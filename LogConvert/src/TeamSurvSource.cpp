@@ -25,6 +25,7 @@
  */
 
 #include "TeamSurvSource.h"
+#include <string.h>
 
 /// Default constructor for a TeamSurv-style data file, consisting of NMEA0183 sentences, one per
 /// line in an ASCII text file.

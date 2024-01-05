@@ -25,7 +25,18 @@
 
 import os
 import sys
+import argparse
 
 
 def get_subcommand_prog() -> str:
     return f"{os.path.basename(sys.argv[0])} {sys.argv[1]}"
+
+
+def type_probability_float(arg) -> float:
+    try:
+        p = float(arg)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"Error converting {arg} to float.")
+    if p < 0.0 or p > 1.0:
+        raise argparse.ArgumentTypeError(f"Error: {arg} must be between 0.0 and 1.0.")
+    return p
