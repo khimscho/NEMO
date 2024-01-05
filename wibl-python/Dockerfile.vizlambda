@@ -133,7 +133,7 @@ RUN pip install --no-deps .
 RUN rm -rf /tmp/src && rm -rf /tmp/code
 
 FROM builder as final
-WORKDIR /tmp
+WORKDIR /var/task
 ENV PYTHONBUFFERED=1
 # Set LD_LIBRARY_PATH so that pygmt can find libgmt.so (which it expects to find in /usr/lib64 on this platform)
 ENV LD_LIBRARY_PATH=/usr/lib

@@ -632,10 +632,10 @@ aws --region ${AWS_REGION} lambda create-function \
 	| tee "${WIBL_BUILD_LOCATION}/create_lambda_viz.json"
 
 # To update function (i.e., after new image has been pushed), use update-function-code:
-#aws --region ${AWS_REGION} lambda update-function-code \
-#  --function-name ${VIZ_LAMBDA} \
-#  --image-uri "${ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/wibl/vizlambda:latest" \
-#  | tee "${WIBL_BUILD_LOCATION}/update_lambda_viz.json"
+# aws --region ${AWS_REGION} lambda update-function-code \
+#   --function-name ${VIZ_LAMBDA} \
+#   --image-uri "${ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/wibl/vizlambda:latest" \
+#   | tee "${WIBL_BUILD_LOCATION}/update_lambda_viz.json"
 
 echo $'\e[31mConfiguring S3 access policy so that viz lambda can access S3 staging and viz buckets...\e[0m'
 cat > "${WIBL_BUILD_LOCATION}/lambda-s3-access-viz.json" <<-HERE

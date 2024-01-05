@@ -1,15 +1,13 @@
 import os
 from pathlib import Path
-import logging
 import tempfile
+from typing import Sequence, Optional
+import subprocess
 
 import pygmt
-from osgeo import gdal
 import rasterio
 
 from wibl import get_logger
-
-gdal.UseExceptions()
 
 RASTER_NODATA = -99999.
 RASTER_MAX = 40_000
@@ -19,6 +17,48 @@ REGION_INSET_MULT = 4
 GEBCO_PATH: str = os.getenv('WIBL_GEBCO_PATH')
 
 logger = get_logger()
+
+
+def gdal_rasterize(dest_rast: Path, src_ds: Path, *,
+                   xRes: float,
+                   yRes: float,
+                   noData: float,
+                   attribute: str,
+                   outputSRS: str = 'EPSG:4326',
+                   format: str = 'GTiff',
+                   where: Optional[str] = None,
+                   creationOptions: Optional[Sequence] = None) -> subprocess.CompletedProcess:
+    """
+    Call gdal_rasterize program via subprocess rather than calling osgeo.gdal.Rasterize() because that latter
+    fails occasionally in AWS lambda environment (likely due to some deeply buried shared state in the GDAL Python
+    bindings).
+    :param dest_rast:
+    :param src_ds:
+    :param xRes:
+    :param yRes:
+    :param noData:
+    :param attribute:
+    :param outputSRS:
+    :param format:
+    :param where:
+    :param creationOptions:
+    :return:
+    """
+    args = [
+        'gdal_rasterize',
+        '-tr', str(xRes), str(yRes),
+        '-a_nodata', str(noData),
+        '-a', attribute,
+        '-a_srs', outputSRS,
+        '-of', format
+    ]
+    if where:
+        args.extend(['-where', where])
+    if creationOptions:
+        for co in creationOptions:
+            args.extend(['-co', co])
+    args.extend([src_ds, dest_rast])
+    return subprocess.run(args, text=True)
 
 
 def map_soundings(sounding_geojson: Path,
@@ -31,15 +71,21 @@ def map_soundings(sounding_geojson: Path,
     sounding_rast: Path = sounding_geojson.with_suffix('.tif')
 
     # Generate GeoTIFF of soundings from GeoJSON file
-    try:
-        gdal.Rasterize(sounding_rast, sounding_geojson, format='GTiff',
-                       outputSRS='EPSG:4326', xRes=RASTER_RES, yRes=-RASTER_RES,
-                       noData=RASTER_NODATA, creationOptions=['COMPRESS=DEFLATE', 'ZLEVEL=9'],
-                       attribute='depth', where=f"depth > 0 AND depth < {RASTER_MAX}")
-    except Exception as e:
-        # TODO: Handle this exception once we move this to library code
-        print(str(e))
-        raise e
+    p: subprocess.CompletedProcess = gdal_rasterize(sounding_rast,
+                                                    sounding_geojson,
+                                                    format='GTiff',
+                                                    outputSRS='EPSG:4326',
+                                                    xRes=RASTER_RES,
+                                                    yRes=-RASTER_RES,
+                                                    noData=RASTER_NODATA,
+                                                    creationOptions=['COMPRESS=DEFLATE', 'ZLEVEL=9'],
+                                                    attribute='depth',
+                                                    where=f"depth > 0 AND depth < {RASTER_MAX}")
+    if p.returncode != 0:
+        output = f"stdout: {p.stdout}, stderr: {p.stderr}"
+        mesg = f"Unable to rasterize {sounding_geojson} to {sounding_rast} due to error: {output}"
+        logger.error(mesg)
+        raise Exception(mesg)
 
     # Get bounds from raster metadata
     with rasterio.open(sounding_rast) as d:

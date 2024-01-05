@@ -10,6 +10,7 @@ GDAL
 pylint>=3.0.0
 unittest-xml-reporting==3.2.0
 lxml>=4.6.5
-pytest==6.2.5
-pytest-cov==3.0.0
-pytest-xdist==2.5.0
+pytest~=7.4.0
+pytest-cov
+pytest-xdist
+pytest-docker[docker-compose-v2]
