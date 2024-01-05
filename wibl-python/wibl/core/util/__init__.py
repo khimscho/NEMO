@@ -1,5 +1,4 @@
 from typing import Callable, IO, List, Dict, Any, AnyStr, Optional
-import logging
 import json
 from pathlib import Path
 
@@ -46,7 +45,7 @@ def merge_geojson(open_geojson: Callable[[str, str], Optional[IO[AnyStr]]],
     for filename in filenames:
         file_like = open_geojson(location, filename)
         if file_like is None:
-            mesg = f"Unable to merge {filename} at {location}: Could not open resource."
+            mesg = f"Unable to merge {filename}: Could not open resource."
             if fail_on_error:
                 logger.error(mesg)
                 raise Exception(mesg)
@@ -57,7 +56,7 @@ def merge_geojson(open_geojson: Callable[[str, str], Optional[IO[AnyStr]]],
         tmp_geojson: Dict = json.load(file_like)
 
         if 'features' not in tmp_geojson:
-            mesg = f"Unable to merge features from {filename} in location {location}: No features found."
+            mesg = f"Unable to merge features from {filename}: No features found."
             if fail_on_error:
                 logger.error(mesg)
                 raise Exception(mesg)
@@ -67,7 +66,7 @@ def merge_geojson(open_geojson: Callable[[str, str], Optional[IO[AnyStr]]],
 
         tmp_feat: List[Dict[str, Any]] = tmp_geojson['features']
         if not isinstance(tmp_feat, list):
-            mesg = (f"Unable to merge features from {filename} in location {location}: "
+            mesg = (f"Unable to merge features from {filename}: "
                     "Expected 'features' to be an array, but it is not.")
             if fail_on_error:
                 logger.error(mesg)

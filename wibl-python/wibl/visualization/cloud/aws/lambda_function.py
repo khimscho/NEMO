@@ -122,5 +122,5 @@ def lambda_handler(event, context):
 
     return {
         'statusCode': 200,
-        'body': f"Uploaded map to s3://{controller.destination}/{map_filename.name}"
+        'body': f"Successfully uploaded map named {map_filename.name}."
     }
