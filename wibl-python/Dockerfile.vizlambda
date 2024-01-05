@@ -50,7 +50,7 @@ RUN cmake -G Ninja .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr && 
     cmake --build . -j && \
     cmake --build . --target install
 
-# TODO: Download, build, and install NetCDF4
+# Download, build, and install NetCDF4
 WORKDIR /tmp/src
 RUN wget https://downloads.unidata.ucar.edu/netcdf-c/4.9.2/netcdf-c-4.9.2.tar.gz
 RUN echo 'MD5 (netcdf-c-4.9.2.tar.gz) = f48ee01534365006934f0c63d4055ea0' > netcdf-c-4.9.2.tar.gz.md5
@@ -90,7 +90,7 @@ RUN cmake -G Ninja .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr && 
     cmake --build . -j && \
     cmake --build . --target install
 
-# TODO: Download and install GMT support data
+# Download and install GMT support data
 WORKDIR /tmp/src
 RUN wget https://github.com/GenericMappingTools/dcw-gmt/releases/download/2.1.2/dcw-gmt-2.1.2.tar.gz
 RUN tar xf dcw-gmt-2.1.2.tar.gz -C $GMT_DATA
@@ -99,7 +99,7 @@ RUN wget https://github.com/GenericMappingTools/gshhg-gmt/releases/download/2.3.
 RUN tar xf gshhg-gmt-2.3.7.tar.gz -C $GMT_DATA
 ENV GSHHG_ROOT=$GMT_DATA/gshhg-gmt-2.3.7
 
-# TODO: Download, build, and install GMT
+# Download, build, and install GMT
 WORKDIR /tmp/src
 RUN wget https://github.com/GenericMappingTools/gmt/releases/download/6.4.0/gmt-6.4.0-src.tar.gz
 RUN echo 'MD5 (gmt-6.4.0-src.tar.gz) = 4fe162932425feff35b01107b9b427b9' > gmt-6.4.0-src.tar.gz.md5
