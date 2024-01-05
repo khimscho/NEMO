@@ -571,8 +571,6 @@ docker push "${ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/wibl/vizlambd
 #aws --region $AWS_REGION ec2 create-tags --resources "$(cat ${WIBL_BUILD_LOCATION}/create_security_group_public_rule_efs.json | jq -r '.SecurityGroupRules[0].SecurityGroupRuleId')" \
 #  --tags 'Key=Name,Value=wibl-vizlambda-efs-private'
 
-# TODO
-
 # Create policy to allow lambdas to mount EFS read-only
 # Define policy
 cat > "${WIBL_BUILD_LOCATION}/lambda-efs-ro-policy.json" <<-HERE
@@ -600,8 +598,6 @@ aws --region ${AWS_REGION} iam attach-role-policy \
   --role-name ${VIZ_LAMBDA_ROLE} \
   --policy-arn "$(cat ${WIBL_BUILD_LOCATION}/create_lambda-efs-ro-policy.json | jq -r '.Policy.Arn')" \
   | tee "${WIBL_BUILD_LOCATION}/attach_role_policy_lambda_efs_ro_viz.json"
-
-# ODOT
 
 # Create mount target and access point to later be used by lambda
 aws --region $AWS_REGION efs create-mount-target \
@@ -663,7 +659,6 @@ aws --region ${AWS_REGION} iam put-role-policy \
 	--policy-name lambda-s3-access-viz \
 	--policy-document file://"${WIBL_BUILD_LOCATION}/lambda-s3-access-viz.json" || exit $?
 
-# Begin, TODO
 echo $'\e[31mAdd policy to viz lambda granting permissions to allow public access from function URL\e[0m'
 # TODO: This URL should only be accessible on the private subnet
 aws --region ${AWS_REGION} lambda add-permission \
@@ -682,7 +677,6 @@ aws lambda create-function-url-config \
 
 VIZ_URL="$(cat ${WIBL_BUILD_LOCATION}/create_url_lambda_viz.json | jq -r '.FunctionUrl')"
 echo $'\e[31mVisualization lambda URL:' ${VIZ_URL} $'\e[0m'
-# End, TODO
 
 ########################
 # Phase 8: Configure SNS subscriptions for lambdas
