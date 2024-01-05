@@ -43,6 +43,10 @@ fieldset label {
     margin-right: 5px;
 }
 
+fieldset.upload label {
+    width: 250px;
+}
+
 fieldset input {
     font-size: 18px;
     padding: 2px;

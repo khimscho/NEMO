@@ -135,3 +135,7 @@
 .id-table-row table td:nth-child(3) {
     padding-left: 30px;
 }
+
+.id-table-row table td:nth-child(4) {
+    text-align: right;
+}

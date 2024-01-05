@@ -44,6 +44,8 @@
                         <label for="nmea2000">UDP NMEA0183 Bridge</label><br>
                         <input type="checkbox" name="webserver" id="webserveronboot" value="on"/>
                         <label for="webserveronboot">Webserver On Boot</label><br>
+                        <input type="checkbox" name="upload" id="autoupload" value="on"/>
+                        <label for="autoupload">Auto-upload Logfiles</label><br>
                     </fieldset>
                 </div>
                 <div class="group-wrapper">
@@ -82,6 +84,26 @@
                             <input type="text" name="stationpwd" id="station-password"/>
                             <br>
                         </fieldset>
+                    </fieldset>
+                </div>
+                <div class="group-wrapper">
+                    <fieldset class="upload">
+                        <legend>Auto-upload Configuration</legend>
+                        <label for="upload-server">Server IP</label>
+                        <input type="text" name="serverip" id="upload-server"/>
+                        <br>
+                        <label for="upload-port">Server Port</label>
+                        <input type="number" name="serverport" id="upload-port"/>
+                        <br>
+                        <label for="upload-timeout">Connection Timeout (s)</label>
+                        <input type="number" name="timeout" id="upload-timeout"/>
+                        <br>
+                        <label for="upload-interval">Upload Interval (s)</label>
+                        <input type="number" name="interval" id="upload-interval"/>
+                        <br>
+                        <label for="upload-duration">Upload Duration (s)</label>
+                        <input type="number" name="duration" id="upload-duration"/>
+                        <br>
                     </fieldset>
                 </div>
                 <div class="group-wrapper">

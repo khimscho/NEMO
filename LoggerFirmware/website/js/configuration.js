@@ -37,6 +37,7 @@ function createJSONConfig() {
     const sdmmc_en = document.getElementById("memcontroller").checked ? true : false;
     const udpbr_en = document.getElementById("nmeabridge").checked ? true : false;
     const webserver_en = document.getElementById("webserveronboot").checked ? true : false;
+    const upload_en = document.getElementById("autoupload").checked ? true : false;
     const wifiMode = document.getElementById("wifimode").value;
     const stationDelay = document.getElementById("retry-delay").value;
     const stationRetries = document.getElementById("retry-count").value;
@@ -45,6 +46,11 @@ function createJSONConfig() {
     const stationSSID = document.getElementById("station-ssid").value;
     const apPassword = document.getElementById("ap-password").value;
     const stationPassword = document.getElementById("station-password").value;
+    const uploadServer = document.getElementById("upload-server").value;
+    const uploadPort = document.getElementById("upload-port").value;
+    const uploadTimeout = document.getElementById("upload-timeout").value;
+    const uploadInterval = document.getElementById("upload-interval").value;
+    const uploadDuration = document.getElementById("upload-duration").value;
     const port1BaudRate = document.getElementById("port1-baud").value;
     const port2BaudRate = document.getElementById("port2-baud").value;
     let config = `{
@@ -61,7 +67,8 @@ function createJSONConfig() {
             "powermonitor": ${powermon_en},
             "sdmmc": ${sdmmc_en},
             "udpbridge": ${udpbr_en},
-            "webserver": ${webserver_en}
+            "webserver": ${webserver_en},
+            "upload": ${upload_en}
         },
         "wifi": {
             "mode": "${wifiMode}",
@@ -82,6 +89,13 @@ function createJSONConfig() {
         "baudrate": {
             "port1": ${port1BaudRate},
             "port2": ${port2BaudRate}
+        },
+        "upload": {
+            "server": "${uploadServer}",
+            "port": ${uploadPort},
+            "timeout": ${uploadTimeout},
+            "interval": ${uploadInterval},
+            "duration": ${uploadDuration}
         }
     }`;
     let data = JSON.parse(config);
@@ -91,7 +105,9 @@ function createJSONConfig() {
 function parseConfigJSON(config) {
     document.getElementById("unique-id").value = config.uniqueID;
     document.getElementById("ship-name").value = config.shipname;
+
     document.getElementById("bridge-port").value = config.udpbridge;
+
     document.getElementById("nmea0183").checked = config.enable.nmea0183;
     document.getElementById("nmea2000").checked = config.enable.nmea2000;
     document.getElementById("imu").checked = config.enable.imu;
@@ -99,6 +115,8 @@ function parseConfigJSON(config) {
     document.getElementById("memcontroller").checked = config.enable.sdmmc;
     document.getElementById("nmeabridge").checked = config.enable.udpbridge;
     document.getElementById("webserveronboot").checked = config.enable.webserver;
+    document.getElementById("autoupload").value = config.enable.upload;
+
     document.getElementById("wifimode").value = config.wifi.mode;
     document.getElementById("retry-delay").value = config.wifi.station.delay;
     document.getElementById("retry-count").value = config.wifi.station.retries;
@@ -107,8 +125,15 @@ function parseConfigJSON(config) {
     document.getElementById("station-ssid").value = config.wifi.ssids.station;
     document.getElementById("ap-password").value = config.wifi.passwords.ap;
     document.getElementById("station-password").value = config.wifi.passwords.station;
+
     document.getElementById("port1-baud").value = config.baudrate.port1;
     document.getElementById("port2-baud").value = config.baudrate.port2;
+
+    document.getElementById("upload-server").value = config.upload.server;
+    document.getElementById("upload-port").value = config.upload.port;
+    document.getElementById("upload-timeout").value = config.upload.timeout;
+    document.getElementById("upload-interval").value = config.upload.interval;
+    document.getElementById("upload-duration").value = config.upload.duration;
 }
 
 function uploadCurrentConfig() {
