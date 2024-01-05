@@ -45,7 +45,7 @@ def gdal_rasterize(dest_rast: Path, src_ds: Path, *,
     :return:
     """
     args = [
-        'gdal_rasterize',
+        'gdal_rasterize', '-q',
         '-tr', str(xRes), str(yRes),
         '-a_nodata', str(noData),
         '-a', attribute,
