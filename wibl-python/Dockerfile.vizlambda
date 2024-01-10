@@ -101,13 +101,13 @@ ENV GSHHG_ROOT=$GMT_DATA/gshhg-gmt-2.3.7
 
 # Download, build, and install GMT
 WORKDIR /tmp/src
-RUN wget https://github.com/GenericMappingTools/gmt/releases/download/6.4.0/gmt-6.4.0-src.tar.gz
-RUN echo 'MD5 (gmt-6.4.0-src.tar.gz) = 4fe162932425feff35b01107b9b427b9' > gmt-6.4.0-src.tar.gz.md5
-RUN md5sum -c gmt-6.4.0-src.tar.gz.md5
-RUN tar xf gmt-6.4.0-src.tar.gz
-WORKDIR /tmp/src/gmt-6.4.0
+RUN wget https://github.com/GenericMappingTools/gmt/releases/download/6.5.0/gmt-6.5.0-src.tar.gz
+RUN echo 'MD5 (gmt-6.5.0-src.tar.gz) = a03e8d73f73c3804d78a42a3d5fc3dc7' > gmt-6.5.0-src.tar.gz.md5
+RUN md5sum -c gmt-6.5.0-src.tar.gz.md5
+RUN tar xf gmt-6.5.0-src.tar.gz
+WORKDIR /tmp/src/gmt-6.5.0
 RUN mkdir build
-WORKDIR /tmp/src/gmt-6.4.0/build
+WORKDIR /tmp/src/gmt-6.5.0/build
 RUN cmake -G Ninja .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_PREFIX=/usr \
       -DDCW_ROOT=$DCW_ROOT -DGSHHG_ROOT=$GSHHG_ROOT && \
     cmake --build . -j && \
