@@ -1,5 +1,5 @@
 setuptools
-requests~=2.0.0
+requests~=2.31.0
 pynmea2~=1.18
 csbschema~=1.1.1
 # Pin to pre-urllib 2.0 to avoid this error:
