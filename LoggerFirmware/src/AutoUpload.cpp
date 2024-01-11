@@ -113,7 +113,7 @@ bool UploadManager::ReportStatus(void)
         client.setTimeout(static_cast<uint16_t>(m_timeout));
         int http_rc;
         if ((http_rc = client.POST(status_json)) == HTTP_CODE_OK) {
-            // 200OK is expected; in the future, there might also be some other information
+            // 200 OK is expected; in the future, there might also be some other information
             rc = true;
         } else {
             // Didn't get expected response from server
@@ -162,7 +162,7 @@ bool UploadManager::TransferFile(fs::FS& controller, uint32_t file_id)
         client.addHeader(String("Digest"), digest_header);
         client.addHeader(String("Content-Type"), String("application/octet-stream"), false, true);
         if (!upload_header.isEmpty()) {
-            client.addHeader(String("Authentication"), upload_header);
+            client.addHeader(String("Authorization"), upload_header);
         }
 
         Serial.printf("DBG: UploadManager::TransferFile POST starting ...\n");

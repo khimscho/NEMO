@@ -47,6 +47,9 @@ enum DataObsType {
     DATA_UNKNOWN = 3
 };
 
+const int MaximumDataObsRender = 256;
+const int MaximumRenderOverhead = 1024;
+
 class DataObs {
 public:
     DataObs(void);
@@ -59,6 +62,7 @@ public:
     DataIf Interface(void) const { return m_interface; }
     DataObsType ObsType(void) const { return m_obsType; }
     bool Valid(void) const;
+    int Size(void) const;
 
 private:
     DataIf      m_interface;

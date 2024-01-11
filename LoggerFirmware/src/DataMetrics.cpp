@@ -106,7 +106,7 @@ DynamicJsonDocument DataObs::Render(void) const
 {
     // Note the fixed size of the document here.  This should be sufficient for one
     // observation, but you should re-assess if you add a lot more into the payload.
-    DynamicJsonDocument summary(256);
+    DynamicJsonDocument summary(MaximumDataObsRender);
     uint32_t now = millis();
     uint32_t time_difference = now - m_receivedTime;
     summary["name"] = m_name;
@@ -121,6 +121,11 @@ DynamicJsonDocument DataObs::Render(void) const
 bool DataObs::Valid(void) const
 {
     return m_interface != INT_NONE && m_obsType != DATA_UNKNOWN;
+}
+
+int DataObs::Size(void) const
+{
+    return MaximumDataObsRender;
 }
 
 DataMetrics::DataMetrics(void)
@@ -155,7 +160,7 @@ DynamicJsonDocument DataMetrics::LastKnownGood(void) const
         if (m_nmea0183[n].Valid()) ++n_0183_valid;
         if (m_nmea2000[n].Valid()) ++n_2000_valid;
     }
-    int capacity = 256*(n_0183_valid + n_2000_valid) + 1024;
+    int capacity = m_nmea0183[0].Size()*(n_0183_valid + n_2000_valid) + MaximumRenderOverhead;
     DynamicJsonDocument summary(capacity);
 
     for (int n = 0; n < DATA_UNKNOWN; ++n) {
