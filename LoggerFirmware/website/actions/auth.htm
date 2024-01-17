@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<head>
+    <title>Upload Authentication Data</title>
+    <link rel="stylesheet" href="../css/main.css">
+    <link rel="stylesheet" href="../css/forms.css">
+</head>
+<html>
+    <header class="primary-header">
+        <a href="../index.htm">
+            <img src="../images/WIBL-Logo.gif" alt="The WIBL Project Logo" width="80" class="logo"/>
+        </a>
+        <h1 class="title">Wireless Inexpensive Bathymetry Logger</h1>
+    </header>
+    <body>
+        <script src="../js/common.js"></script>
+        <script src="../js/auth.js"></script>
+        <div class="main-wrapper">
+            <h2>Upload Authentication Management</h2>
+            <fieldset class="algorithms">
+                <legend>Current Token</legend>
+                <p id="token-display"></p>
+            </fieldset>
+            <fieldset class="certificate">
+                <legend>Certificate</legend>
+                <textarea name="cert" id="cert-output" class="cert-output" rows="20" readonly placeholder="Upload Certificate"></textarea>
+            </fieldset>
+            <fieldset class="algorithms">
+                <legend>Reset Token</legend>
+                <label for="add-item">Token:</label>
+                <input style="width: 80%" type="text" name="add" id="add-item"/>
+                <button onclick="resetToken()">Add</button>
+            </fieldset>
+            <fieldset style="margin-top: 20px; width: 95%">
+                <legend>Configure Certificate</legend>
+                <div class="file-upload">
+                    <input type="file" id="cert-file" name="certfile" accept="text/plain">
+                    <!-- On click, read the JSON from specified file, and send to logger with "metadata" command -->
+                    <input type="button" id="upload" name="upload" value="Upload" onclick="onCertUpload()">
+                </div>
+            </fieldset>
+        </div>
+        <script>
+            bootstrapAuthentication();
+        </script>
+    </body>
+</html>

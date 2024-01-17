@@ -97,7 +97,8 @@ class Config {
             CONFIG_UPLOAD_PORT_S,   /* String: port to use on server for upload */
             CONFIG_UPLOAD_TIMEOUT_S,/* String: timeout (seconds) before deciding that the server isn't available */
             CONFIG_UPLOAD_INTERVAL_S,/* String: interval (seconds) between upload attempts */
-            CONFIG_UPLOAD_DURATION_S/* String: duration (seconds) for each upload event */
+            CONFIG_UPLOAD_DURATION_S,/* String: duration (seconds) for each upload event */
+            CONFIG_UPLOAD_CERT_S    /* String: certificate to pass to upload server for authentication */
         };
 
         /// \brief Extract a configuration string for the specified parameter

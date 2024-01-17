@@ -1208,61 +1208,84 @@ void SerialCommand::ResetLabDefaults(CommandSource src)
     }
 }
 
-/// Get and report the upload token stored in the logger (if it exists).  This is used to handshake
+/// Get and report the upload authorisation stored in the logger (if it exists).  This is used to handshake
 /// with the upload server if the logger is sending data directly over WiFi to the outside world.
 ///
 /// @param src  CommandSource channel on which the command was received
 /// @return N/A
 
-void SerialCommand::GetUploadToken(CommandSource src)
+void SerialCommand::GetAuthorisation(CommandSource src)
 {
     if (src != CommandSource::SerialPort && src != CommandSource::WirelessPort) {
         EmitMessage("ERR: Request for upload token from unrecognised CommandSource - who are you?\n", src);
         return;
     }
-    String token;
+    String token, cert;
     logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_UPLOAD_TOKEN_S, token);
-    if (token.length() == 0) {
+    logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_UPLOAD_CERT_S, cert);
+    if (token.length() == 0 && cert.length() == 0) {
         if (src == CommandSource::SerialPort) {
-            EmitMessage("ERR: no upload token stored on logger to report.\n", src);
+            EmitMessage("ERR: no upload authorisation stored on logger to report.\n", src);
         } else {
-            m_wifi->AddMessage("No upload token stored on logger to report.");
+            m_wifi->AddMessage("No upload authorisation stored on logger to report.");
             m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::UNAVAILABLE);
         }
         return;
     }
     if (src == CommandSource::SerialPort) {
         EmitMessage("Upload token: |" + token + "|\n", src);
+        EmitMessage("Upload cert: |" + cert + "|\n", src);
     } else {
         m_wifi->AddMessage(token);
+        m_wifi->AddMessage(cert);
     }
 }
 
-/// Set the upload token string (used for handshakes with the upload server if the logger is sending
-/// data directly to the outside world).  The firmware does no validation on the token, except in that
+/// Set the upload authorisation info (used for handshakes with the upload server if the logger is sending
+/// data directly to the outside world).  The firmware does no validation on the info, except in that
 /// it has to be ASCII-encoded, and just stores what's provided.  On success, the code issues a
-/// GetUploadToken() so that the user has positive confirmation that the update was done.
+/// GetAuthorisation() so that the user has positive confirmation that the update was done.
 ///
-/// @param token    String to store in the NVM for uploads
+/// @param data    String to store in the NVM for uploads
 /// @param src      CommandSource channel on which the command was received.
 /// @return N/A
 
-void SerialCommand::SetUploadToken(String const& token, CommandSource src)
+void SerialCommand::SetAuthorisation(String const& data, CommandSource src)
 {
     if (src != CommandSource::SerialPort && src != CommandSource::WirelessPort) {
         EmitMessage("ERR: Request to set upload token from unrecognised CommandSource - who are you?\n", src);
         return;
     }
-    if (!logger::LoggerConfig.SetConfigString(logger::Config::CONFIG_UPLOAD_TOKEN_S, token)) {
+
+    if (data.startsWith("token")) {
+        if (!logger::LoggerConfig.SetConfigString(logger::Config::CONFIG_UPLOAD_TOKEN_S, data.substring(6))) {
+            if (src == CommandSource::SerialPort) {
+                EmitMessage("ERR: Failed to set upload token.  Probably an internal error.\n", src);
+            } else {
+                EmitMessage("Failed to set upload token.  Probably an internal error.", src);
+                m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
+            }
+            return;
+        }
+    } else if (data.startsWith("cert")) {
+         if (!logger::LoggerConfig.SetConfigString(logger::Config::CONFIG_UPLOAD_CERT_S, data.substring(5))) {
+            if (src == CommandSource::SerialPort) {
+                EmitMessage("ERR: Failed to set upload certificate.  Probably an internal error.\n", src);
+            } else {
+                EmitMessage("Failed to set upload certificate.  Probably an internal error.", src);
+                m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
+            }
+            return;
+        }
+    } else {
         if (src == CommandSource::SerialPort) {
-            EmitMessage("ERR: Failed to set upload token.  Probably an internal error.\n", src);
+            EmitMessage("ERR: auth command must contain 'token' or 'cert' as first element.\n", src);
         } else {
-            EmitMessage("Failed to set upload token.  Probably an internal error.", src);
+            EmitMessage("auth command must contain 'token' or 'cert' as first element.", src);
             m_wifi->SetStatusCode(WiFiAdapter::HTTPReturnCodes::BADREQUEST);
         }
-        return;
     }
-    GetUploadToken(src);
+    GetAuthorisation(src);
 }
 
 /// Generate a downloadable snapshot of the given resource in the log space (i.e., on the SD card) so that
@@ -1412,6 +1435,7 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage(String("Command Syntax (V") + SoftwareVersion() + "):\n", src);
     EmitMessage("  accept [NMEA0183-ID | all]          Configure which NMEA0183 messages to accept.\n", src);
     EmitMessage("  algorithm [name params | none]      Add (or report) an algorithm request to the cloud processing.\n", src);
+    EmitMessage("  auth [cert|token data]              Set or report the upload authentication information.\n", src);
     EmitMessage("  configure [on|off logger-name]      Configure individual loggers on/off (or report config).\n", src);
     EmitMessage("  echo on|off                         Control character echo on serial line.\n", src);
     EmitMessage("  erase file-number|all               Remove a specific [file-number] or all log files.\n", src);
@@ -1438,7 +1462,6 @@ void SerialCommand::Syntax(CommandSource src)
     EmitMessage("  status                              Generate JSON-format status message for current dynamic configuration\n", src);
     EmitMessage("  steplog                             Close current log file, and move to the next in sequence.\n", src);
     EmitMessage("  stop                                Close files and go into self-loop for power-down.\n", src);
-    EmitMessage("  token [upload-token]                Set or report the logger's upload handshake token.\n", src);
     EmitMessage("  transfer file-number                Transfer log file [file-number] (WiFi and serial only).\n", src);
     EmitMessage("  uniqueid [logger-name]              Set or report the logger's unique identification string.\n", src);
     EmitMessage("  upload [on|off]|[srvaddr srvport timeout interval duration]\n", src);
@@ -1473,6 +1496,12 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
             ReportAlgRequests(src);
         } else {
             ConfigureAlgRequest(cmd.substring(10), src);
+        }
+    } else if (cmd.startsWith("auth")) {
+        if (cmd.length() == 4) {
+            GetAuthorisation(src);
+        } else {
+            SetAuthorisation(cmd.substring(5), src);
         }
     } else if (cmd.startsWith("configure")) {
         if (cmd.length() == 9) {
@@ -1559,14 +1588,6 @@ void SerialCommand::Execute(String const& cmd, CommandSource src)
         }
     } else if (cmd == "stop") {
         Shutdown();
-    } else if (cmd.startsWith("token")) {
-        if (cmd.length() == 5) {
-            // Getter
-            GetUploadToken(src);
-        } else {
-            // Setter
-            SetUploadToken(cmd.substring(6), src);
-        }
     } else if (cmd.startsWith("transfer")) {
         TransferLogFile(cmd.substring(9), src);
     } else if (cmd.startsWith("uniqueid")) {

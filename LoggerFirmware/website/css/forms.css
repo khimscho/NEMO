@@ -95,6 +95,24 @@ fieldset.baudrates {
     tab-size: 4;
 }
 
+.certificate {
+    width: 95%
+}
+
+.cert-output {
+    display: flex;
+    width: 100%;
+    justify-content: center;
+}
+
+.cert-output {
+    font-size: 12px;
+    width: 100%;
+    border: dashed;
+    border-width: 1px;
+    tab-size: 4;
+}
+
 fieldset.algorithms {
     display: block;
     margin-top: 15px;

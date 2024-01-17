@@ -84,7 +84,8 @@ const String lookup[] = {
     "UploadPort",       ///< IPc4 port for server to use for upload
     "UploadTimeout",    ///< Timeout (seconds) for the upload server to respond to probe
     "UploadInterval",   ///< Interval (seconds) between upload attempts
-    "UploadDuration"    ///< Time (seconds) for upload activity before diverting back to other efforts
+    "UploadDuration",   ///< Time (seconds) for upload activity before diverting back to other efforts
+    "UploadCert"        ///< Certificate to pass to the upload server for TLS
 };
 
 /// Default constructor.  This sets up for a dummy parameter store, which is configured

@@ -27,6 +27,10 @@
  * OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "Arduino.h"
+#include "base64.h"
+
+#include "WiFiClientSecure.h"
 #include "HTTPClient.h"
 #include "ArduinoJson.h"
 
@@ -50,7 +54,7 @@ UploadManager::UploadManager(logger::Manager *logManager)
         return;
     }
     if (port.isEmpty()) port = String("80");
-    m_serverURL = String("http://") + server + ":" + port + "/";
+    m_serverURL = String("https://") + server + ":" + port + "/";
     m_uploadInterval = static_cast<unsigned long>(upload_interval.toDouble() * 1000.0);
     m_uploadDuration = static_cast<unsigned long>(upload_duration.toDouble() * 1000.0);
     m_timeout = static_cast<int32_t>(timeout.toDouble() * 1000.0);
@@ -104,12 +108,19 @@ bool UploadManager::ReportStatus(void)
     String status_json;
     serializeJson(status, status_json);
 
-    WiFiClient wifi;
+    WiFiClientSecure *wifi = new WiFiClientSecure();
+    String cert;
+    logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_UPLOAD_CERT_S, cert);
+    if (!wifi || cert.length() == 0) {
+        if (wifi != nullptr) delete wifi;
+        return false;
+    }
+    wifi->setCACert(cert.c_str());
     HTTPClient client;
     bool rc = false; // By default ...
     
     client.setConnectTimeout(m_timeout);
-    if (client.begin(wifi, url)) {
+    if (client.begin(*wifi, url)) {
         client.setTimeout(static_cast<uint16_t>(m_timeout));
         int http_rc;
         if ((http_rc = client.POST(status_json)) == HTTP_CODE_OK) {
@@ -123,6 +134,7 @@ bool UploadManager::ReportStatus(void)
         }
     }
     client.end();
+    delete wifi;
 
     return rc;
 }
@@ -142,20 +154,33 @@ bool UploadManager::TransferFile(fs::FS& controller, uint32_t file_id)
         return false;
     }
 
-    WiFiClient wifi;
+    WiFiClientSecure *wifi = new WiFiClientSecure();
+    String cert;
+    logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_UPLOAD_CERT_S, cert);
+    if (!wifi || cert.length() == 0) {
+        if (wifi != nullptr) delete wifi;
+        return false;
+    }
+    wifi->setCACert(cert.c_str());
+
     HTTPClient client;
     bool rc = false; // By default ...
     String digest_header(String("md5=") + file_hash.Value());
-    String upload_token, upload_header;
+    String logger_uuid, upload_token, upload_header;
     String url(m_serverURL + "update");
 
-    if (logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_UPLOAD_TOKEN_S, upload_token) &&
+    if (logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_MODULEID_S, logger_uuid) &&
+        logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_UPLOAD_TOKEN_S, upload_token) &&
         !upload_token.isEmpty()) {
-        upload_header = String("Basic ") + upload_token;
+        String auth_token = logger_uuid + ":" + upload_token;
+        upload_header = String("Basic ") + base64::encode(auth_token);
+    } else {
+        delete wifi;
+        return false;
     }
 
     client.setConnectTimeout(m_timeout);
-    if (client.begin(wifi, url)) {
+    if (client.begin(*wifi, url)) {
         client.setTimeout(static_cast<uint16_t>(m_timeout));
         int http_rc;
 
@@ -203,6 +228,7 @@ bool UploadManager::TransferFile(fs::FS& controller, uint32_t file_id)
     }
     f.close();
     client.end();
+    delete wifi;
 
     return rc;
 }

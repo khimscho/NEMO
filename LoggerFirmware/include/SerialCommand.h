@@ -174,10 +174,10 @@ private:
     void SetLabDefaults(String const& spec, CommandSource src);
     /// \brief Reset the configuration to lab-default configuration JSON string
     void ResetLabDefaults(CommandSource src);
-    /// @brief Report the upload token used to authenticate transmissions
-    void GetUploadToken(CommandSource src);
+    /// @brief Report the upload authorisation information
+    void GetAuthorisation(CommandSource src);
     /// @brief Set the upload token used to authenticate transmissions
-    void SetUploadToken(String const& token, CommandSource src);
+    void SetAuthorisation(String const& data, CommandSource src);
     /// @brief Generate a downloadable version of a given resource in /log directory
     void SnapshotResource(String const& resource, CommandSource src);
     /// @brief Report the auto-upload configuration status

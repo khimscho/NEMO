@@ -58,6 +58,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"ccom.unh.edu/wibl-monitor/src/api"
 	"ccom.unh.edu/wibl-monitor/src/support"
@@ -85,14 +86,24 @@ func main() {
 		config = support.NewDefaultConfig()
 	}
 
-	// ENDPOINTS:
-	http.HandleFunc("/", syntax)                // Syntax list for the endpoints the server provides
-	http.HandleFunc("/checkin", status_updates) // Status updates, also used to check the server is alive
-	http.HandleFunc("/update", file_transfer)   // File uploads
-
 	address := fmt.Sprintf(":%d", config.API.Port)
-	log.Fatal(http.ListenAndServe(address, nil))
 
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", syntax)
+	mux.HandleFunc("/checkin", support.BasicAuth(status_updates))
+	mux.HandleFunc("/update", support.BasicAuth(file_transfer))
+
+	srv := &http.Server{
+		Addr:         address,
+		Handler:      mux,
+		IdleTimeout:  time.Minute,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 30 * time.Second,
+	}
+
+	log.Printf("starting server on %s", srv.Addr)
+	err := srv.ListenAndServeTLS("./localhost.pem", "./localhost-key.pem")
+	log.Fatal(err)
 }
 
 // Generate a list of the end-points that the server provides.
