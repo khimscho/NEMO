@@ -53,6 +53,7 @@ private:
 
     bool ReportStatus(void);
     bool TransferFile(fs::FS& controller, uint32_t file_id);
+    
 };
 
 }

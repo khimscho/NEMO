@@ -101,6 +101,53 @@ void UploadManager::UploadCycle(void)
     }
 }
 
+class SecureClient {
+public:
+    SecureClient(void)
+    {
+        m_wifi = new WiFiClientSecure();
+        if (!m_wifi) {
+            return;
+        }
+        logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_UPLOAD_CERT_S, m_cert);
+        if (m_cert.length() == 0) {
+            delete m_wifi;
+            m_wifi = nullptr;
+        } else {
+            m_wifi->setCACert(m_cert.c_str());
+        }
+    }
+
+    ~SecureClient(void)
+    {
+        delete m_wifi;
+    }
+
+    WiFiClientSecure *Client(void) const
+    {
+        return m_wifi;
+    }
+
+private:
+    WiFiClientSecure    *m_wifi;
+    String              m_cert;
+};
+
+String AuthHeader(void)
+{
+    String logger_uuid, upload_token, upload_header;
+
+    if (logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_MODULEID_S, logger_uuid) &&
+        logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_UPLOAD_TOKEN_S, upload_token) &&
+        !upload_token.isEmpty()) {
+        String auth_token = logger_uuid + ":" + upload_token;
+        upload_header = String("Basic ") + base64::encode(auth_token);
+    } else {
+        upload_header = "";
+    }
+    return upload_header;
+}
+
 bool UploadManager::ReportStatus(void)
 {
     DynamicJsonDocument status(logger::status::CurrentStatus(m_logManager));
@@ -108,20 +155,17 @@ bool UploadManager::ReportStatus(void)
     String status_json;
     serializeJson(status, status_json);
 
-    WiFiClientSecure *wifi = new WiFiClientSecure();
-    String cert;
-    logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_UPLOAD_CERT_S, cert);
-    if (!wifi || cert.length() == 0) {
-        if (wifi != nullptr) delete wifi;
-        return false;
-    }
-    wifi->setCACert(cert.c_str());
+    SecureClient wifi;
     HTTPClient client;
     bool rc = false; // By default ...
-    
+    String auth_header(AuthHeader());
+
     client.setConnectTimeout(m_timeout);
-    if (client.begin(*wifi, url)) {
+    if (client.begin(*wifi.Client(), url)) {
         client.setTimeout(static_cast<uint16_t>(m_timeout));
+        if (!auth_header.isEmpty()) {
+            client.addHeader(String("Authorization"), auth_header);
+        }
         int http_rc;
         if ((http_rc = client.POST(status_json)) == HTTP_CODE_OK) {
             // 200 OK is expected; in the future, there might also be some other information
@@ -134,7 +178,6 @@ bool UploadManager::ReportStatus(void)
         }
     }
     client.end();
-    delete wifi;
 
     return rc;
 }
@@ -154,40 +197,23 @@ bool UploadManager::TransferFile(fs::FS& controller, uint32_t file_id)
         return false;
     }
 
-    WiFiClientSecure *wifi = new WiFiClientSecure();
-    String cert;
-    logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_UPLOAD_CERT_S, cert);
-    if (!wifi || cert.length() == 0) {
-        if (wifi != nullptr) delete wifi;
-        return false;
-    }
-    wifi->setCACert(cert.c_str());
-
+    SecureClient wifi;
     HTTPClient client;
     bool rc = false; // By default ...
+
     String digest_header(String("md5=") + file_hash.Value());
-    String logger_uuid, upload_token, upload_header;
+    String auth_header(AuthHeader());
     String url(m_serverURL + "update");
 
-    if (logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_MODULEID_S, logger_uuid) &&
-        logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_UPLOAD_TOKEN_S, upload_token) &&
-        !upload_token.isEmpty()) {
-        String auth_token = logger_uuid + ":" + upload_token;
-        upload_header = String("Basic ") + base64::encode(auth_token);
-    } else {
-        delete wifi;
-        return false;
-    }
-
     client.setConnectTimeout(m_timeout);
-    if (client.begin(*wifi, url)) {
+    if (client.begin(*wifi.Client(), url)) {
         client.setTimeout(static_cast<uint16_t>(m_timeout));
         int http_rc;
 
         client.addHeader(String("Digest"), digest_header);
         client.addHeader(String("Content-Type"), String("application/octet-stream"), false, true);
-        if (!upload_header.isEmpty()) {
-            client.addHeader(String("Authorization"), upload_header);
+        if (!auth_header.isEmpty()) {
+            client.addHeader(String("Authorization"), auth_header);
         }
 
         Serial.printf("DBG: UploadManager::TransferFile POST starting ...\n");
@@ -228,7 +254,6 @@ bool UploadManager::TransferFile(fs::FS& controller, uint32_t file_id)
     }
     f.close();
     client.end();
-    delete wifi;
 
     return rc;
 }

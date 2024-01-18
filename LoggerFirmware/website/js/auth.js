@@ -1,9 +1,12 @@
 function populateDisplay(data) {
     if (data.messages[0] === '') {
         document.getElementById('token-display').textContent = 'Not set';
-        document.getElementById('cert-output').innerHTML = 'Not set';
     } else {
         document.getElementById('token-display').textContent = data.messages[0];
+    }
+    if (data.messages[1] === '') {
+        document.getElementById('cert-output').innerHTML = 'Not set';
+    } else {
         document.getElementById('cert-output').innerHTML = data.messages[1];
     }
 }

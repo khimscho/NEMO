@@ -9,7 +9,12 @@
  * logger firmware) as a demonstration of what's required for an industrial-grade server
  * implementation.
  *
- * Copyright (c) 2024, University of New Hampshire, Center for Coastal and Ocean Mapping.
+ * The code for TLS support and BasicAuth is heavily based on the information provided by Alex
+ * Edwards here https://www.alexedwards.net/blog/basic-authentication-in-go.  That code has an MIT
+ * license, which is the same as that used for the rest of the project, so it's included below.
+ *
+ * Copyright (c) 2024, University of New Hampshire, Center for Coastal and Ocean Mapping, and
+ * Alex Edwards (BasicAuth and TLS implementation)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of this software
  * and associated documentation files (the "Software"), to deal in the Software without restriction,
@@ -102,7 +107,7 @@ func main() {
 	}
 
 	log.Printf("starting server on %s", srv.Addr)
-	err := srv.ListenAndServeTLS("./localhost.pem", "./localhost-key.pem")
+	err := srv.ListenAndServeTLS("./certs/server.crt", "./certs/server.key")
 	log.Fatal(err)
 }
 
