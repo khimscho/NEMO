@@ -77,3 +77,11 @@ content-length: 63641
 
 Further, if successful, the conversion start lambda will publish a message to the conversion SNS topic, which
 will cause the conversion lambda to be invoked.
+
+### Running vizualization lambda
+The [vizualization lambda](../../../wibl/visualization/cloud/aws/lambda_function.py) allows multiple
+GeoJSON files stored in $STAGING_BUCKET to be combined and vizualized over GEBCO data using 
+[Generic Mapping Tools](https://www.generic-mapping-tools.org) and written to $VIZ_BUCKET. 
+vizlambdainvoke.py](../../vizlambdainvoke.py) shows how to invoke this lambda.
+
+> Note: Any service wishing to invoke this lambda will need to setup a [resources-based policy](https://docs.aws.amazon.com/lambda/latest/dg/access-control-resource-based.html).

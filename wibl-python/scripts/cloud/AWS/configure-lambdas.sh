@@ -561,16 +561,6 @@ docker build -f ../../../Dockerfile.vizlambda -t wibl/vizlambda:latest ../../../
 docker tag wibl/vizlambda:latest "${ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/wibl/vizlambda:latest"
 docker push "${ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/wibl/vizlambda:latest" | tee "${WIBL_BUILD_LOCATION}/docker_push_vizlambda_to_ecr.txt"
 
-## Create ingress rule to allow NFS connections to the private lambda subnet (e.g., EFS mount point)
-#aws --region $AWS_REGION ec2 authorize-security-group-ingress \
-#  --group-id "$(cat ${WIBL_BUILD_LOCATION}/create_security_group_private.json | jq -r '.GroupId')" \
-#  --ip-permissions '[{"IpProtocol": "tcp", "FromPort": 2049, "ToPort": 2049, "IpRanges": [{"CidrIp": "10.0.0.0/24"}]}]' \
-#  | tee ${WIBL_BUILD_LOCATION}/create_security_group_private_rule_efs.json
-#
-## Tag the NFS ingress rule with a name:
-#aws --region $AWS_REGION ec2 create-tags --resources "$(cat ${WIBL_BUILD_LOCATION}/create_security_group_public_rule_efs.json | jq -r '.SecurityGroupRules[0].SecurityGroupRuleId')" \
-#  --tags 'Key=Name,Value=wibl-vizlambda-efs-private'
-
 # Create policy to allow lambdas to mount EFS read-only
 # Define policy
 cat > "${WIBL_BUILD_LOCATION}/lambda-efs-ro-policy.json" <<-HERE
@@ -611,8 +601,8 @@ aws --region ${AWS_REGION} efs create-access-point \
   | tee ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_access_point.json
 VIZ_LAMBDA_EFS_AP_ARN=$(cat ${WIBL_BUILD_LOCATION}/create_vizlambda_efs_access_point.json | jq -r '.AccessPointArn')
 
-# Create the vizualization HTTP lambda which mounts the vizlambda EFS volume to provide access to GEBCO data
-echo $'\e[31mGenerating vizualization HTTP lambda...\e[0m'
+# Create the vizualization lambda which mounts the vizlambda EFS volume to provide access to GEBCO data
+echo $'\e[31mGenerating vizualization lambda...\e[0m'
 aws --region ${AWS_REGION} lambda create-function \
   --function-name ${VIZ_LAMBDA} \
   --no-cli-pager \
@@ -658,25 +648,6 @@ aws --region ${AWS_REGION} iam put-role-policy \
 	--role-name "${VIZ_LAMBDA_ROLE}" \
 	--policy-name lambda-s3-access-viz \
 	--policy-document file://"${WIBL_BUILD_LOCATION}/lambda-s3-access-viz.json" || exit $?
-
-echo $'\e[31mAdd policy to viz lambda granting permissions to allow public access from function URL\e[0m'
-# TODO: This URL should only be accessible on the private subnet
-aws --region ${AWS_REGION} lambda add-permission \
-    --function-name ${VIZ_LAMBDA} \
-    --action lambda:InvokeFunctionUrl \
-    --principal "*" \
-    --function-url-auth-type "NONE" \
-    --statement-id url \
-    | tee "${WIBL_BUILD_LOCATION}/url_invoke_lambda_viz.json"
-
-echo $'\e[31mCreate a URL endpoint for viz lambda...\e[0m'
-aws lambda create-function-url-config \
-    --function-name ${VIZ_LAMBDA} \
-    --auth-type NONE \
-    | tee "${WIBL_BUILD_LOCATION}/create_url_lambda_viz.json"
-
-VIZ_URL="$(cat ${WIBL_BUILD_LOCATION}/create_url_lambda_viz.json | jq -r '.FunctionUrl')"
-echo $'\e[31mVisualization lambda URL:' ${VIZ_URL} $'\e[0m'
 
 ########################
 # Phase 8: Configure SNS subscriptions for lambdas

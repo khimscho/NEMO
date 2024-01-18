@@ -1,6 +1,5 @@
 from pathlib import Path
 import tempfile
-import json
 from typing import List
 
 import boto3
@@ -9,7 +8,6 @@ from wibl import config_logger_service
 from wibl.core import getenv
 import wibl.core.config as conf
 import wibl.core.datasource as ds
-# import wibl.core.notification as nt
 from wibl.visualization.cloud.aws import get_config_file
 from wibl.core.util import merge_geojson
 from wibl.core.util.aws import generate_get_s3_object
@@ -34,21 +32,8 @@ def lambda_handler(event, context):
 
     if config['verbose']:
         logger.info(f"event: {event}")
-        # logger.info(f"notifier: {getenv('NOTIFICATION_ARN')}")
 
-    # source: ds.MultiDataSource = ds.AWSMultiSource(event, config)
     controller = ds.AWSController(config)
-    # notifier = nt.SNSNotifier(getenv('NOTIFICATION_ARN'))
-
-    # Since we're getting SNS notifications, there can only be one item to process
-    # for each invocation.
-    # item: ds.MultiDataItem = source.nextSource()
-    # # Validate item
-    # if item.meta is None or 'observer_name' not in item.meta:
-    #     return {
-    #         'statusCode': 400,
-    #         'body': f"Required property 'observer_name' not defined in event metadata."
-    #     }
 
     source_store: str = getenv('STAGING_BUCKET')
 
@@ -57,7 +42,13 @@ def lambda_handler(event, context):
             'statusCode': 400,
             'body': 'Body not found in event.'
         }
-    body: dict = json.loads(event['body'])
+    body: dict = event['body']
+
+    if not isinstance(body, dict):
+        return {
+            'statusCode': 400,
+            'body': f"Unexpected type for body: {type(body)}"
+        }
 
     if 'observer_name' not in body:
         return {
@@ -101,9 +92,6 @@ def lambda_handler(event, context):
     merged_geojson_fp.close()
 
     # Map soundings into local temporary file
-    # map_filename: Path = map_soundings(merged_geojson_path,
-    #                                    item.meta['observer_name'],
-    #                                    item.dest_key)
     map_filename: Path = map_soundings(merged_geojson_path,
                                        observer_name,
                                        dest_key)
@@ -111,16 +99,10 @@ def lambda_handler(event, context):
     # Upload map to S3 destination bucket
     controller.upload(str(map_filename), map_filename.name)
 
-    # Send notification that map was created
-    # notifier.notify(ds.DataItem(source_store=item.source_store,
-    #                             source_key='',
-    #                             source_size=None,
-    #                             localname=None,
-    #                             dest_store=controller.destination,
-    #                             dest_key=map_filename.name,
-    #                             dest_size=map_filename.stat().st_size))
-
     return {
         'statusCode': 200,
-        'body': f"Successfully uploaded map named {map_filename.name}."
+        'body': {
+            'mesg': f"Successfully uploaded map named {map_filename.name}.",
+            'upload_url': f"s3://{controller.destination}/{map_filename.name}"
+        }
     }
