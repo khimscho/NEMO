@@ -24,11 +24,9 @@ logger = config_logger_service()
 @pytest.fixture(scope="module")
 def populated_geojson_data(data_path, s3_local_rsrc):
     """
-    Fixture used to amortize the cost of inserting soundings in to the database for the
-    purposes of testing queries.
+    Fixture used to upload GeoJSON files to localstack S3
     :param data_path:
-    :param dynamodb_local: Fixture representing boto3 DynamoDB resource
-    :return: boto3 DynamoDB client
+    :return: boto3 S3 client
     """
     bucket = s3_local_rsrc.Bucket(GEOJSON_BUCKET_NAME)
     bucket.create()
@@ -42,6 +40,13 @@ def populated_geojson_data(data_path, s3_local_rsrc):
 
 @pytest.fixture(scope="module")
 def merged_geojson_fp():
+    """
+    Fixture to pass an open file handle to a named temporary file used for storing merged GeoJSON to.
+    Becuase the file handle is yielded and then deleted, each recipient of the fixture will receive
+    the same file handle (i.e., the file will only be opened once). Once all the test functions receiving
+    the file handle fixture exit, only then will the file be deleted.
+    :return:
+    """
     merged_geojson_fp = tempfile.NamedTemporaryFile(mode='w',
                                                     encoding='utf-8',
                                                     newline='\n',

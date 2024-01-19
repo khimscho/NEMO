@@ -443,7 +443,7 @@ CONVERSION_START_URL="$(cat ${WIBL_BUILD_LOCATION}/create_url_lambda_conversion_
 echo $'\e[31mConversion start lambda URL:' ${CONVERSION_START_URL} $'\e[0m'
 
 ########################
-# Phase 7: Generate the vizualization HTTP lambda
+# Phase 7: Generate the visualization lambda
 # Create ingress rule to allow NFS connections from the subnet (e.g., EFS mount point)
 aws --region $AWS_REGION ec2 authorize-security-group-ingress \
   --group-id "$(cat ${WIBL_BUILD_LOCATION}/create_security_group_public.json | jq -r '.GroupId')" \

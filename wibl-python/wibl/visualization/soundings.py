@@ -29,8 +29,8 @@ def gdal_rasterize(dest_rast: Path, src_ds: Path, *,
                    where: Optional[str] = None,
                    creationOptions: Optional[Sequence] = None) -> subprocess.CompletedProcess:
     """
-    Call gdal_rasterize program via subprocess rather than calling osgeo.gdal.Rasterize() because that latter
-    fails occasionally in AWS lambda environment (likely due to some deeply buried shared state in the GDAL Python
+    Call gdal_rasterize program via subprocess rather than calling osgeo.gdal.Rasterize() because the latter
+    fails after cold start in AWS lambda environment (likely due to some deeply buried shared state in the GDAL Python
     bindings).
     :param dest_rast:
     :param src_ds:
