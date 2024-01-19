@@ -515,7 +515,6 @@ TEST_INSTANCE_IP=$(aws ec2 describe-instances \
 
 # Connect to EC2 instance via SSH, mount EFS, download GEBCO data
 ssh -o StrictHostKeyChecking=accept-new -i "${WIBL_BUILD_LOCATION}/wibl-tmp-key.pem" ec2-user@${TEST_INSTANCE_IP} <<-EOF
-ssh -o StrictHostKeyChecking=accept-new -i "wibl-tmp-key.pem" ec2-user@${TEST_INSTANCE_IP} <<-EOF
 sudo dnf install -y wget amazon-efs-utils && \
   mkdir -p efs && \
   sudo mount -t efs "$WIBL_VIZ_LAMBDA_EFS_ID" efs && \
