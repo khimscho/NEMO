@@ -6,7 +6,7 @@ Firmware 1.5.0 includes the following additions:
 
 * __Internal website__.  The logger can now host its own configuration and manipulation software, providing these to any browser as a mixture of HTML/CSS/JavaScript.  Data download is through normal browser download mechanisms by exposing the log files as a static website and providing download links as part of the website status page.  This makes the logger self-hosting.
 * __Data Integrity__.  Monitoring for the latest time/position/depth on NMEA0183 and NMEA2000 inputs so that the status page on the internal website can demonstrate whether the logger is receiving data (ideal for installation, but also good for debugging while underway).
-* __Auto-upload__.  If the logger is connected to a network that has internet connection, it can now be configured to automatically connect to a server to upload log files.  The upload events happen at a fixed interval, and run for a fixed duration (or until all of the files are transferred) so that the code doesn't dominate the logger's functionality while uploading.  A separate timeout parameter ensures the system doesn't halt if the server isn't available.
+* __Auto-upload__.  If the logger is connected to a network that has internet connection, it can now be configured to automatically connect to a server to upload log files, using TLS for the connection and HTTP BasicAuth for authentication.  The upload events happen at a fixed interval, and run for a fixed duration (or until all of the files are transferred) so that the code doesn't dominate the logger's functionality while uploading.  A separate timeout parameter ensures the system doesn't halt if the server isn't available.
 * __Data Monitoring__.  Ability to include algorithm requests dynamically based on the data being captured.  This resolves the issue to "no data" values in NMEA2000 inputs causing chaos in post.
 * JSON output for all commands when using the WiFi interface.  This includes error messages as a JSON response with just a "messages" tag and an array of strings.
 * A consistently reported firmware version in configuration and status information.
@@ -17,6 +17,7 @@ Firmware 1.5.0 includes the following additions:
 * The status command now provides the URL at which to find each log file, as well as size, MD5 hash, ID number, and upload count.
 * New command "snapshot" to generate a snapshot of the running configuration, default configuration, or file catalog as files on the SD card so that they can be downloaded to local storage on a mobile device.  The JSON response is the URL at which to find the snapshot.  The internal website implements this functionality through GUI buttons.
 * New command "upload" to control auto-upload of log files.
+* New command "auth" to control auto-upload authentication artifacts.
 * Ability to specify more than one NMEA0183 sentence recognition string in "accept" command in a single command.
 
 Note that this release also updates the command processor version to 1.4.0.

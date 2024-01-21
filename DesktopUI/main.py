@@ -31,6 +31,7 @@ from configure import ConfigDBox
 from transfer import TransferDBox
 from algorithms import AlgoDBox
 from filters import NMEA0183FilterDBox
+from authorisation import AuthDBox
 import json
 from typing import Tuple
 from io import StringIO
@@ -94,7 +95,7 @@ class MainWindow:
         self.setup_button = tk.Button(self.button_frame, text='Setup', command=self.on_setup)
         self.status_button = tk.Button(self.button_frame, text='Status', command=self.on_status)
         self.metadata_button = tk.Button(self.button_frame, text='Metadata', command=self.on_metadata)
-        self.token_button = tk.Button(self.button_frame, text='Token', command=self.on_token)
+        self.auth_button = tk.Button(self.button_frame, text='Authorisation', command=self.on_auth)
         self.algorithm_button = tk.Button(self.button_frame, text='Algorithms', command=self.on_algorithms)
         self.nmea0183_button = tk.Button(self.button_frame, text='NMEA0183 Filter', command=self.on_filter)
         self.transfer_button = tk.Button(self.button_frame, text='Transfer Data', command=self.on_transfer)
@@ -102,7 +103,7 @@ class MainWindow:
         self.setup_button.grid(row=0, column=0)
         self.status_button.grid(row=0, column=1)
         self.metadata_button.grid(row=0, column=2)
-        self.token_button.grid(row=0, column=3)
+        self.auth_button.grid(row=0, column=3)
         self.algorithm_button.grid(row=0, column=4)
         self.nmea0183_button.grid(row=0, column=5)
         self.transfer_button.grid(row=0, column=6)
@@ -195,14 +196,9 @@ class MainWindow:
             status, info = self.run_command(command)
             self.update_output(info, False)
 
-    def on_token(self):
-        token_filename = filedialog.askopenfilename(title='Select Token File', filetypes=[('ASCII Files', '*.txt')])
-        if token_filename:
-            with open(token_filename, 'r') as f:
-                token = f.read()
-            command: str = 'token ' + token
-            status, info = self.run_command(command)
-            self.update_output(info, False)
+    def on_auth(self):
+        auth_dbox = AuthDBox(self.root, self.server_address_var.get(), self.server_port_var.get(), self.output_text)
+        self.root.wait_window(auth_dbox.root)
 
     def on_algorithms(self):
         algo_dbox = AlgoDBox(self.root, self.server_address_var.get(), self.server_port_var.get(), self.output_text)
