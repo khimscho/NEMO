@@ -1,6 +1,6 @@
 #!/bin/zsh
 
-JAR=${HOME}/ProjectsExtras/WIBL/closure-compiler/closure-compiler-v20231112.jar
+JAR=${HOME}/Projects-Extras/WIBL/closure-compiler/closure-compiler-v20231112.jar
 
 for file in js/*.js
 do
