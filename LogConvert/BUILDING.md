@@ -1,19 +1,16 @@
 # Instructions for building LogConvert
 
-## Amazon Linux
+## Amazon Linux 2023
+Use the provided [Dockerfile](Dockerfile) as a starting point for building and running LogConvert
+in Amazon Linux 2023 environments (e.g., public.ecr.aws/lambda/python:3.12).
 
 ### AMD64
 ```shell
-$ docker compose -f docker-compose-amd64.yml run --remove-orphans logconvert-amd64
+$ docker buildx build --platform linux/amd64 -t wibl/logconvert:latest ./
 ```
-
-Binary will be created at `./build-x86_64/src/logconvert`. 
-See [Dockerfile](./Dockerfile) for runtime dependencies.
 
 ### ARM64
 ```shell
-$ docker compose -f docker-compose-arm64.yml run --remove-orphans logconvert-arm64
+$ docker buildx build --platform linux/arm64 -t wibl/logconvert:latest ./
 ```
 
-Binary will be created at `./build-aarch64/src/logconvert`.
-See [Dockerfile](./Dockerfile) for runtime dependencies.

@@ -19,7 +19,7 @@ if(MSVC)
     set(Boost_USE_STATIC_LIBS     OFF)
     set(Boost_USE_STATIC_RUNTIME  OFF)
 endif()
-find_package(Boost 1.51 COMPONENTS ${BOOST_COMPONENTS} REQUIRED)
+find_package(Boost 1.51...<2.0 COMPONENTS ${BOOST_COMPONENTS} REQUIRED)
 if(MINGW)
     # mingw-gcc fails to link boost::thread
     add_definitions(-DBOOST_THREAD_USE_LIB)
