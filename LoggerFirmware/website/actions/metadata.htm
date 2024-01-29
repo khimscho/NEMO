@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<head>
+    <title>Metadata Configuration</title>
+    <link rel="stylesheet" href="../css/main.css">
+    <link rel="stylesheet" href="../css/forms.css">
+</head>
+<html>
+    <header class="primary-header">
+        <a href="../index.htm">
+            <img src="../images/WIBL-Logo.gif" alt="The WIBL Project Logo" width="80" class="logo"/>
+        </a>
+        <h1 class="title">Wireless Inexpensive Bathymetry Logger</h1>
+    </header>
+    <body>
+        <script src="../js/common.js"></script>
+        <script src="../js/metadata.js"></script>
+        <div class="main-wrapper">
+            <h2>Metadata Configuration</h2>
+            <fieldset>
+                <legend>Current Metadata</legend>
+                <div class="metadata-display">
+                    <!-- In practice, query the logger with "metadata" command, and use returned JSON for display here.
+                         Syntax highlighting would be wonderful if it's possible. -->
+                    <textarea id="metadata-output" class="metadata-output" rows="40" wrap="soft" placeholder="JSON Metadata"></textarea>
+                </div>
+            </fieldset>
+            <fieldset style="margin-top: 20px;">
+                <legend>Configure Metadata</legend>
+                <div class="file-upload">
+                    <input type="file" id="metadata" name="metadata" accept="text/json">
+                    <!-- On click, read the JSON from specified file, and send to logger with "metadata" command -->
+                    <input type="button" id="upload" name="upload" value="Upload" onclick="onUpload()">
+                </div>
+            </fieldset>
+        </div>
+        <script>bootstrapMetadata()</script>
+    </body>
+</html>

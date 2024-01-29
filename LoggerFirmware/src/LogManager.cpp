@@ -28,7 +28,7 @@
 #include <stdint.h>
 #include <utility>
 #include "MD5Builder.h"
-#include "SPIFFS.h"
+#include "LittleFS.h"
 #include "LogManager.h"
 #include "StatusLED.h"
 #include "MemController.h"
@@ -48,6 +48,8 @@ namespace logger {
 // limits (although you'd have to collect data for quite a file to get to this level).
 
 const int MAX_LOG_FILE_SIZE = 10*1024*1024; ///< Maximum size of a single log file before swapping
+const int MAX_CONSOLE_FILE_SIZE = 100*1024; ///< Maximum size of the console log before rotation
+const int MAX_CONSOLE_LOGS = 3; ///< Maximum number of console logs to support before over-writing
 
 Manager::MD5Hash::MD5Hash(void)
 {
@@ -86,6 +88,7 @@ Manager::Inventory::Inventory(Manager *manager, bool verbose)
 {
     m_filesize.resize(MaxLogFiles);
     m_hashes.resize(MaxLogFiles);
+    m_uploadCount.resize(MaxLogFiles);
     Reinitialise();
 }
 
@@ -95,7 +98,7 @@ Manager::Inventory::~Inventory(void)
 
 bool Manager::Inventory::Reinitialise(void)
 {
-    uint32_t    filenumbers[MaxLogFiles];
+    uint32_t    *filenumbers = new uint32_t[MaxLogFiles];
     uint32_t    filecount = m_logManager->count(filenumbers);
     String      filename;
     Manager::MD5Hash emptyhash;
@@ -105,21 +108,25 @@ bool Manager::Inventory::Reinitialise(void)
     for (uint32_t entry = 0; entry < MaxLogFiles; ++entry) {
         m_filesize[entry] = 0;
         m_hashes[entry] = emptyhash;
+        m_uploadCount[entry] = 0;
     }
 
     for (uint32_t f = 0; f < filecount; ++f) {
         Update(filenumbers[f]);
     }
 
+    delete[] filenumbers;
+    
     return true;
 }
 
-bool Manager::Inventory::Lookup(uint32_t filenum, uint32_t& filesize, Manager::MD5Hash& hash)
+bool Manager::Inventory::Lookup(uint32_t filenum, uint32_t& filesize, Manager::MD5Hash& hash, uint16_t& uploads)
 {
     if (filenum >= MaxLogFiles) return false;
     if (m_filesize[filenum] == 0) return false;
     filesize = m_filesize[filenum];
     hash = m_hashes[filenum];
+    uploads = m_uploadCount[filenum];
     return true;
 }
 
@@ -144,6 +151,7 @@ void Manager::Inventory::RemoveLogFile(uint32_t filenum)
     if (filenum >= MaxLogFiles) return;
     m_filesize[filenum] = 0;
     m_hashes[filenum] = Manager::MD5Hash();
+    m_uploadCount[filenum] = 0;
 }
 
 uint32_t Manager::Inventory::CountLogFiles(uint32_t filenumbers[MaxLogFiles])
@@ -154,6 +162,15 @@ uint32_t Manager::Inventory::CountLogFiles(uint32_t filenumbers[MaxLogFiles])
             filenumbers[filecount] = entry;
             ++filecount;
         }
+    }
+    return filecount;
+}
+
+uint32_t Manager::Inventory::CountLogFiles(void)
+{
+    uint32_t filecount = 0;
+    for (uint32_t entry = 0; entry < MaxLogFiles; ++entry) {
+        if (m_filesize[entry] != 0) ++filecount;
     }
     return filecount;
 }
@@ -175,7 +192,8 @@ void Manager::Inventory::SerialiseCache(Stream& stream)
     stream.println("DBG: File Inventory Cache contents:");
     for (uint32_t entry = 0; entry < MaxLogFiles; ++entry) {
         if (m_filesize[entry] == 0) continue;
-        stream.printf("[%4u] %8u %s\n", entry, m_filesize[entry], m_hashes[entry].Value().c_str());
+        stream.printf("[%4u] %8u %5u %s\n", entry,
+            m_filesize[entry], m_uploadCount[entry], m_hashes[entry].Value().c_str());
     }
 }
 
@@ -184,6 +202,21 @@ uint32_t Manager::Inventory::Filesize(uint32_t filenum)
     if (filenum >= MaxLogFiles || m_filesize[filenum] == 0)
         return 0;
     return m_filesize[filenum];
+}
+
+uint16_t Manager::Inventory::UploadCount(uint32_t filenum)
+{
+    if (filenum >= MaxLogFiles || m_filesize[filenum] == 0)
+        return 0;
+    return m_uploadCount[filenum];
+}
+
+uint16_t Manager::Inventory::IncrementUploadCount(uint32_t filenum)
+{
+    if (filenum >= MaxLogFiles || m_filesize[filenum] == 0)
+        return 0;
+    uint16_t rc = m_uploadCount[filenum]++;
+    return rc;
 }
 
 #ifdef DEBUG_LOG_MANAGER
@@ -365,17 +398,15 @@ void Manager::TransferLogFile(int file_num, Stream& output)
 ///
 /// \param led  Pointer to the LED controller for the logger (external owner)
 
-Manager::Manager(StatusLED *led)
-: m_led(led), m_inventory(nullptr), m_noDataAlgEmitted(false)
+Manager::Manager(StatusLED *led, mem::MemController *storage)
+: m_storage(storage), m_led(led), m_inventory(nullptr), m_noDataAlgEmitted(false)
 {
-    m_storage = mem::MemControllerFactory::Create();
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
     m_consoleLog = m_storage->Controller().open("/console.log", FILE_APPEND);
 #else
     m_consoleLog = m_storage->Controller().open("/console.log", FILE_WRITE);
 #endif
-    m_consoleLog.println("info: booted logger, appending to console log.");
-    m_consoleLog.flush();
+    Syslog("info: booted logger, appending to console log.");
     Serial.println("info: started console log.");
 }
 
@@ -392,8 +423,6 @@ Manager::~Manager(void)
         delete m_inventory;
     m_consoleLog.println("INFO: shutting down log manager under control.");
     m_consoleLog.close();
-    m_storage->Stop();
-    delete m_storage;
 }
 
 /// Start logging data to a new log file, generating the next log number in sequence that
@@ -458,7 +487,7 @@ void Manager::CloseLogfile(void)
 bool Manager::RemoveLogFile(uint32_t file_num)
 {
     String filename = MakeLogName(file_num);
-    boolean rc = m_storage->Controller().remove(filename);
+    bool rc = m_storage->Controller().remove(filename);
 
     if (rc) {
         m_consoleLog.printf("INFO: erased log file %d by user command.\n", file_num);
@@ -477,7 +506,7 @@ bool Manager::RemoveLogFile(uint32_t file_num)
 
 void Manager::RemoveAllLogfiles(void)
 {
-    uint32_t filenumbers[MaxLogFiles];
+    uint32_t *filenumbers = new uint32_t[MaxLogFiles];
 
     CloseLogfile(); // All means all ...
     
@@ -495,6 +524,7 @@ void Manager::RemoveAllLogfiles(void)
             m_consoleLog.printf("ERR: failed to erase log file \"%s\" by user command.\n", filename.c_str());
         }
     }
+    delete[] filenumbers;
     m_consoleLog.printf("INFO: erased %u log files of %u.\n", files_closed, filecount);
     m_consoleLog.flush();
     StartNewLog(); // We need to have something running for the logging effort!
@@ -516,19 +546,31 @@ uint32_t Manager::CountLogFiles(uint32_t filenumbers[MaxLogFiles])
     return filecount;
 }
 
+uint32_t Manager::CountLogFiles(void)
+{
+    uint32_t filecount;
+    if (m_inventory != nullptr) {
+        filecount = m_inventory->CountLogFiles();
+    } else
+        filecount = count(nullptr);
+    return filecount;
+}
+
 /// Make a list of all of the files that exist on the SD card in the log directory, along with their
 /// sizes.  This is generally used to work out which files can be transferred to the client application.
 ///
 /// \param lognumber  Number of the file to look up
 /// \param filename   Name of the file
 /// \param filesize   Size of the specified file in bytes (or 0 if file doesn't exist)
+/// \param uploadcount Number of times the file has attempted an upload
 
-void Manager::EnumerateLogFile(uint32_t lognumber, String& filename, uint32_t& filesize, MD5Hash& filehash)
+void Manager::EnumerateLogFile(uint32_t lognumber, String& filename, uint32_t& filesize, MD5Hash& filehash,
+    uint16_t& uploadcount)
 {
     filename = MakeLogName(lognumber);
 
     if (m_inventory != nullptr) {
-        m_inventory->Lookup(lognumber, filesize, filehash);
+        m_inventory->Lookup(lognumber, filesize, filehash, uploadcount);
     } else {
         File f = m_storage->Controller().open(filename);
         if (f) {
@@ -537,6 +579,7 @@ void Manager::EnumerateLogFile(uint32_t lognumber, String& filename, uint32_t& f
             filesize = 0;
         }
         filehash = MD5Hash(); // We're not going to rehash the file just for this!
+        uploadcount = 0;
     }
 }
 
@@ -558,9 +601,11 @@ void Manager::Record(PacketIDs pktID, Serialisable const& data)
     }
 }
 
-Stream& Manager::Console(void)
+void Manager::Syslog(String const& message)
 {
-    return m_consoleLog;
+    m_consoleLog.println(message);
+    m_consoleLog.flush();
+    RotateConsoleLogs(); // This is maybe a little much, but does ensure we don't exceed the max size.
 }
 
 void Manager::CloseConsole(void)
@@ -578,9 +623,38 @@ void Manager::HashFile(uint32_t file_num, MD5Hash& filehash)
     }
 }
 
+uint16_t Manager::IncrementUploadCount(uint32_t file_num)
+{
+    uint16_t rc;
+
+    if (m_inventory != nullptr) {
+        rc = m_inventory->IncrementUploadCount(file_num);
+    } else {
+        Serial.println("ERR: upload counts are only managed when an inventory object is running");
+        rc = 0;
+    }
+    return rc;
+}
+
 void Manager::AddInventory(bool verbose)
 {
     m_inventory = new Inventory(this, verbose);
+}
+
+bool Manager::WriteSnapshot(String& name, String const& contents)
+{
+    // Since the /logs directory is served out as the second static website, we need to
+    // put the snapshots into the same directory so they can be seen.  This causes some
+    // complexity in running through the directory (e.g., when making an Inventory from
+    // scratch), but avoids other issues.
+    name = String("/logs/") + name;
+    File f = m_storage->Controller().open(name, FILE_WRITE);
+    if (f) {
+        f.print(contents);
+        f.close();
+        return true;
+    }
+    return false;
 }
 
 /// Reset all indicators used to ensure that any dynamic algorithms are only emitted once
@@ -613,7 +687,6 @@ void Manager::EmitNoDataReject(void)
 
 uint32_t Manager::GetNextLogNumber(void)
 {
- 
     if (!m_storage->Controller().exists("/logs")) {
         m_storage->Controller().mkdir("/logs");
     }
@@ -655,6 +728,22 @@ String Manager::MakeLogName(uint32_t log_num)
     return filename;
 }
 
+/// Generate a log number given a filename that is presumably a log file.  This converts
+/// the extension of the filename into a number, if possible, but returns -1 if the contents
+/// of the extension are non-integer.
+
+int32_t Manager::ExtractLogNumber(String const& filename)
+{
+    if (filename.indexOf(String("wibl-raw")) < 0) {
+        // This is not a log file, so converting the extension would not be useful
+        return -1;
+    }
+    // Since we know that it's a log file (test above) then we know that it must have an
+    // extension that can be converted into an integer (since they are only made by
+    // MakeLogName() here, and therefore always have the same format)
+    return filename.substring(filename.indexOf('.')+1).toInt();
+}
+
 /// Output the contents of the system console log to something that implements the Stream
 /// interface.
 ///
@@ -669,6 +758,27 @@ void Manager::DumpConsoleLog(Stream& output)
     }
     m_consoleLog.close();
     m_consoleLog = m_storage->Controller().open("/console.log", FILE_APPEND);
+}
+
+/// Rotate the console log file(s) if the currently open log file is larger than the maximum
+/// size alowed.  The number of old files retained in the rotation, and the maximum size, are
+/// controlled by compile-time constants (at the top of LogManager.cpp).
+///
+/// \return N/A
+
+void Manager::RotateConsoleLogs(void)
+{
+    if (m_consoleLog.size() > MAX_CONSOLE_FILE_SIZE) {
+        m_consoleLog.close();
+        for (int target = MAX_CONSOLE_LOGS-1; target >= 2; --target) {
+            String target_file = "/console." + String(target);
+            String source_file = "/console." + String(target-1);
+            if (m_storage->Controller().exists(source_file))
+                m_storage->Controller().rename(source_file.c_str(), source_file.c_str());
+        }
+        m_storage->Controller().rename("/console.log", "/console.1");
+        m_consoleLog = m_storage->Controller().open("/console.log", FILE_APPEND);
+    }
 }
 
 /// Generic interface to transfer a given log file to any output that supports the Stream
@@ -708,16 +818,21 @@ void Manager::TransferLogFile(uint32_t file_num, MD5Hash const& filehash, Stream
     Serial.printf("Sent %u B in %lu s.\n", bytes_transferred, duration);
 }
 
-uint32_t Manager::count(uint32_t filenumbers[MaxLogFiles])
+uint32_t Manager::count(uint32_t *filenumbers)
 {
     uint32_t file_count = 0;
     File logdir = m_storage->Controller().open("/logs");
     File entry = logdir.openNextFile();
 
     while (entry) {
-        int dot_position = String(entry.name()).indexOf(".");
-        filenumbers[file_count] = String(entry.name()).substring(dot_position+1).toInt();
-        ++file_count;
+        // Because we can store snapshots of configuration information in the /logs directory
+        // (so that they can be seen through the webserver's static website for download), we
+        // need to count only the valid log files in the directory.
+        int32_t lognumber = ExtractLogNumber(String(entry.name()));
+        if (lognumber >= 0) {
+            if (filenumbers != nullptr) filenumbers[file_count] = lognumber;
+            ++file_count;
+        }
         entry.close();
         entry = logdir.openNextFile();
     }

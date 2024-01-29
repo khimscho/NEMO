@@ -26,178 +26,182 @@
 
 #include <set>
 #include "NVMFile.h"
-#include "SPIFFS.h"
+#include "LittleFS.h"
 #include "LogManager.h"
 #include "serialisation.h"
 #include "ArduinoJson.h"
+#include "Status.h"
 
 namespace logger {
 
-/// \class NVMFile
-/// \brief Implementatin of code to read/write a non-volatile file
+/// Open a file from the non-volatile memory space on the logger, and read the contents ready
+/// for use.  The internal store is a minified, stringified JSON format, which is converted to
+/// a JSON document when required.  The NVM file is simply the stringified version of the JSON.
+/// Note that the name of the file used for the NVM must meet the standards of the backing store
+/// (potentially SPIFFS, so often 8.3 names, but here LittleFS, which is a little more forgiving).
 ///
-/// A number of modules in the firmware need to provide the facility of storing an arbitrary
-/// number of strings in the non-volatile memory on the logger.  This class provides a means
-/// to centralise that structure.  Note that this class is not generally exposed to the rest
-/// of the code, which interacts via the interface classes to either read or write, but not
-/// both together.
+/// @param filename Name of the file in the NVM to open.
 
-class NVMFile {
-public:
-    /// \enum FileMode
-    /// \brief Determine the file mode to use on the backing file
-    enum FileMode {
-        READ,       ///< Read the contents
-        WRITE,      ///< Write the contents from the start of the file
-        APPEND      ///< Write on to the end of an existing file, or make a new file if necessary
-    };
-
-    /// \brief Default constructor, opening the file in the appropriate mode
-    ///
-    /// This opens the file specified in the appropriate mode.
-    ///
-    /// \param filename Backing filename to use for string storage
-    /// \param mode     File read mode to use
-
-    NVMFile(String const& filename, FileMode mode)
-    : m_mode(mode)
-    {
-        m_source = new File(SPIFFS.open(filename.c_str(), mode == READ ? "r" : mode == WRITE ? "w" : "a"));
-    }
-
-    /// \brief Default destructor
-    ///
-    /// Close the backing file, and then delete the controller for it.
-
-    ~NVMFile(void)
-    {
-        m_source->close();
-        delete m_source;
-    }
-
-    /// \brief Read the next entry in the file
-    ///
-    /// This reads the next entry in the file, while is essentially a single line of the file.  Note
-    /// that this only works in files opened for READ mode; otherwise and empty string is returned.
-    ///
-    /// \return Next line of the file, or the empty string if the file was not opened in READ mode.
-
-    String ReadNext(void)
-    {
-        if (m_mode != READ)
-            return String("");
-        
-        String rtn = m_source->readStringUntil('\n');
-        rtn.trim();
-        return rtn;
-    }
-
-    /// \brief Write a new entry into the file
-    ///
-    /// This writes the next line into the file.  If the file was opened in READ mode, this is a nullop.
-    ///
-    /// \param s    String to write into the file.
-
-    void WriteNext(String const& s)
-    {
-        if (m_mode == READ)
-            return;
-
-        m_source->println(s);
-    }
-
-    /// \brief Returns the number of available bytes in the file
-    ///
-    /// This provides access to the available() method on the underlying file, allow the user to check
-    /// whether the file has been completely read.  Files not opened in READ mode have undefined behaviour.
-    ///
-    /// \return Number of bytes still available to read in the underlying file.
-
-    int Available(void)
-    {
-        return m_source->available();
-    }
-
-private:
-    File        *m_source;  ///< Backing file to use for storage
-    FileMode    m_mode;     ///< Mode used for accessing the file (READ, WRITE, APPEND)
-};
-
-/// This sets up for reading the specified file by instantiating the file in READ mode.
-///
-/// \param filename Name of the file to use for backing store
-
-NVMFileReader::NVMFileReader(String const& filename)
+NVMFile::NVMFile(String const& filename)
+: m_backingStore(filename), m_changed(false)
 {
-    m_source = new NVMFile(filename, NVMFile::FileMode::READ);
+    if (!LittleFS.exists(filename)) {
+        File f = LittleFS.open(filename, "w", true);
+        f.close();
+    }
+    File f = LittleFS.open(filename.c_str(), "r"); // Create if it doesn't already exist
+    if (!f) {
+        Serial.printf("ERR: failed to open \"%s\" for NVM file read.\n", filename.c_str());
+        m_backingStore = "";
+        return;
+    }
+    m_contents = f.readString();
+    f.close();
+    if (m_contents.isEmpty()) {
+        // First read, so we need to initialise to at least the minimum JSON document structure
+        // so that the string will parse without failing in the ArduinoJson library.
+        m_contents = String("{}");
+    }
+    //Serial.printf("DBG: NVMFile() read |%s| from |%s|\n", m_contents.c_str(), m_backingStore.c_str());
 }
 
-NVMFileReader::~NVMFileReader(void)
+/// Write the contents of the object to non-volatile memory space on the logger as a simple
+/// string.  Note that the system only writes the contents if something has changed; this is
+/// determined by either a call to EndTransaction() or through an explicit call to MarkChanged()
+/// (by a derived class that is specific to one file).
+///
+/// @return N/A
+
+NVMFile::~NVMFile(void)
 {
-    delete m_source;
+    if (Valid()) {
+        if (m_changed) {
+            File f = LittleFS.open(m_backingStore.c_str(), "w", true);
+            if (!f) {
+                Serial.printf("ERR: failed to open |%s| for NVM file write.\n", m_backingStore.c_str());
+                return;
+            }
+            //Serial.printf("DBG: ~NVMFile() writing |%s| to |%s|.\n", m_contents.c_str(), m_backingStore.c_str());
+            f.print(m_contents);
+            f.close();
+        }
+    }
 }
 
-/// Determine whether there are more entries in the file, as a binary flag.  Since any
-/// entry in the file is a valid string, even a single byte left implies that there's
-/// something else to read.
+/// Start a modification to the contents of the object.  This translates the contents of the
+/// object into a DynamicJsonDocument (i.e., storage on the heap), with enough capacity to allow
+/// for the object to be doubled in size.  This should allow most modifications to be made without
+/// running out of space, but if that's a concern, the user has to check on this with the usual
+/// ArduinoJson methods: the DynamicJsonDocument isn't extensible.  Note that the user owns the
+/// returned document; this class keeps no record.
 ///
-/// \return True if there's more entries to read, otherwise False
+/// @return A DynamicJsonDocument with the contents of the object initialised.
 
-bool NVMFileReader::HasMore(void)
+DynamicJsonDocument NVMFile::BeginTransaction(void)
 {
-    if (m_source->Available())
-        return true;
-    else
-        return false;
+    return logger::status::GenerateJSON(m_contents);
 }
 
-/// Extract the next entry from the backing file.  No translation is done to the file.
+/// Complete a transaction updating the contents of the object, updating the contents to the
+/// document provided.  It is a basic assumption that the document provided as \a source is the
+/// same as that provided by BeginTransaction() with some modifications, but the class here
+/// doesn't attempt to validate this: whatever is passed is what's set.
 ///
-/// \return Next entry in the associated backing file (i.e., the next line as a string)
+/// @param source Document to parse into the object
+/// @return Number of bytes written into the object (i.e., how many bytes were converted)
 
-String NVMFileReader::NextEntry(void)
+size_t NVMFile::EndTransaction(DynamicJsonDocument& source)
 {
-    return m_source->ReadNext();
+    m_contents.clear();
+    m_changed = true;
+    return serializeJson(source, m_contents);
 }
 
-/// Open the specified backing file for write, or append.
+/// Generate an optionally formatted version of the contents of the object.  If \a indented
+/// is true, the code converts the internal string representation of the JSON object to a
+/// new JsonDocument, and then re-serialises with indentation; otherwise, the output is a copy
+/// of the minified JSON representation.
 ///
-/// \param filename Name of the backing file to use for storage
-/// \param append   Flag: True => add to the file, False => restart at the beginning
+/// @param indented True if the output should be indended and prettified.
+/// @return The string representation of the JSON object
 
-NVMFileWriter::NVMFileWriter(String const& filename, bool append)
+String NVMFile::JSONRepresentation(bool indented)
 {
-    NVMFile::FileMode mode;
-    if (append) {
-        mode = NVMFile::FileMode::APPEND;
+    String rtn;
+    if (!Valid()) return rtn;
+
+    //Serial.printf("DBG: making JSON representation for NVM contents |%s| from |%s|\n",
+    //   m_contents.c_str(), m_backingStore.c_str());
+    if (indented) {
+        // Since the contents string is minified, we need to deserialise, and then re-serialise ...
+        DynamicJsonDocument doc(logger::status::GenerateJSON(m_contents));
+        serializeJsonPretty(doc, rtn);
     } else {
-        mode = NVMFile::FileMode::WRITE;
+        rtn = m_contents;
     }
-    m_source = new NVMFile(filename, mode);
+    return rtn;
 }
 
-NVMFileWriter::~NVMFileWriter(void)
-{
-    delete m_source;
-}
-
-/// Add a new entry to the file.  Depending on the mode use, this could re-write the entry
-/// or add to the end of the file.  Even if opened for write, multiple uses of this would
-/// result in a file with multiple entries.
+/// Extract the contents of the object to a JsonDocument (either static or dynamic to taste).  The
+/// output is assumed to sufficiently large to handle the object, although there isn't really much
+/// way to determine this.
 ///
-/// \param s    Entry to add to the file (i.e., next line)
+/// @param dest Document into which to generate contents
 
-void NVMFileWriter::AddEntry(String const& s)
+DynamicJsonDocument NVMFile::GetContents(void)
 {
-    m_source->WriteNext(s);
+    return logger::status::GenerateJSON(m_contents);
+}
+
+/// Replace the contents of the object with the specified document.  The previous contents of the
+/// object are removed.
+///
+/// @param doc Source document to use for the object contents
+
+void NVMFile::Set(JsonDocument& doc)
+{
+    if (!Valid()) throw Invalid();
+    m_contents.clear();
+    serializeJson(doc, m_contents);
+    m_changed = true;
+}
+
+/// Replace the contents of the object with the specified string.  This assumes that the contents
+/// of the string are a valid minified JSON document, and does not check that this is the case.
+/// If you pass something that doesn't meet this requirement, bad things will likely happen.
+///
+/// @param doc Source document to use for the object contents
+
+void NVMFile::Set(String const& doc)
+{
+    if (!Valid()) throw Invalid();
+    m_contents = doc;
+    m_changed = true;
+}
+
+/// Estimate the capacity required to represent the minified string in a JsonDocument.  This
+/// is somewhat of a guess, since the exact computation would include all of the strings in
+/// the representation, and then all of the internal structure for the parse tree of the
+/// document (which isn't really known).
+///
+/// @param s    The minified JSON document as a string
+/// @return An estimate of capacity in bytes
+
+size_t NVMFile::EstimateCapacity(String const& minified)
+{
+    size_t capacity = minified.length() * 2;
+    if (capacity < 1024) {
+        capacity = 1024;
+    }
+    return capacity;
 }
 
 /// Construct an interface to access the storage for auxiliary metadata associated with the
 /// data being generated by the logger.
 
 MetadataStore::MetadataStore(void)
+: NVMFile("/Metadata.txt")
 {
-    m_backingStore = String("/Metadata.txt");
 }
 
 /// Write the specified metadata into the associated backing store file.  Note that no test
@@ -205,118 +209,103 @@ MetadataStore::MetadataStore(void)
 /// dumped out with the data files.  Note that the string should contain no \r\n, otherwise there
 /// will likely be problems getting the data back out.
 ///
-/// \param s    Metadata string to store
+/// @param s    Metadata string to store
 
-void MetadataStore::WriteMetadata(String const& s)
+void MetadataStore::SetMetadata(String const& s)
 {
-    NVMFileWriter w(m_backingStore, false);
-    w.AddEntry(s);
-}
-
-/// Extract the metadata from the logger's backing store, if it exists.
-///
-/// \return The stored metadata string
-
-String MetadataStore::GetMetadata(void)
-{
-    NVMFileReader r(m_backingStore);
-    return r.NextEntry();
+    Set(s);
 }
 
 /// Output metadata into an available binary output stream using the provided \a Serialiser object.
 /// This allows the metadata to be added to any binary file being created.
 ///
-/// \param s    Pointer to the \a Serialiser object to use to put the data into the output file
+/// @param s    Pointer to the \a Serialiser object to use to put the data into the output file
 
 void MetadataStore::SerialiseMetadata(Serialiser *s)
 {
-    String meta = GetMetadata();
+    if (Empty()) return;
+
+    String meta = JSONRepresentation();
     Serialisable packet(meta.length() + 4);
 
-    if (meta.length() > 0) {
-        packet += meta.length();
-        packet += meta.c_str();
-        s->Process(logger::Manager::PacketIDs::Pkt_JSON, packet);
-    }
+    packet += meta.length();
+    packet += meta.c_str();
+    s->Process(logger::Manager::PacketIDs::Pkt_JSON, packet);
 }
+
+/// Generate a specialisation of the NVM file for scale parameters used for internal instruments
+/// that write unscaled information to the log file (which will need to be denormalised later).
+/// The scales are stored as key/value pairs in JSON format, grouped together under a reference name
+/// for the instrument (e.g., "imu").  It is up to the caller to ensure that the instrument name
+/// is used consistently in the calling code.
 
 ScalesStore::ScalesStore(void)
+: NVMFile("/Scales.txt")
 {
-    m_backingStore = String("/scales.txt");
 }
 
-void ScalesStore::AddScalesGroup(String const& group, String const& scales)
+/// Add a scale value to the object.  Note that the @a name is expected to be unique within the
+/// @a group, but could be re-used within another @a group.  Semantics of the ArduinoJson library
+/// are such that using a new @a name will generate a new key/value pair directly, and therefore
+/// a second call with the same @a group and @a name can be used to reset, and inconsistent use
+/// of @a name will result in duplicates.
+///
+/// @param group    Instrument group in which to set the key/value pair
+/// @param name     Key for the scale to set
+/// @param value    Value for the scale to set
+/// @return N/A
+
+void ScalesStore::AddScale(String const& group, String const& name, double value)
 {
-    String  recog("\"" + group + "\"");
-    String  temp_file("/scaletemp.txt");
-
-    if (SPIFFS.exists(m_backingStore)) {
-        NVMFileReader   in(m_backingStore);
-        NVMFileWriter   temp(temp_file);
-        String          entry;
-        bool            group_out = false;
-
-        while (in.HasMore()) {
-            entry = in.NextEntry();
-            if (entry.startsWith(recog)) {
-                temp.AddEntry(recog + ":" + scales);
-                group_out = true;
-            } else {
-                temp.AddEntry(entry);
-            }
-        }
-        if (!group_out) {
-            temp.AddEntry(recog + ":" + scales);
-        }
-    } else {
-        NVMFileWriter   f(temp_file);
-        f.AddEntry(recog + ":" + scales);
+    DynamicJsonDocument doc(BeginTransaction());
+    if (doc.containsKey("error")) {
+        // The internal JSON didn't convert
+        Serial.printf("ERR: scales update failed (%s/%s)\n",
+            doc["error"]["message"].as<const char *>(), doc["error"]["detail"].as<const char*>());
+        return;
     }
-    SPIFFS.remove(m_backingStore);
-    SPIFFS.rename(temp_file, m_backingStore);
+    doc[group][name] = value;
+    EndTransaction(doc);
 }
+
+void ScalesStore::AddScales(String const& group, const char *names[], double *values, int count)
+{
+    DynamicJsonDocument doc(BeginTransaction());
+    if (doc.containsKey("error")) {
+        // The internal JSON didn't convert
+        Serial.printf("ERR: scales update failed (%s/%s)\n",
+            doc["error"]["message"].as<const char *>(), doc["error"]["detail"].as<const char*>());
+        return;
+    }
+    for (int n = 0; n < count; ++n) {
+        doc[group][names[n]] = values[n];
+    }
+    EndTransaction(doc);
+}
+
+/// Remove all scales from the object.
 
 void ScalesStore::ClearScales(void)
 {
-    SPIFFS.remove(m_backingStore);
-}
-
-String ScalesStore::GetScales(void)
-{
-    NVMFileReader f(m_backingStore);
-    String rtn = "{";
-    String entry;
-    bool first_out = false;
-
-    while (f.HasMore()) {
-        entry = f.NextEntry();
-        if (first_out) {
-            rtn += "," + entry;
-        } else {
-            first_out = true;
-            rtn += entry;
-        }
-    }
-    rtn += "}";
-    return rtn;
+    Clear();
 }
 
 /// Output the serial scales metadata to the provided binary output stream using the provided
 /// \a Serialiser object.  This allows the scales packet to be added to any binary file being
 /// created.
 ///
-/// \param s    Pointer to the \a Serialiser object to use to put the data into the output file
+/// @param s    Pointer to the \a Serialiser object to use to put the data into the output file
 
 void ScalesStore::SerialiseScales(Serialiser *s)
 {
-    String scales = GetScales();
+    if (Empty()) return;
+
+    String scales = JSONRepresentation();
     Serialisable packet(scales.length() + 4);
 
-    if (scales.length() > 2) {
-        packet += scales.length();
-        packet += scales.c_str();
-        s->Process(logger::Manager::PacketIDs::Pkt_SensorScales, packet);
-    }
+    packet += scales.length();
+    packet += scales.c_str();
+    s->Process(logger::Manager::PacketIDs::Pkt_SensorScales, packet);
 }
 
 /// Start a new interface to the list of algorithm requests stored with the logger.  These are algorithms
@@ -324,9 +313,14 @@ void ScalesStore::SerialiseScales(Serialiser *s)
 /// no guarantee that this will occur.
 
 AlgoRequestStore::AlgoRequestStore(void)
+: NVMFile("/Algorithms.txt")
 {
-    m_algoBackingStore = "/algorithms.txt";
-    m_paramBackingStore = "/parameters.txt";
+    if (Empty()) {
+        // First time opening the file from the NVM store
+        StaticJsonDocument<256> doc;
+        doc["count"] = 0;
+        Set(doc);
+    }
 }
 
 /// Write a new algorithm into the backing store, optionally restarting the file in order to clear
@@ -336,80 +330,66 @@ AlgoRequestStore::AlgoRequestStore(void)
 /// check that the algorithm makes sense, or that the parameters are well formed --- it accepts
 /// whatever the user provides.
 ///
-/// \param alg_name     Name of the algorithm being requested
-/// \param alg_params   Parameters associate with the algorithm being requested
+/// @param alg_name     Name of the algorithm being requested
+/// @param alg_params   Parameters associate with the algorithm being requested
 
 void AlgoRequestStore::AddAlgorithm(String const& alg_name, String const& alg_params)
 {
-    NVMFileWriter alg(m_algoBackingStore);
-    NVMFileWriter par(m_paramBackingStore);
-    alg.AddEntry(alg_name);
-    par.AddEntry(alg_params);
+    DynamicJsonDocument doc(BeginTransaction());
+    if (doc.containsKey("error")) {
+        // The internal JSON didn't convert
+        Serial.printf("ERR: algorithm update failed (%s/%s)\n",
+            doc["error"]["message"].as<const char *>(), doc["error"]["detail"].as<const char*>());
+        return;
+    }
+    int count = doc["count"];
+    StaticJsonDocument<256> entry;
+    entry["name"] = alg_name;
+    entry["parameters"] = alg_params;
+    if ((doc.memoryUsage() + entry.capacity()) > 0.95*doc.capacity()) {
+        // The document needs to be bigger to handle the new entry
+        int capacity = doc.memoryUsage() + entry.capacity() + 256;
+        DynamicJsonDocument new_doc(capacity);
+        new_doc.set(doc);
+        doc = new_doc;
+    }
+    doc["algorithm"].add(entry.as<JsonObject>());
+    doc["count"] = count + 1;
+    EndTransaction(doc);
+
+    String temp(JSONRepresentation());
+    //Serial.printf("DBG: AlgStore now |%s|\n", temp.c_str());
 }
 
 /// Empty the list of algorithms being stored by the logger, so that no requests are made of the
 /// post-processing code.
 
-void AlgoRequestStore::ResetList(void)
+void AlgoRequestStore::ClearAlgorithmList(void)
 {
-    NVMFileWriter names(m_algoBackingStore, false);
-    NVMFileWriter params(m_paramBackingStore, false);
-}
-
-/// Write a list of the algorithms and parameters being recommended to the post-processing unit onto
-/// an output stream (mainly for debugging and reference).
-///
-/// \param s    Anything Stream-like that supports the printf() iterface
-
-void AlgoRequestStore::ListAlgorithms(Stream& s)
-{
-    NVMFileReader alg(m_algoBackingStore);
-    NVMFileReader par(m_paramBackingStore);
-
-    while (alg.HasMore()) {
-        s.printf("alg = \"%s\", params = \"%s\"\n", alg.NextEntry().c_str(), par.NextEntry().c_str());
-    }
-}
-
-// Convert the algorithm requests into a JSON structure that we can then convert to a \a String
-// to send to the WiFi interface (or elsewhere)
-
-void AlgoRequestStore::MakeJSON(String& s)
-{
-    NVMFileReader alg(m_algoBackingStore);
-    NVMFileReader par(m_paramBackingStore);
-
-    DynamicJsonDocument algorithms(1024);
-
-    int entry = 0;
-    while (alg.HasMore()) {
-        algorithms["algorithm"][entry]["name"] = alg.NextEntry();
-        algorithms["algorithm"][entry]["parameters"] = par.NextEntry();
-        ++entry;
-    }
-    algorithms["count"] = entry;
-    serializeJson(algorithms, s);
+    StaticJsonDocument<128> doc;
+    doc["count"] = 0;
+    Set(doc);
 }
 
 /// Write a set of output blocks into the binary WIBL-format file containing the algorithms and their
 /// parameters that are being recommended to the post-processing code.
 ///
-/// \param s    Pointer to the \a Serialiser to write data into the required ouptut file
+/// @param s    Pointer to the @a Serialiser to write data into the required ouptut file
 
 void AlgoRequestStore::SerialiseAlgorithms(Serialiser *s)
 {
-    NVMFileReader alg(m_algoBackingStore);
-    NVMFileReader par(m_paramBackingStore);
-    
-    while (alg.HasMore()) {
-        Serialisable ser(255);
-        String algorithm = alg.NextEntry();
-        String parameters = par.NextEntry();
+    DynamicJsonDocument doc(GetContents());
+
+    int alg_count = doc["count"];
+    for (int n = 0; n < alg_count; ++n) {
+        String algorithm = doc["algorithm"][n]["name"];
+        String parameters = doc["algorithm"][n]["parameters"];
+        Serialisable ser(algorithm.length() + parameters.length() + sizeof(unsigned int)*2);
         ser += algorithm.length();
         ser += algorithm.c_str();
         ser += parameters.length();
         ser += parameters.c_str();
-        s->Process(logger::Manager::PacketIDs::Pkt_Algorithms, ser);
+        s->Process(logger::Manager::PacketIDs::Pkt_Algorithms, ser); 
     }
 }
 
@@ -427,74 +407,89 @@ void AlgoRequestStore::SerialiseSingleAlgorithm(String const& algo, String const
 /// be logged to the output data files on reception.
 
 N0183IDStore::N0183IDStore(void)
+: NVMFile("/N0183IDs.txt")
 {
-    m_backingStore = "/NMEA0183IDs.txt";
+    if (Empty()) {
+        // First load from NVM store
+        StaticJsonDocument<128> doc;
+        doc["count"] = 0;
+        Set(doc);
+    }
 }
 
 /// Add a new identifier to the list of those allowed for logging at the NMEA0183 interfaces.  The
 /// algorithm here just stores the information provided, and doesn't interpret it, but it's unlikely
-/// to go well unless the strig contains a three-letter ID for a NMEA0183 message (e.g., "GGA", "RMC",
+/// to go well unless the string contains a three-letter ID for a NMEA0183 message (e.g., "GGA", "RMC",
 /// "GLL", "ZDA", "DBT", etc.)  No captialisation converion is done --- what you specify is what gets
 /// checked.
 ///
-/// \param msgid    String representation of the three-letter message ID
+/// @param msgid    String representation of the three-letter message IDs (space separated)
 
-void N0183IDStore::AddID(String const& msgid)
+bool N0183IDStore::AddIDs(String const& msg_set)
 {
-    NVMFileWriter w(m_backingStore);
-    w.AddEntry(msgid);
+    DynamicJsonDocument doc(BeginTransaction());
+    if (doc.containsKey("error")) {
+        // The internal JSON didn't convert
+        Serial.printf("ERR: NMEA0183 filter update failed (%s/%s)\n",
+            doc["error"]["message"].as<const char *>(), doc["error"]["detail"].as<const char*>());
+        return false;
+    }
+    int count = doc["count"];
+    int start_point = 0, split_point;
+
+    //Serial.printf("DBG: NMEA0183 ID count currently %d\n", count);
+
+    while ((split_point = msg_set.indexOf(' ', start_point)) >= 0) {
+        String msgid = msg_set.substring(start_point, split_point);
+        if (msgid.length() != 3) {
+            Serial.printf("ERR: cannot add recognition ID of |%s|: must have three characters.\n",
+                msgid.c_str());
+        } else {
+            doc["ids"][count] = msgid;
+            ++count;
+        }
+        start_point = split_point + 1;
+    }
+    // At the end of the loop, the last sentence to be accepted is at start_point
+    if ((msg_set.length() - start_point) != 3) {
+        Serial.printf("ERR: cannot add recognition ID of |%s|: must have three characters.\n",
+                msg_set.substring(start_point).c_str());
+    } else {
+        doc["ids"][count] = msg_set.substring(start_point);
+        ++count;
+    }
+    doc["count"] = count;
+    EndTransaction(doc);
+
+    String temp(JSONRepresentation());
+    //Serial.printf("DBG: Filter store now |%s|\n", temp.c_str());
+
+    return true;
 }
 
 /// Reset the list of message IDs on the allowed list for logging; an empty list means "everything is
 /// accepted".
 
-void N0183IDStore::ResetFilter(void)
+void N0183IDStore::ClearIDList(void)
 {
-    NVMFileWriter w(m_backingStore, false);
-}
-
-/// Write the list of all of the message IDs in the filter to the provided Stream.
-///
-/// \param s    Anything Stream-like that supports the println() interface
-
-void N0183IDStore::ListIDs(Stream& s)
-{
-    uint32_t n = 0;
-    NVMFileReader r(m_backingStore);
-    while (r.HasMore()) {
-        s.printf("%d: %s\n", n, r.NextEntry().c_str());
-        ++n;
-    }
-}
-
-/// Generate a 
-
-void N0183IDStore::MakeJSON(String& s)
-{
-    NVMFileReader r(m_backingStore);
-    DynamicJsonDocument messages(1024);
-
-    int entry = 0;
-    while (r.HasMore()) {
-        messages["accepted"][entry] = r.NextEntry();
-        ++entry;
-    }
-    messages["count"] = entry;
-    serializeJson(messages, s);
+    StaticJsonDocument<128> doc;
+    doc["count"] = 0;
+    Set(doc);
 }
 
 /// Write the list of all allowed message IDs to an output WIBL-format binary file using
-/// the specified \a Serialiser.
+/// the specified @a Serialiser.
 ///
-/// \param s    Pointer to the \a Serialiser associated with the required output file
+/// @param s    Pointer to the @a Serialiser associated with the required output file
 
 void N0183IDStore::SerialiseIDs(Serialiser *s)
 {
-    NVMFileReader r(m_backingStore);
+    DynamicJsonDocument doc(GetContents());
 
-    while (r.HasMore()) {
+    int count = doc["count"];
+    for (int n = 0; n < count; ++n) {
         Serialisable ser;
-        String IDname = r.NextEntry();
+        String IDname = doc["ids"][n];
         ser += IDname.length();
         ser += IDname.c_str();
         s->Process(logger::Manager::PacketIDs::Pkt_NMEA0183ID, ser);
@@ -505,15 +500,17 @@ void N0183IDStore::SerialiseIDs(Serialiser *s)
 /// logging code can readily check whether a given sentence is allowed.  Note that the
 /// provided output set is cleared before being set up.
 ///
-/// \param s    Reference for the set to store the message IDs.
+/// @param s    Reference for the set to store the message IDs.
 
 void N0183IDStore::BuildSet(std::set<String>& s)
 {
-    NVMFileReader r(m_backingStore);
-    
+    DynamicJsonDocument doc(GetContents());
+
+    int count = doc["count"];
     s.clear();
-    while (r.HasMore()) {
-        s.insert(r.NextEntry());
+   for (int n = 0; n < count; ++n) {
+        String IDname = doc["ids"][n];
+        s.insert(IDname);
     }
 }
 

@@ -1,4 +1,4 @@
-/*! \file Configuration.h
+/*! \file Configuration.cpp
  *  \brief Provide configuration checks for the module
  *
  * There are a number of parameters that need to be set to configure the logger, including
@@ -36,6 +36,19 @@
 
 namespace logger {
 
+/// Generate a printable version of the software version for the logger firmware entire.  Note that
+/// this is distinct from the version of the Command Processor, any of the loggers, and of the
+/// serialiser.  This is mostly just to indicate what assembly of the components was present at the
+/// time the firmware was released for "production".
+///
+/// @return String containing the major.minor.patch for the system
+
+String FirmwareVersion(void)
+{
+    String r = String(firmware_major) + "." + String(firmware_minor) + "." + String(firmware_patch);
+    return r;
+}
+
 // Lookup table to translate the Enums in logger::Config::ConfigParam into the strings used to look
 // up the keys in ParamStore.  This list has to be in exactly the same order as the elements in the
 // Enum, of course, or everything will fall apart.
@@ -47,7 +60,8 @@ const String lookup[] = {
     "PowMon",           ///< Control whether power monitoring and emergency shutdown is done (binary)
     "MemModule",        ///< Control whether SD/MMC or SPI is used to access the SD card (binary)
     "Bridge",           ///< Control whether to start the UDP->RS-422 bridge on WiFi startup (binary)
-    "WebServer",        ///< Control whether to use the web server interface to configure the system
+    "WebServer",        ///< Control whether to use the web server interface to configure the system (binary)
+    "Upload",           ///< Control whether to auto-upload files when online (binary)
     "modid",            ///< Set the module's Unique ID (string)
     "shipname",         ///< Set the ship's name (string)
     "ap_ssid",          ///< Set the WiFi SSID (string)
@@ -64,7 +78,14 @@ const String lookup[] = {
     "StationTimeout",   ///< Set the timeout for any connect attempt
     "WSStatus",         ///< The current status of the configuration webserver
     "WSBootStatus",     ///< The status of the webserver on boot
-    "LabDefaults"       ///< A JSON string for lab-default configuration
+    "LabDefaults",      ///< A JSON string for lab-default configuration
+    "UploadToken",      ///< An ASCII string to authenticate uploads
+    "UploadServer",     ///< IPv4 address for the server to use for upload
+    "UploadPort",       ///< IPc4 port for server to use for upload
+    "UploadTimeout",    ///< Timeout (seconds) for the upload server to respond to probe
+    "UploadInterval",   ///< Interval (seconds) between upload attempts
+    "UploadDuration",   ///< Time (seconds) for upload activity before diverting back to other efforts
+    "UploadCert"        ///< Certificate to pass to the upload server for TLS
 };
 
 /// Default constructor.  This sets up for a dummy parameter store, which is configured
@@ -167,14 +188,17 @@ Config LoggerConfig;    ///< Static parameter to use for lookups (rather than ma
 /// \a String so that it can be readily sent to log files, or over WiFi, etc.  The serialisation can be
 /// compact (e.g., for sending to files) or formatted (i.e., with indents) as required.
 ///
-/// @param indent Set true for formatted output, or false for compact strings for serialisation.
 /// @param secure Set true to avoid writing password information into the output dictionary.
 /// @return \a String object with the serialised JSON dictionary of configuration parameters.
 
-String ConfigJSON::ExtractConfig(bool indent, bool secure)
+DynamicJsonDocument ConfigJSON::ExtractConfig(bool secure)
 {
     using namespace ArduinoJson;
-    StaticJsonDocument<1024> params;
+    // Note fixed size of document here.  Since what's being rendered into it is pretty well
+    // controlled here, it's probably relatively safe; you should assess if you add anything
+    // into the payload, however.
+    DynamicJsonDocument params(1024);
+    params["version"]["firmware"] = FirmwareVersion();
     params["version"]["commandproc"] = SerialCommand::SoftwareVersion();
     params["version"]["nmea0183"] = nmea::N0183::Logger::SoftwareVersion();
     params["version"]["nmea2000"] = nmea::N2000::Logger::SoftwareVersion();
@@ -182,7 +206,8 @@ String ConfigJSON::ExtractConfig(bool indent, bool secure)
     params["version"]["serialiser"] = Serialiser::SoftwareVersion();
 
     // Enable/disable for the various loggers and features
-    bool nmea0183_enable, nmea2000_enable, imu_enable, powmon_enable, sdmmc_enable, udp_bridge_enable, webserver_on_boot;
+    bool nmea0183_enable, nmea2000_enable, imu_enable, powmon_enable, sdmmc_enable,
+         udp_bridge_enable, webserver_on_boot, upload_online;
     LoggerConfig.GetConfigBinary(Config::CONFIG_NMEA0183_B, nmea0183_enable);
     LoggerConfig.GetConfigBinary(Config::ConfigParam::CONFIG_NMEA2000_B, nmea2000_enable);
     LoggerConfig.GetConfigBinary(Config::ConfigParam::CONFIG_MOTION_B, imu_enable);
@@ -190,6 +215,7 @@ String ConfigJSON::ExtractConfig(bool indent, bool secure)
     LoggerConfig.GetConfigBinary(Config::ConfigParam::CONFIG_SDMMC_B, sdmmc_enable);
     LoggerConfig.GetConfigBinary(Config::ConfigParam::CONFIG_BRIDGE_B, udp_bridge_enable);
     LoggerConfig.GetConfigBinary(Config::ConfigParam::CONFIG_WEBSERVER_B, webserver_on_boot);
+    LoggerConfig.GetConfigBinary(Config::ConfigParam::CONFIG_UPLOAD_B, upload_online);
     params["enable"]["nmea0183"] = nmea0183_enable;
     params["enable"]["nmea2000"] = nmea2000_enable;
     params["enable"]["imu"] = imu_enable;
@@ -197,6 +223,7 @@ String ConfigJSON::ExtractConfig(bool indent, bool secure)
     params["enable"]["sdmmc"] = sdmmc_enable;
     params["enable"]["udpbridge"] = udp_bridge_enable;
     params["enable"]["webserver"] = webserver_on_boot;
+    params["enable"]["upload"] = upload_online;
 
     // String configurations for the various parameters in configuration
     String wifi_station_delay, wifi_station_retries, wifi_station_timeout, wifi_ip_address, wifi_mode;
@@ -234,13 +261,19 @@ String ConfigJSON::ExtractConfig(bool indent, bool secure)
     params["baudrate"]["port2"] = baudrate_port2.toInt();
     params["udpbridge"] = udp_bridge_port.toInt();
 
-    String rtn;
-    if (indent) {
-        serializeJsonPretty(params, rtn);
-    } else {
-        serializeJson(params, rtn);
-    }
-    return rtn;
+    String upload_server, upload_port, upload_timeout, upload_interval, upload_duration;
+    LoggerConfig.GetConfigString(Config::CONFIG_UPLOAD_SERVER_S, upload_server);
+    LoggerConfig.GetConfigString(Config::CONFIG_UPLOAD_PORT_S, upload_port);
+    LoggerConfig.GetConfigString(Config::CONFIG_UPLOAD_TIMEOUT_S, upload_timeout);
+    LoggerConfig.GetConfigString(Config::CONFIG_UPLOAD_INTERVAL_S, upload_interval);
+    LoggerConfig.GetConfigString(Config::CONFIG_UPLOAD_DURATION_S, upload_duration);
+    params["upload"]["server"] = upload_server;
+    params["upload"]["port"] = upload_port.toInt();
+    params["upload"]["timeout"] = upload_timeout.toDouble();
+    params["upload"]["interval"] = upload_interval.toDouble();
+    params["upload"]["duration"] = upload_duration.toDouble();
+
+    return params;
 }
 
 /// Set configuration for all values of the key-value store specified in the serialised JSON dictionary
@@ -255,6 +288,9 @@ String ConfigJSON::ExtractConfig(bool indent, bool secure)
 
 bool ConfigJSON::SetConfig(String const& json_string)
 {
+    // Note fixed size of document here.  Since the configuration string is typically of well-
+    // known size, this shouldn't be too dangerous, but it's probably wise to review this if
+    // you add anything into the payload.
     DynamicJsonDocument params(1024);
     deserializeJson(params, json_string);
 
@@ -277,6 +313,8 @@ bool ConfigJSON::SetConfig(String const& json_string)
                 LoggerConfig.SetConfigBinary(Config::CONFIG_BRIDGE_B, params["enable"]["udpbridge"]);
             if (params["enable"].containsKey("webserver"))
                 LoggerConfig.SetConfigBinary(Config::CONFIG_WEBSERVER_B, params["enable"]["webserver"]);
+            if (params["enable"].containsKey("upload"))
+                LoggerConfig.SetConfigBinary(Config::CONFIG_UPLOAD_B, params["enable"]["upload"]);
         }
         if (params.containsKey("wifi")) {
             if (params["wifi"].containsKey("mode"))
@@ -314,13 +352,25 @@ bool ConfigJSON::SetConfig(String const& json_string)
             LoggerConfig.SetConfigString(Config::CONFIG_SHIPNAME_S, params["shipname"]);
         if (params.containsKey("udpbridge"))
             LoggerConfig.SetConfigString(Config::CONFIG_BRIDGE_PORT_S, params["udpbridge"]);
+        if (params.containsKey("upload")) {
+            if (params["upload"].containsKey("server"))
+                LoggerConfig.SetConfigString(Config::CONFIG_UPLOAD_SERVER_S, params["upload"]["server"]);
+            if (params["upload"].containsKey("port"))
+                LoggerConfig.SetConfigString(Config::CONFIG_UPLOAD_PORT_S, params["upload"]["port"]);
+            if (params["upload"].containsKey("timeout"))
+                LoggerConfig.SetConfigString(Config::CONFIG_UPLOAD_TIMEOUT_S, params["upload"]["timeout"]);
+            if (params["upload"].containsKey("interval"))
+                LoggerConfig.SetConfigString(Config::CONFIG_UPLOAD_INTERVAL_S, params["upload"]["interval"]);
+            if (params["upload"].containsKey("duration"))
+                LoggerConfig.SetConfigString(Config::CONFIG_UPLOAD_DURATION_S, params["upload"]["duration"]);
+        }
     } else {
         return false;
     }
     return true;
 }
 
-static const char* stable_config = "{\"version\": {\"commandproc\": \"1.3.0\"}, \"enable\": {\"nmea0183\": true, \"nmea2000\": true, \"imu\": false, \"powermonitor\": false, \"sdmmc\": false, \"udpbridge\": false, \"webserver\": true}, \"wifi\": {\"mode\": \"AP\", \"address\": \"192.168.4.1\", \"station\": {\"delay\": 20, \"retries\": 5, \"timeout\": 5}, \"ssids\": {\"ap\": \"wibl-config\", \"station\": \"wibl-logger\"}, \"passwords\": {\"ap\": \"wibl-config-password\", \"station\": \"wibl-logger-password\"}}, \"uniqueID\": \"wibl-logger\", \"shipname\": \"Anonymous\", \"baudrate\": {\"port1\": 4800, \"port2\": 4800}, \"udpbridge\": 12345}";
+static const char *stable_config = "{\"version\": {\"commandproc\": \"1.4.0\"}, \"enable\": {\"nmea0183\": true, \"nmea2000\": true, \"imu\": false, \"powermonitor\": false, \"sdmmc\": false, \"udpbridge\": false, \"webserver\": true, \"upload\": false}, \"wifi\": {\"mode\": \"AP\", \"address\": \"192.168.4.1\", \"station\": {\"delay\": 20, \"retries\": 5, \"timeout\": 5}, \"ssids\": {\"ap\": \"wibl-config\", \"station\": \"wibl-logger\"}, \"passwords\": {\"ap\": \"wibl-config-password\", \"station\": \"wibl-logger-password\"}}, \"uniqueID\": \"wibl-logger\", \"shipname\": \"Anonymous\", \"baudrate\": {\"port1\": 4800, \"port2\": 4800}, \"udpbridge\": 12345, \"upload\": {\"server\": \"192.168.4.2\", \"port\": 80, \"timeout\": 5.0, \"interval\": 1800.0, \"duration\": 10.0}}";
 
 bool ConfigJSON::SetStableConfig(void)
 {

@@ -31,6 +31,7 @@
 #include "N0183Logger.h"
 #include "Configuration.h"
 #include "NVMFile.h"
+#include "DataMetrics.h"
 
 namespace nmea {
 namespace N0183 {
@@ -141,7 +142,7 @@ void MessageAssembler::AddCharacter(const char in)
                         Serial.println(message);
                     }
                     if (m_logManager != nullptr) {
-                        m_logManager->Console().println(message);
+                        m_logManager->Syslog(message);
                     }
                 }
 
@@ -166,7 +167,7 @@ void MessageAssembler::AddCharacter(const char in)
                                 + String(m_channel) + " due to bad start characters.";
                     Serial.println(message);
                     if (m_logManager != nullptr) {
-                        m_logManager->Console().println(message);
+                        m_logManager->Syslog(message);
                     }
                 }
             }
@@ -203,7 +204,7 @@ void MessageAssembler::AddCharacter(const char in)
                     message = "WARN: sentence restarted before end of previous one?! (channel " + String(m_channel) + ").";
                     Serial.println(message);
                     if (m_logManager != nullptr) {
-                        m_logManager->Console().println(message);
+                        m_logManager->Syslog(message);
                     }
                     if (m_debugAssembly) {
                         Serial.println(String("debug: new sentence started with timestamp ") +
@@ -220,7 +221,7 @@ void MessageAssembler::AddCharacter(const char in)
                         message = "WARN: over-long sentence detected, and ignored (channel " + String(m_channel) + ").";
                         Serial.println(message);
                         if (m_logManager != nullptr) {
-                            m_logManager->Console().println(message);
+                            m_logManager->Syslog(message);
                         }
                         if (m_debugAssembly) {
                             Serial.println(String("debug: reset state to SEARCHING on channel ") +
@@ -233,7 +234,7 @@ void MessageAssembler::AddCharacter(const char in)
         default:
             Serial.println("ERR: unknown state in message assembly! Resetting to SEARCHING.");
             if (m_logManager != nullptr) {
-                m_logManager->Console().println("ERR: unknown state in message assembly! Resetting to SEARCHING.");
+                m_logManager->Syslog("ERR: unknown state in message assembly! Resetting to SEARCHING.");
             }
             m_state = STATE_SEARCHING;
             break;
@@ -403,6 +404,10 @@ void Logger::ProcessMessages(void)
             if (m_verbose) {
                 Serial.printf("DBG: logging \"%s\"\n", sentence->Contents());
             }
+
+            logger::DataObs obs(sentence->Timestamp(), sentence->Contents());
+            logger::Metrics.RegisterObs(obs);
+
             Serialisable s;
             s += (uint32_t)(sentence->Timestamp());
             s += sentence->Contents();

@@ -57,7 +57,7 @@ const int MaxLogFiles = 1000; ///< Maximum number of log files that we will crea
 class Manager {
 public:
     /// \brief Default constructor
-    Manager(StatusLED *led);
+    Manager(StatusLED *led, mem::MemController *storage);
     /// \brief Default destructor
     ~Manager(void);
     
@@ -75,6 +75,8 @@ public:
 
     /// \brief Count the number of log files on the system
     uint32_t CountLogFiles(uint32_t filenumbers[MaxLogFiles]);
+    /// \brief Count the number of log files on the system
+    uint32_t CountLogFiles(void);
     
     class MD5Hash {
     public:
@@ -90,7 +92,8 @@ public:
     };
 
     /// \brief Extract information on a single log file
-    void EnumerateLogFile(uint32_t lognumber, String& filename, uint32_t& filesize, MD5Hash& filehash);
+    void EnumerateLogFile(uint32_t lognumber, String& filename, uint32_t& filesize, MD5Hash& filehash,
+        uint16_t& uploadcount);
     
     /// \enum PacketIDs
     /// \brief Symbolic definition for the packet IDs used to serialise the messages from NMEA2000
@@ -119,9 +122,11 @@ public:
     void Record(PacketIDs pktID, Serialisable const& data);
     /// \brief Provide a pointer to the current serialiser
     Serialiser *OutputChannel(void) { return m_serialiser; }
+    /// @brief Provide a reference for the file system being used to store files
+    fs::FS& FileSystem(void) { return m_storage->Controller(); }
     
-    /// \brief Call-through for the console log file handle
-    Stream& Console(void);
+    /// \brief Call to log on the console log
+    void Syslog(String const& message);
     /// \brief Close the console file prior to shutdown
     void CloseConsole(void);
     /// \brief Dump console log to serial
@@ -130,8 +135,11 @@ public:
     void TransferLogFile(uint32_t file_num, MD5Hash const& filehash, Stream& output);
 
     void HashFile(uint32_t file_num, MD5Hash& hash);
+    uint16_t IncrementUploadCount(uint32_t file_num);
     void AddInventory(bool verbose = false);
     void EmitNoDataReject(void);
+
+    bool WriteSnapshot(String& name, String const& contents);
 
 private:
     /// \class Inventory
@@ -148,12 +156,15 @@ private:
         ~Inventory(void);
 
         bool Reinitialise(void);
-        bool Lookup(uint32_t filenum, uint32_t& filesize, MD5Hash& hash);
+        bool Lookup(uint32_t filenum, uint32_t& filesize, MD5Hash& hash, uint16_t& uploads);
         bool Update(uint32_t filenum, MD5Hash *hash = nullptr);
         void RemoveLogFile(uint32_t filenum);
         uint32_t CountLogFiles(uint32_t filenumbers[MaxLogFiles]);
+        uint32_t CountLogFiles(void);
         uint32_t GetNextLogNumber(void);
         uint32_t Filesize(uint32_t filenum);
+        uint16_t UploadCount(uint32_t filenum);
+        uint16_t IncrementUploadCount(uint32_t filenum);
 
         void SerialiseCache(Stream& stream);
 
@@ -162,6 +173,7 @@ private:
         bool                    m_verbose;
         std::vector<uint32_t>   m_filesize;
         std::vector<MD5Hash>    m_hashes;
+        std::vector<uint16_t>   m_uploadCount;
     };
     mem::MemController  *m_storage; ///< Controller for the storage to use
     File        m_consoleLog;       ///< File on which to write console information
@@ -177,12 +189,16 @@ private:
     uint32_t GetNextLogNumber(void);
     /// \brief Make a filename for the given log file number
     String  MakeLogName(uint32_t lognum);
+    /// \brief Extract a log number from a filename (if valid)
+    int32_t ExtractLogNumber(String const& filename);
     /// \brief Count the number of log files on the system
-    uint32_t count(uint32_t filenumbers[MaxLogFiles]);
+    uint32_t count(uint32_t *filenumbers);
     /// \brief Extract information on a single log file
     void enumerate(uint32_t lognumber, String& filename, uint32_t& filesize);
     /// \brief Generate a hash for a given file 
     void hash(String const& filename, MD5Hash& hash);
+    /// \brief Rotate the console log files, if necessary
+    void RotateConsoleLogs(void);
     /// \brief Reset the indicators for dynamic algorithm requests
     void ResetDynamicAlgorithms(void);
 };

@@ -35,6 +35,14 @@
 
 namespace logger {
 
+// Firmware software version (i.e., overall firmware, rather than components like Command Processor, etc.)
+const int firmware_major = 1;
+const int firmware_minor = 5;
+const int firmware_patch = 0;
+
+/// @brief Stringify the version information for the firmware itself
+String FirmwareVersion(void);
+
 /// \class Config
 /// \brief Encapsulate configuration parameter management
 ///
@@ -66,6 +74,7 @@ class Config {
             CONFIG_SDMMC_B,         /* Binary: SD-MMC (SDIO) interface for log files */
             CONFIG_BRIDGE_B,        /* Binary: Bridge UDP broadcast packets to NMEA0183 */
             CONFIG_WEBSERVER_B,     /* Binary: Use web server interface to configure system */
+            CONFIG_UPLOAD_B,        /* Binary: enable auto-upload when online */
             CONFIG_MODULEID_S,      /* String: User-specified unique identifier for the module */
             CONFIG_SHIPNAME_S,      /* String: User-specific name for the ship hosting the WIBL */
             CONFIG_AP_SSID_S,       /* String: WiFi SSID for AP */
@@ -80,9 +89,16 @@ class Config {
             CONFIG_STATION_DELAY_S, /* String: delay (seconds) before web-server attempts to re-joint a client network */
             CONFIG_STATION_RETRIES_S,/* String: retries (int) before web-server reverts to "safe-mode". */
             CONFIG_STATION_TIMEOUT_S,/* String: delay (seconds) before declaring a WiFi connection attempt failed */
-            CONFIG_WS_STATUS_S,      /* String: status of the configuration web server */
-            CONFIG_WS_BOOTSTATUS_S,  /* String: status of the configuration web server at boot time */
-            CONFIG_DEFAULTS_S        /* String: JSON-format for default "lab reset" parameters */
+            CONFIG_WS_STATUS_S,     /* String: status of the configuration web server */
+            CONFIG_WS_BOOTSTATUS_S, /* String: status of the configuration web server at boot time */
+            CONFIG_DEFAULTS_S,      /* String: JSON-format for default "lab reset" parameters */
+            CONFIG_UPLOAD_TOKEN_S,  /* String: shared upload token for cloud transmission */
+            CONFIG_UPLOAD_SERVER_S, /* String: server IP address to use for upload */
+            CONFIG_UPLOAD_PORT_S,   /* String: port to use on server for upload */
+            CONFIG_UPLOAD_TIMEOUT_S,/* String: timeout (seconds) before deciding that the server isn't available */
+            CONFIG_UPLOAD_INTERVAL_S,/* String: interval (seconds) between upload attempts */
+            CONFIG_UPLOAD_DURATION_S,/* String: duration (seconds) for each upload event */
+            CONFIG_UPLOAD_CERT_S    /* String: certificate to pass to upload server for authentication */
         };
 
         /// \brief Extract a configuration string for the specified parameter
@@ -117,7 +133,7 @@ extern Config LoggerConfig; ///< Declaration of a global pre-allocated instance 
 class ConfigJSON {
 public:
     /// @brief Generate a serialised JSON dictionary as a String for all of the configuration parameters
-    static String ExtractConfig(bool indent = false, bool secure = false);
+    static DynamicJsonDocument ExtractConfig(bool secure = false);
     /// @brief Configure the logger from a serialsed JSON dictionary of the configuration parameters
     static bool SetConfig(String const& json_string);
     /// \brief Establish a "known stable" configuration if the current configuration is not valid

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<head>
+    <title>Realtime Status Information</title>
+    <link rel="stylesheet" href="../css/main.css">
+    <link rel="stylesheet" href="../css/status.css">
+</head>
+<html>
+    <header class="primary-header">
+        <a href="../index.htm">
+            <img src="../images/WIBL-Logo.gif" alt="The WIBL Project Logo" width="80" class="logo"/>
+        </a>
+        <h1 class="title">Wireless Inexpensive Bathymetry Logger</h1>
+    </header>
+    <body>
+        <script src="../js/common.js"></script>
+        <script src="../js/status.js"></script>
+        <div class="main-wrapper">
+            <h2>Real-time Status and Download Information</h2>
+        </div>
+        <div class="status-table-row">
+            <table id="status-versions"></table>
+            <table id="status-stats"></table>
+        </div>
+        <div class="data-table-row">
+            <table id="status-nmea0183"></table>
+        </div>
+        <div class="data-table-row">
+            <table id="status-nmea2000"></table>
+        </div>
+        <div class="refresh-button">
+            <input type="button" name="refresh" id="refresh" value="Refresh Statistics" onclick="updateStatusData()"/>
+            <input type="button" name="savecatalog" id="savecatalog" value="Download Catalog" onclick="saveCatalog()"/>
+        </div>
+        <div class="id-table-row">
+            <table id="status-detail"></table>
+        </div>
+        <iframe id="downloadFrame" style="position:absolute;width:0;height:0;border:0;"></iframe>
+        <script>document.getElementById("refresh").click();</script>
+    </body>
+</html>

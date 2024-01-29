@@ -1,4 +1,4 @@
-/*! \file WiFiAdapter.h
+/*! \file WiFiAdapter.cpp
  *  \brief Interface for the WiFi adapter on the module, and a factory to abstract the object
  *
  * In order to get to a decent speed for data transfer, we need to use the WiFi interface rather
@@ -29,6 +29,7 @@
 #include <WiFi.h>
 #include <WiFIAP.h>
 #include <WebServer.h>
+#include <LittleFS.h>
 
 #include "LogManager.h"
 #include "WiFiAdapter.h"
@@ -207,6 +208,7 @@ private:
         if (ssid.length() == 0) ssid = "wibl-config";
         if (ssid.length() == 0) password = "wibl-config-password";
         WiFi.softAP(ssid.c_str(), password.c_str());
+        WiFi.setSleep(false);
         IPAddress server_address = WiFi.softAPIP();
         logger::LoggerConfig.SetConfigString(logger::Config::ConfigParam::CONFIG_WIFIIP_S, server_address.toString());
         if (m_verbose) {
@@ -227,6 +229,7 @@ private:
             return false;
         }
         wl_status_t status = WiFi.begin(ssid.c_str(), password.c_str());
+        WiFi.setSleep(false);
         m_lastConnectAttempt = millis();
         if (m_verbose) {
             Serial.printf("DBG: started network join on %s:%s at %d with immediate status %d\n", ssid.c_str(), password.c_str(), m_lastConnectAttempt, (int)status);
@@ -283,9 +286,12 @@ public:
     /// Default constructor for the ESP32 adapter.  This brings up the parameter store to use
     /// for WiFi parameters, but takes no other action until the user explicitly starts the AccessPoint.
     ESP32WiFiAdapter(void)
-    : m_storage(nullptr), m_server(nullptr), m_statusCode(200)
+    : m_storage(nullptr), m_server(nullptr), m_messages(nullptr), m_statusCode(HTTPReturnCodes::OK)
     {
         if ((m_storage = mem::MemControllerFactory::Create()) == nullptr) {
+            return;
+        }
+        if ((m_messages = new DynamicJsonDocument(1024)) == nullptr) {
             return;
         }
     }
@@ -295,14 +301,15 @@ public:
     {
         stop();
         delete m_storage; // Note that we're not stopping the interface, since it may still be required elsewhere
+        delete m_messages;
     }
     
 private:
     mem::MemController  *m_storage;     ///< Pointer to the storage object to use
     WebServer           *m_server;      ///< Pointer to the server object, if started.
     std::queue<String>  m_commands;     ///< Queue to handle commands sent by the user
-    String              m_messages;     ///< Accumulating message content to be send to the client
-    uint32_t            m_statusCode;   ///< Status code to return to the user with the transaction response
+    DynamicJsonDocument *m_messages;    ///< Accumulating message content to be send to the client
+    HTTPReturnCodes     m_statusCode;   ///< Status code to return to the user with the transaction response
     ConnectionStateMachine m_state;     ///< Manager for connection state
 
     /// @brief Handle HTTP requests to the /command endpoint
@@ -331,7 +338,7 @@ private:
     /// @return N/A
     void heartbeat(void)
     {
-        m_server->send(200, "text/plain", GetSerialNumberString());
+        m_commands.push("status");
     }
 
     /// Bring up the WiFi adapter, which in this case includes bring up the soft access point.  This
@@ -351,6 +358,8 @@ private:
             // Configure the endpoints served by the server
             m_server->on("/heartbeat", HTTPMethod::HTTP_GET, std::bind(&ESP32WiFiAdapter::heartbeat, this));
             m_server->on("/command", HTTPMethod::HTTP_POST, std::bind(&ESP32WiFiAdapter::handleCommand, this));
+            m_server->serveStatic("/logs", m_storage->Controller(), "/logs/");
+            m_server->serveStatic("/", LittleFS, "/website/"); // Note trailing '/' since this is a directory being served.
         }
         //m_state.Verbose(true);
         m_state.Start();
@@ -417,7 +426,30 @@ private:
 
     void accumulateMessage(String const& message)
     {
-        m_messages += message;
+        if ((m_messages->memoryUsage() + message.length()) > 0.95*m_messages->capacity()) {
+            // Expand capacity to ensure that the message will be added successfully
+            size_t new_capacity = m_messages->capacity() * 2;
+            DynamicJsonDocument *new_doc = new DynamicJsonDocument(new_capacity);
+            if (new_doc != nullptr) {
+                new_doc->set(*m_messages);
+                delete m_messages;
+                m_messages = new_doc;
+            }
+        }
+        if (!(*m_messages)["messages"].add(message)) {
+            Serial.printf("ERR: failed to add message to accumulation buffer (capacity %d bytes); messages may be truncated.\n",
+                m_messages->capacity());
+        }
+    }
+
+    /// Replace the entire message to be sent to the client with the provided string.
+    ///
+    /// \param message \a String to use for the return message.
+    /// \return N/A
+
+    void setMessage(DynamicJsonDocument const& message)
+    {
+        *m_messages = message;
     }
 
     /// Configure the HTTP status code that the response should use.  By default, the status code used
@@ -429,7 +461,7 @@ private:
     /// \param status_code  Code to return to the client (typically HTTP status codes)
     /// \return N/A
 
-    void setStatusCode(uint32_t status_code)
+    void setStatusCode(HTTPReturnCodes status_code)
     {
         m_statusCode = status_code;
     }
@@ -443,9 +475,12 @@ private:
 
     bool transmitMessages(char const* data_type)
     {
-        m_server->send(m_statusCode, data_type, m_messages);
-        m_messages = "";
-        m_statusCode = 200; // "OK" by default
+        String message;
+        serializeJson(*m_messages, message);
+        //Serial.printf("DBG: WiFi transmitting response |%s|\n", message.c_str());
+        m_server->send(m_statusCode, data_type, message);
+        m_messages->clear();
+        m_statusCode = HTTPReturnCodes::OK; // "OK" by default
         return true;
     }
 
@@ -492,11 +527,17 @@ bool WiFiAdapter::TransferFile(String const& filename, uint32_t filesize, logger
 /// \return N/A
 void WiFiAdapter::AddMessage(String const& message) { accumulateMessage(message); }
 
+/// Pass-through implementation to the sub-class code to reset the message from straight JSON
+///
+/// @param message JSON document to send back to the client
+/// @return N/A
+void WiFiAdapter::SetMessage(DynamicJsonDocument const& message) { setMessage(message); }
+
 /// Pass-through implementation to the sub-class code to set status code
 ///
 /// \param status_code  HTTP status code to set
 /// \return N/A
-void WiFiAdapter::SetStatusCode(uint32_t status_code) { setStatusCode(status_code); }
+void WiFiAdapter::SetStatusCode(HTTPReturnCodes status_code) { setStatusCode(status_code); }
 
 /// Pass-through implementation to the sub-class code to transmit all available messages.
 /// This should also complete the transaction from the client's request.

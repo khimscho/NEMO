@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<head>
+    <title>Command Interface</title>
+    <link rel="stylesheet" href="../css/main.css">
+    <link rel="stylesheet" href="../css/forms.css">
+</head>
+<html>
+    <header class="primary-header">
+        <a href="../index.htm">
+            <img src="../images/WIBL-Logo.gif" alt="The WIBL Project Logo" width="80" class="logo"/>
+        </a>
+        <h1 class="title">Wireless Inexpensive Bathymetry Logger</h1>
+    </header>
+    <body>
+        <div class="main-wrapper">
+            <h2>General Command Interface</h2>
+            <fieldset class="commands">
+                <legend>Command</legend>
+                <input type="text" name="command" id="command"/>
+                <!-- On click, read the command and send directly to the command endpoint on the logger -->
+                <button onclick="runCommand()" id="command-run">Run</button>
+            </fieldset>
+            <fieldset class="commands">
+                <!-- In practice, when the command is run, the server responds with a string out output.  The
+                     code should display this in the output space below.  Adding horizontal and vertical scroll
+                     bars is probably a good idea. -->
+                <legend>Output</legend>
+                <textarea name="output" id="command-output" rows="20" readonly placeholder="Command Output"></textarea>
+            </fieldset>
+        </div>
+        <script src="../js/common.js"></script>
+        <script src="../js/command.js"></script>
+    </body>
+</html>

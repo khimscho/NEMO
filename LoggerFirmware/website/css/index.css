@@ -1,0 +1,34 @@
+/* Options Section */
+
+.index-options {
+    width: 100%;
+    padding: 30px 0px 0px 0px;
+    background-color: #FFFFFF;
+    display: flex;
+    justify-content: center;
+    column-gap: 20px;
+}
+
+.index-options-box {
+    width: 200px;
+    height: 200px;
+    background-color: var(--ccom-blue);
+    border-radius: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.index-options-box:hover {
+    opacity: 0.8;
+    transition: all ease-in-out 500ms;
+}
+
+.index-options-box h3 {
+    font-size: 20px;
+    line-height: 26px;
+    text-transform: uppercase;
+    color: white;
+    text-align: center;
+}
+

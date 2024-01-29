@@ -1,6 +1,7 @@
 {
     "version": {
-        "commandproc":  "1.3.0",
+        "firmware":     "1.5.0",
+        "commandproc":  "1.4.0",
         "nmea0183":     "1.0.1",
         "nmea2000":     "1.0.0",
         "imu":          "1.0.0",
@@ -13,7 +14,8 @@
         "powermonitor": false,
         "sdmmc":        false,
         "udpbridge":    false,
-        "webserver":    true
+        "webserver":    true,
+        "upload":       false
     },
     "wifi": {
         "mode":         "AP",
@@ -38,5 +40,12 @@
         "port1":    4800,
         "port2":    4800
     },
-    "udpbridge":    12345
+    "udpbridge":    12345,
+    "upload": {
+        "server": "192.168.4.2",
+        "port": 8080,
+        "timeout": 5.0,
+        "interval": 1800.0,
+        "duration": 10.0
+    }
 }

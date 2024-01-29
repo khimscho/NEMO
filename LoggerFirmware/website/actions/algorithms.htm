@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<head>
+    <title>Algorithm Request Configuration</title>
+    <link rel="stylesheet" href="../css/main.css">
+    <link rel="stylesheet" href="../css/forms.css">
+    <link rel="stylesheet" href="../css/status.css">
+</head>
+<html>
+    <header class="primary-header">
+        <a href="../index.htm">
+            <img src="../images/WIBL-Logo.gif" alt="The WIBL Project Logo" width="80" class="logo"/>
+        </a>
+        <h1 class="title">Wireless Inexpensive Bathymetry Logger</h1>
+    </header>
+    <body>
+        <script src="../js/common.js"></script>
+        <script src="../js/algorithms.js"></script>
+        <div class="main-wrapper">
+            <h2>Algorithm Request Configuration</h2>
+            <fieldset class="algorithms">
+                <legend>Current Algorithm Requests</legend>
+                <div class="status-table-row">
+                    <table id="alg-table"></table>
+                </div>
+            </fieldset>
+            <fieldset class="algorithms">
+                <legend>Add New Algorithm Request</legend>
+                <label for="alg-name">Name</label>
+                <input type="text" name="algname" id="alg-name"/>
+                <label for="alg-params">Parameters</label>
+                <input type="text" name="algparam" id="alg-params"/>
+                <button onclick="addAlgorithm()">Add Algorithm</button>
+            </fieldset>
+            <div class="algorithms">
+                <button onclick="clearAlgList()">Clear List</button>
+            </div>
+        </div>
+        <script>
+            bootstrapAlgTable();
+        </script>
+    </body>
+</html>

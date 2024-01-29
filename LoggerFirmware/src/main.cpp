@@ -1,7 +1,7 @@
 /*!\file LoggerFirmware.ino
  * \brief Arduino sketch for the NMEA2000 depth/position logger with network time
  *
- * This provides the Ardunio-style interface to a NMEA2000 network data logger that's
+ * This provides the Arduino-style interface to a NMEA2000 network data logger that's
  * suitable for recording data for Volunteer Geographic Information collection at sea
  * (in keeping with IHO Crowdsourced Bathymetry Working Group recommendations as defined
  * in IHO publication B-12).
@@ -29,6 +29,7 @@
 #define ESP32_CAN_RX_PIN GPIO_NUM_17
 
 #include <NMEA2000_CAN.h> /* This auto-generates the NMEA2000 global for bus control */
+#include "ArduinoJson.h"
 #include "N2kLogger.h"
 #include "serial_number.h"
 #include "SerialCommand.h"
@@ -40,7 +41,7 @@
 #include "HeapMonitor.h"
 
 /// Hardware version for the logger implementation (for NMEA2000 declaration)
-#define LOGGER_HARDWARE_VERSION "1.0.0"
+#define LOGGER_HARDWARE_VERSION "2.4.1"
 
 const unsigned long TransmitMessages[] PROGMEM={0}; ///< List of messages the logger transmits (null set)
 const unsigned long ReceiveMessages[] PROGMEM =
@@ -82,6 +83,8 @@ void setup()
 
     Serial.begin(115200);
 
+    Serial.printf("*\n*\n*\n* BOOTING WIBL DATA LOGGER, FIRMWARE VERSION %s\n*\n* For more information: http://wibl.ccom.unh.edu\n*\n*\n*\n", logger::FirmwareVersion());
+
     Serial.printf("DBG: At boot, heap is %d B (%d B free)\n", heap_size, heap_free);
     Serial.printf("DBG: ");
     heap.FlashMemoryReport(Serial);
@@ -106,7 +109,10 @@ void setup()
         }
     } else {
         Serial.println("INF: Configuration is now:");
-        Serial.println(logger::ConfigJSON::ExtractConfig(true, true));
+        DynamicJsonDocument config(logger::ConfigJSON::ExtractConfig(true));
+        String config_str;
+        serializeJsonPretty(config, config_str);
+        Serial.println(config_str);
     }
     
     Serial.println("Bringing up Storage Controller ...");
@@ -129,7 +135,7 @@ void setup()
 
     Serial.printf("DBG: After memory interface start, free heap = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
     Serial.println("Configuring logger manager ...");
-    logManager = new logger::Manager(LEDs);
+    logManager = new logger::Manager(LEDs, memController);
     Serial.printf("DBG: After log manager start, free heap = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
     logManager->AddInventory();
     Serial.printf("DBG: After inventory object start, free heap = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());
@@ -153,7 +159,7 @@ void setup()
 
     if (logger::LoggerConfig.GetConfigBinary(logger::Config::ConfigParam::CONFIG_MOTION_B, start_motion_sensor)
             && start_motion_sensor) {
-        Serial.println("Configurating IMU logger ...");
+        Serial.println("Configuring IMU logger ...");
         IMULogger = new imu::Logger(logManager);
 
         Serial.printf("DBG: After IMU logger start, free heap = %d B, delta = %d B\n", heap.CurrentSize(), heap.DeltaSinceLast());

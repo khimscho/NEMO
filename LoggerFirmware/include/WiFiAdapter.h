@@ -27,6 +27,7 @@
 #define __WIFI_ADAPTER_H__
 
 #include <WiFi.h>
+#include "ArduinoJson.h"
 #include "LogManager.h"
 
 /// \class WiFiAdapter
@@ -55,8 +56,22 @@ public:
     /// \brief Accumulate messages to be returned to the client for the current transaction
     void AddMessage(String const& message);
 
+    /// \brief Replace the entire message to be returned to the client for the current transaction
+    void SetMessage(DynamicJsonDocument const& message);
+
+    enum HTTPReturnCodes {
+        OK              = 200,  // The request succeeded
+        BADREQUEST      = 400,  // The server cannot or will not process the reqeuest
+        NOTFOUND        = 404,  // Resource not found
+        IMATEAPOT       = 418,  // Really ... not expected to be used, but good for the yucks.
+        SERVERERR       = 500,  // Internal server error
+        NOTIMPLEMENTED  = 501,  // Request not supported by the server
+        UNAVAILABLE     = 503   // Server not ready to handle request
+
+    };
+
     /// \brief Set the status code to return to the client
-    void SetStatusCode(uint32_t status);
+    void SetStatusCode(HTTPReturnCodes status);
 
     /// \brief Transmit the current set of accumulated messages to the client
     bool TransmitMessages(char const *data_type);
@@ -87,8 +102,11 @@ private:
     /// \brief Sub-class implementation of code to accumulate messages for transmission
     virtual void accumulateMessage(String const& message) = 0;
 
+    /// \brief Sub-class implementation of code to replace message for transmission
+    virtual void setMessage(DynamicJsonDocument const& message) = 0;
+
     /// \brief Sub-class implementation of code to set the status code for the transaction
-    virtual void setStatusCode(uint32_t status_code) = 0;
+    virtual void setStatusCode(HTTPReturnCodes status_code) = 0;
 
     /// \brief Sub-class implementation of code to transmit messages (and complete transaction)
     virtual bool transmitMessages(char const *data_type) = 0;

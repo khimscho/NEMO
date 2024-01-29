@@ -127,13 +127,10 @@ Logger::Logger(logger::Manager *output)
     m_tempScale = (1.0 / 256.0);
     m_tempOffset = 25.0;
     logger::ScalesStore scales;
-    String scales_string = "{ \"recipAccelScale\": " + String(1.0/m_accelScale, 6) +
-                            ", \"recipGyroScale\": " + String(1.0/m_gyroScale, 6) +
-                            ", \"recipTempScale\": " + String(1.0/m_tempScale, 6) +
-                            ", \"tempOffset\": " + String(m_tempOffset, 6) +
-                            "}";
-    scales.AddScalesGroup("imu", scales_string);
-
+    const char *names[4] = {"recipAccelScale", "recipGyroScale", "recipTempScale", "tempOffset" };
+    double values[4] = { 1.0/m_accelScale, 1.0/m_gyroScale, 1.0/m_tempScale, m_tempOffset };
+    scales.AddScales("imu", names, values, 4);
+    
     if (m_sensor->begin() != IMU_SUCCESS) {
         Serial.println("Failed to initialise LSM6DSL; logging disabled.");
         delete m_sensor;

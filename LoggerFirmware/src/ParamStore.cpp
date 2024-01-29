@@ -30,6 +30,7 @@
 
 #include "FS.h"
 #include "SPIFFS.h"
+#include "LittleFS.h"
 
 /// \class SPIFSParamStore
 /// \brief Implement a key-value pair object in flash storage on the SPIFFS module in the ESP32
@@ -68,9 +69,9 @@ private:
     
     bool set_key(String const& key, String const& value)
     {
-        fs::File f = SPIFFS.open(String("/") + key + ".par", FILE_WRITE);
+        fs::File f = SPIFFS.open(String("/") + key + ".par", FILE_WRITE, true);
         if (!f) {
-            Serial.println("ERR: failed to write key to filesystem.");
+            Serial.printf("ERR: failed to write config key |%s| to filesystem.\n", key.c_str());
             return false;
         }
         f.print(value);
@@ -87,11 +88,87 @@ private:
     
     bool get_key(String const& key, String& value)
     {
-        fs::File f = SPIFFS.open(String("/") + key + ".par", FILE_READ);
+        String filename(String("/") + key + ".par");
+        if (!SPIFFS.exists(filename)) {
+            File f = SPIFFS.open(filename, FILE_WRITE, true);
+            f.close();
+        }
+        fs::File f = SPIFFS.open(filename, FILE_READ);
         if (!f) {
-            Serial.print("ERR: failed to find key \"");
-            Serial.print(key);
-            Serial.println("\" in filesystem.");
+            Serial.printf("ERR: failed to find config key |%s| in filesystem.\n", key.c_str());
+            value = "";
+            return false;
+        }
+        value = f.readString();
+        f.close();
+        return true;
+    }
+};
+
+/// \class LittleFSParamStore
+/// \brief Implement a key-value pair object in flash storage on the LittleFS module in the ESP32
+class LittleFSParamStore : public ParamStore {
+public:
+    /// Default constructor for the sub-class, which brings up the LittleFS system, which causes the
+    /// file-system part of the flash memory to be formatted if it hasn't been already.  This may take a
+    /// little extra time when this is first called.  Since this is likely to be when the system is brought up
+    /// in manufacturing, it shouldn't be too much of a problem.
+    
+    LittleFSParamStore(void)
+    {
+        if (!LittleFS.begin(true)) {
+            // "true" here forces a format of the FFS if it isn't already
+            // formatted (which will cause it to initially fail).
+            Serial.println("ERR: LittleFS mount failed.");
+        }
+        size_t filesystem_size = LittleFS.totalBytes();
+        size_t used_size = LittleFS.usedBytes();
+        Serial.println(String("INFO: LittleFS total ") + filesystem_size + "B, used " + used_size + "B");
+    }
+    
+    /// Empty default destructor to allow for sub-classing if required.
+    
+    virtual ~LittleFSParamStore(void)
+    {
+    }
+    
+private:
+    /// Set a key-value pair by constructing a file with the name of the key in the LittleFS file-system
+    /// space, and writing the value into it.
+    ///
+    /// \param key      Recognition name for the value to store.
+    /// \param value    Data to write for the key.
+    /// \return True if the file was created and written successfully, otherwise false.
+    
+    bool set_key(String const& key, String const& value)
+    {
+        fs::File f = LittleFS.open(String("/") + key + ".par", FILE_WRITE, true);
+        if (!f) {
+            Serial.printf("ERR: failed to write config key |%s| to filesystem.\n", key.c_str());
+            return false;
+        }
+        f.print(value);
+        f.close();
+        return true;
+    }
+    
+    /// Get the value of a key-value pair by looking for the file corresponding to the key name in the
+    /// LittleFS file-system, and reading the contents.
+    ///
+    /// \param key  Recognition name for the value to retrieve
+    /// \param value    Reference for where to store the value retrieved.
+    /// \return True if the value was successfully retrieved, otherwise false.
+    
+    bool get_key(String const& key, String& value)
+    {
+        String filename(String("/") + key + ".par");
+        if (!LittleFS.exists(filename)) {
+            File f = LittleFS.open(filename, FILE_WRITE, true);
+            f.close();
+        }
+        fs::File f = LittleFS.open(filename, FILE_READ);
+        if (!f) {
+            Serial.printf("ERR: failed to find config key |%s| in filesystem.\n", key.c_str());
             value = "";
             return false;
         }
@@ -277,7 +354,7 @@ ParamStore *ParamStoreFactory::Create(void)
     ParamStore *obj;
     
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
-    obj = new SPIFSParamStore();
+    obj = new LittleFSParamStore();
 #endif
 #if defined(__SAM3X8E__)
     obj = new BLEParamStore();

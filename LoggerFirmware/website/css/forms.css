@@ -1,0 +1,167 @@
+input[type="button"] {
+    font-family: Verdana, Geneva, Tahoma, sans-serif;
+    font-size: 18px;
+    padding: 5px;
+    margin-top: 5px;
+}
+
+input[type="button"]:hover {
+    color: var(--ccom-blue);
+    opacity: 0.8;
+}
+
+.group-wrapper {
+    padding-left: 5px;
+    font-family: Verdana, Geneva, Tahoma, sans-serif;
+    font-size: 18px;
+    width: 600px;
+    padding-bottom: 10px;
+}
+
+.group-wrapper input[type="button"] {
+    font-size: 16px;
+}
+
+.group-wrapper input[type="button"]:hover {
+    color: var(--ccom-blue);
+}
+
+fieldset {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+fieldset legend {
+    font-size: 20px;
+}
+
+fieldset label {
+    padding: 2px;
+    margin-top: 5px;
+    width: 160px;
+    text-align: right;
+    margin-right: 5px;
+}
+
+fieldset.upload label {
+    width: 250px;
+}
+
+fieldset input {
+    font-size: 18px;
+    padding: 2px;
+    margin-top: 5px;
+}
+
+fieldset select {
+    font-size: 18px;
+    margin-top: 5px;
+    padding: 2px;
+}
+
+fieldset.metadata button {
+    font-size: 18px;
+    padding: 5px;
+    margin-left: 5px;
+}
+
+fieldset.metadata button:hover {
+    color: var(--ccom-blue);
+}
+
+fieldset.internal {
+    margin-top: 10px;
+}
+
+fieldset.checkboxes {
+    display: block;
+}
+
+fieldset.baudrates {
+    display: block;
+}
+
+.metadata-display {
+    display: flex;
+    width: 100%;
+    justify-content: center;
+}
+
+.metadata-output {
+    font-size: 12px;
+    width: 100%;
+    border: dashed;
+    border-width: 1px;
+    tab-size: 4;
+}
+
+.certificate {
+    width: 95%
+}
+
+.cert-output {
+    display: flex;
+    width: 100%;
+    justify-content: center;
+}
+
+.cert-output {
+    font-size: 12px;
+    width: 100%;
+    border: dashed;
+    border-width: 1px;
+    tab-size: 4;
+}
+
+fieldset.algorithms {
+    display: block;
+    margin-top: 15px;
+}
+
+.algorithms {
+    display: flex;
+    width: 95%;
+    justify-content: center;
+}
+
+.algorithms button {
+    font-size: 18px;
+    padding: 5px;
+    margin-top: 15px;
+    margin-left: 20px;
+    margin-right: 20px;
+}
+
+.algorithms button:hover {
+    color: var(--ccom-blue);
+    transition: all ease-in-out 200ms;
+}
+
+.commands {
+    display: flex;
+    width: 95%;
+    justify-content: left;
+    align-items: center;
+}
+
+.commands input[type="text"] {
+    width: 90%;
+}
+
+.commands button {
+    font-size: 18px;
+    padding: 5px;
+    margin-left: 20px;
+    margin-right: 20px;
+}
+
+.commands button:hover {
+    color: var(--ccom-blue);
+    transition: all ease-in-out 200ms;
+}
+
+.commands textarea {
+    border: dashed;
+    border-width: 1px;
+    width: 100%;
+}

@@ -35,6 +35,8 @@
 #include "StatusLED.h"
 #include "WiFiAdapter.h"
 #include "IncrementalBuffer.h"
+#include "NVMFile.h"
+#include "AutoUpload.h"
 
 /// \class SerialCommand
 /// \brief Implement a simple ASCII command language for the logger
@@ -84,6 +86,7 @@ private:
     nmea::N2000::Logger *m_CANLogger;   ///< Pointer for the logger object to use
     nmea::N0183::Logger *m_serialLogger;///< Pointer for the NMEA0183 message handler
     nmea::N0183::PointBridge *m_bridge; ///< Pointer for the WiFi/UDP -> NEMA0183 bridge
+    net::UploadManager  *m_uploadManager; ///< Pointer to the auto-upload manager
     logger::Manager     *m_logManager;  ///< Object to write to SD files and console log
     StatusLED           *m_led;         ///< Pointer for the status LED controller
     WiFiAdapter         *m_wifi;        ///< Pointer for the WiFi interface, once it comes up
@@ -93,8 +96,6 @@ private:
 
     /// \brief Print the console log on the output stream(s)
     void ReportConsoleLog(CommandSource src);
-    /// \brief Walk the log file directory and report the files and their sizes
-    void ReportLogfileSizes(CommandSource src);
     /// \brief Report the logger software version string
     void ReportSoftwareVersion(CommandSource src);
     /// \brief Erase one or all of the data log files
@@ -104,7 +105,7 @@ private:
     /// \brief Report the logger's user-specified identification string
     void ReportIdentificationString(CommandSource src);
     /// \brief Set the logger's user-specified identification string
-    void SetIdentificationString(String const& identifier);
+    void SetIdentificationString(String const& identifier, CommandSource src);
     /// \brief Report the host ship's name
     void ReportShipname(CommandSource src);
     /// \brief Set the host ship's name
@@ -138,7 +139,7 @@ private:
     /// \brief Set up algorithm requests for later post-processing
     void ConfigureAlgRequest(String const& command, CommandSource src);
     /// \brief Report configuration parameters as a JSON structure
-    void ReportConfigurationJSON(CommandSource src);
+    void ReportConfigurationJSON(CommandSource src, bool secure = false);
     /// \brief Report configuration parameters for the logger
     void ReportConfiguration(CommandSource src);
     /// \brief Set up all configuration parameters from a JSON string
@@ -173,11 +174,29 @@ private:
     void SetLabDefaults(String const& spec, CommandSource src);
     /// \brief Reset the configuration to lab-default configuration JSON string
     void ResetLabDefaults(CommandSource src);
+    /// @brief Report the upload authorisation information
+    void GetAuthorisation(CommandSource src);
+    /// @brief Set the upload token used to authenticate transmissions
+    void SetAuthorisation(String const& data, CommandSource src);
+    /// @brief Generate a downloadable version of a given resource in /log directory
+    void SnapshotResource(String const& resource, CommandSource src);
+    /// @brief Report the auto-upload configuration status
+    void ReportUploadConfig(CommandSource src);
+    /// @brief Set the auto-upload configuration status
+    void ConfigureUpload(String const& command, CommandSource src);
     /// \brief Check for commands, and execute them if found
     void Execute(String const& command, CommandSource src);
     
     /// \brief Generate a string on the appropriate output stream
     void EmitMessage(String const& msg, CommandSource src);
+    /// \brief Convert a stringified JSON into a document, with error reporting
+    bool EmitJSON(String const& source, CommandSource src);
+    /// @brief Generate a list of files into a JSON document
+    DynamicJsonDocument GenerateFilelist(void);
+    /// @brief Display a NMEA0183 filter ID list
+    void DisplayNMEAFilter(logger::N0183IDStore& filter, CommandSource src);
+    /// @brief Display an Algorithm Store list
+    void DisplayAlgorithmStore(logger::AlgoRequestStore& store, CommandSource src);
 };
 
 #endif
