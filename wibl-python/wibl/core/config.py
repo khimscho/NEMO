@@ -98,7 +98,7 @@ def read_config(config_file: Union[Path, str] = None) -> Dict[str, Any]:
        before they're uploaded to the database; and where to send the files.  There are also parameters
        to control the local algorithm, including:
     
-            elapsed_time_width:     Width (bits) of the elapsed time data in the WIBL file (usu. 32)
+            elapsed_time_width:     Width (bits) of the elapsed time data in the WIBL file (default: 32)
             verbose:                Boolean for verbose reporting of processing (usu. False)
             local:                  Boolean for local testing (usu. False for cloud deployment)
             fault_limit             Limit on number of fault messages that are reported before starting to summarise
@@ -113,7 +113,10 @@ def read_config(config_file: Union[Path, str] = None) -> Dict[str, Any]:
         # We need to tell the timestamping code what the roll-over size is for the elapsed times
         # stored in the WIBL file.  This allows it to determine when to add a day to the count
         # so that we don't wrap the interpolation.
-        config['elapsed_time_quantum'] = 1 << config['elapsed_time_width']
+        if 'elapsed_time_width' in config:
+            config['elapsed_time_quantum'] = 1 << config['elapsed_time_width']
+        else:
+            config['elapsed_time_quantum'] = 1 << 32
 
         return config
 

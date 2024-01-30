@@ -1,0 +1,5 @@
+{
+	"verbose":				false,
+	"fault_limit":			10,
+	"local":				false
+}

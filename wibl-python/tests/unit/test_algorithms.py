@@ -1,19 +1,19 @@
 import unittest
-import logging
 from pathlib import Path
 
+from wibl import config_logger_service
 from wibl.core import Lineage
 import wibl.core.config as conf
 import wibl.core.timestamping as ts
 from wibl.core.algorithm import AlgorithmDescriptor, UnknownAlgorithm, AlgorithmPhase, runner
 
 
-logger = logging.getLogger(__name__)
+logger = config_logger_service()
 
 
 class TestAlgorithms(unittest.TestCase):
     def setUp(self) -> None:
-        self.fixtures_dir = Path(Path(__file__).parent.parent, 'fixtures')
+        self.fixtures_dir = Path(Path(__file__).parent.parent, 'data')
 
     def test_algo_dedup(self):
         # Initialize

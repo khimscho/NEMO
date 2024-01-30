@@ -28,10 +28,11 @@ import argparse as arg
 import sys
 import os
 
-from wibl.cmd import get_subcommand_prog
+from wibl.command import get_subcommand_prog
 from wibl.validation.cloud.aws import get_config_file
 import wibl.core.config as conf
 from wibl.validation.cloud.aws.lambda_function import validate_metadata
+
 
 def geojson_validate():
     parser = arg.ArgumentParser(description="Validate GeoJSON file metadata.",

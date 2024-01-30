@@ -32,11 +32,11 @@
 # OR OTHER DEALINGS IN THE SOFTWARE.
 
 import json
-import boto3
 from typing import Dict, Any
 from datetime import datetime
 
-# Local modules
+import boto3
+
 import wibl.core.config as conf
 import wibl.core.logger_file as lf
 import wibl.core.datasource as ds

@@ -237,7 +237,7 @@ class State(TickCountMillisecondsMixin):
         # Reference timestamp for the ZDA/SystemTime
         self.ref_time: ComponentDateTime = ComponentDateTime(self.tick_count)
         # Longitude in degrees
-        self.current_longitude: float = -75.0
+        self.current_longitude: float = -70.0
         # Latitude in degress
         self.current_latitude: float = 43.0
 

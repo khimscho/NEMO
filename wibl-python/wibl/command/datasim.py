@@ -27,7 +27,7 @@ import sys
 import argparse
 import logging
 
-from wibl.cmd import get_subcommand_prog, type_probability_float
+from wibl.command import get_subcommand_prog, type_probability_float
 from wibl.simulator.data import DataGenerator, Engine, CLOCKS_PER_SEC
 from wibl.simulator.data.writer import Writer, FileWriter
 

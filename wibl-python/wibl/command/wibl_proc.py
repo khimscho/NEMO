@@ -32,7 +32,7 @@ import argparse as arg
 import sys
 import os
 
-from wibl.cmd import get_subcommand_prog
+from wibl.command import get_subcommand_prog
 import wibl.core.config as conf
 from wibl.processing.cloud.aws import get_config_file
 from wibl.processing.cloud.aws.lambda_function import process_item

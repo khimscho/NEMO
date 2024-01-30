@@ -18,3 +18,10 @@ aws s3api create-bucket \
     --region ${AWS_REGION} \
     --create-bucket-configuration LocationConstraint=${AWS_REGION} \
     | tee "${WIBL_BUILD_LOCATION}/create_lambda_${STAGING_BUCKET}.json"
+
+echo $'\e[31m' Creating staging data bucket as ${VIZ_BUCKET} in region ${AWS_REGION} ... $'\e[0m'
+aws s3api create-bucket \
+    --bucket ${VIZ_BUCKET} \
+    --region ${AWS_REGION} \
+    --create-bucket-configuration LocationConstraint=${AWS_REGION} \
+    | tee "${WIBL_BUILD_LOCATION}/create_lambda_${VIZ_BUCKET}.json"

@@ -1,17 +1,17 @@
 import struct
 import unittest
 import math
-import logging
 
 import xmlrunner
 import numpy as np
 
+from wibl import config_logger_service
 from wibl.core.logger_file import PacketTypes
 from wibl.simulator.data import DataGenerator, State, FormattedAngle, format_angle, MAX_RAD
 from wibl.simulator.data.writer import Writer, MemoryWriter
 
 
-logger = logging.getLogger(__name__)
+logger = config_logger_service()
 
 
 class TestDataGenerator(unittest.TestCase):

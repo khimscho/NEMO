@@ -33,7 +33,7 @@ import argparse as arg
 import sys
 import json
 
-from wibl.cmd import get_subcommand_prog
+from wibl.command import get_subcommand_prog
 from wibl.core import logger_file as lf
 
 
