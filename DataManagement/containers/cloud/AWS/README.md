@@ -1,16 +1,18 @@
-# Base container image for running WIBL in AWS lambda environments
+# Base container images for running WIBL in Docker
+This page describes how to use WIBL base container imagers for running WIBL
+in Docker or other container runtime environments.
 
 ## Usage
 To run a `wibl-python` command within the container while reading and
 writing data from a directory on your host computer, do the following:
 ```shell
-$ docker run -v ./:/var/wibl -ti wibl-base:1.0.3-aws 'wibl datasim -f test.bin -d 360 -b'
+$ docker run -v ./:/var/wibl -ti ghcr.io/wibl/python:1.0.3 'wibl datasim -f test.bin -d 360 -b'
 ...
 INFO:wibl.command.datasim:Step to time: 359000000
 INFO:wibl.command.datasim:Step to time: 359157800
 INFO:wibl.command.datasim:Step to time: 360000000
 INFO:wibl.command.datasim:Total iterations: 600
-$ docker run -v ./:/var/wibl -ti wibl-base:1.0.3-aws 'wibl editwibl -m sensor-inject.json test.bin test-inject.bin'
+$ docker run -v ./:/var/wibl -ti ghcr.io/wibl/python:1.0.3 'wibl editwibl -m sensor-inject.json test.bin test-inject.bin'
 ...
 ```
 
@@ -24,7 +26,7 @@ Since it can be error-prone to specify the full `docker run` command each
 time you run a `wibl-python` command, it can be easier to open a shell
 in the `wibl-base` container, then run multiple `wibl` commands:
 ```shell
-$ docker run -v ./:/var/wibl -ti wibl-base:1.0.3-aws
+$ docker run -v ./:/var/wibl -ti ghcr.io/wibl/python:1.0.3
 bash-5.2# wibl datasim -f test3.bin -d 360 -b
 ...
 INFO:wibl.command.datasim:Step to time: 359000000
@@ -37,9 +39,3 @@ bash-5.2# exit
 exit
 ```
 
-## Build
-To build, do the following:
-```shell
-$ docker buildx build --platform linux/amd64,linux/arm64 \
-  -t wibl-base:1.0.3-aws .
-```
