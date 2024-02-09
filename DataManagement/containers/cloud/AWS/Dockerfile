@@ -6,13 +6,15 @@ RUN dnf -y install wget tar gzip bzip2 clang cmake ninja-build m4 boost-devel bo
 # Note: for runtime, only boost-program-options should be needed.
 
 # Checkout WIBL repo so that we can build LogConvert and install wibl-python
+ENV WIBL_COMMIT_ID=ce5fd405375a3639c558bbe6dc88d20885ffb63a
+ENV WIBL_COMMIT_ID_SHORT=ce5fd405375a
 WORKDIR /usr/src/wibl
-RUN wget https://bitbucket.org/ccomjhc/wibl/get/8f8122b00e709a4001bee6c2bd11c4c094b48f62.tar.gz \
-    -O wibl-8f8122b00e709a4001bee6c2bd11c4c094b48f62.tar.gz
-RUN echo "aa9e5aa6d107400612e04acfcfef9a6c7e4b0b55c6ba3a65ffd1f0b8f1548490  wibl-8f8122b00e709a4001bee6c2bd11c4c094b48f62.tar.gz" > wibl-8f8122b00e709a4001bee6c2bd11c4c094b48f62.tar.gz.sum
-RUN sha256sum -c wibl-8f8122b00e709a4001bee6c2bd11c4c094b48f62.tar.gz.sum
-RUN tar xf wibl-8f8122b00e709a4001bee6c2bd11c4c094b48f62.tar.gz
-ENV WIBL_SRC=/usr/src/wibl/ccomjhc-wibl-8f8122b00e70
+RUN wget https://bitbucket.org/ccomjhc/wibl/get/${WIBL_COMMIT_ID}.tar.gz \
+    -O wibl-${WIBL_COMMIT_ID}.tar.gz
+RUN echo "cb4a9edda286c05d0f092e636530b2a5f5fd1d4bfc2374dd542cfcc92b647f6e  wibl-ce5fd405375a3639c558bbe6dc88d20885ffb63a.tar.gz" > wibl-${WIBL_COMMIT_ID}.tar.gz.sum
+RUN sha256sum -c wibl-${WIBL_COMMIT_ID}.tar.gz.sum
+RUN tar xf wibl-${WIBL_COMMIT_ID}.tar.gz
+ENV WIBL_SRC=/usr/src/wibl/ccomjhc-wibl-${WIBL_COMMIT_ID_SHORT}
 
 # Install NMEA200 library
 WORKDIR /usr/src/NMEA2000
@@ -154,6 +156,12 @@ RUN pip install --no-deps .
 RUN rm -rf /usr/src/NMEA2000 /usr/src/wibl
 RUN dnf -y clean all
 
+# Create scratch directory for bind mounting to host
+RUN mkdir -p /var/wibl
+
 FROM builder AS final
 
-ENTRYPOINT ["/bin/bash"]
+WORKDIR /var/wibl
+
+ENTRYPOINT ["/bin/sh", "-c"]
+CMD ["/bin/bash"]
