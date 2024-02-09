@@ -45,8 +45,8 @@ ENV GMT_DATA=/var/gmt/data
 # Download, build, and install GEOS
 WORKDIR /tmp/src
 RUN wget https://download.osgeo.org/geos/geos-3.12.1.tar.bz2
-RUN echo 'MD5 (geos-3.12.1.tar.bz2) = 36d16fbea7e923c50b33ddb83516c36e' > geos-3.12.1.tar.bz2.md5
-RUN md5sum -c geos-3.12.1.tar.bz2.md5
+RUN echo "d6ea7e492224b51193e8244fe3ec17c4d44d0777f3c32ca4fb171140549a0d03  geos-3.12.1.tar.bz2" > geos-3.12.1.tar.bz2.sum
+RUN sha256sum -c geos-3.12.1.tar.bz2.sum
 RUN tar xf geos-3.12.1.tar.bz2
 WORKDIR /tmp/src/geos-3.12.1
 RUN mkdir build
@@ -58,8 +58,8 @@ RUN cmake -G Ninja .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr && 
 # Download, build, and install PROJ
 WORKDIR /tmp/src
 RUN wget https://download.osgeo.org/proj/proj-9.3.1.tar.gz
-RUN echo 'MD5 (proj-9.3.1.tar.gz) = b5c3f36fdca3bc425aca09d77c4ec25a' > proj-9.3.1.tar.gz.md5
-RUN md5sum -c proj-9.3.1.tar.gz.md5
+RUN echo "b0f919cb9e1f42f803a3e616c2b63a78e4d81ecfaed80978d570d3a5e29d10bc  proj-9.3.1.tar.gz" > proj-9.3.1.tar.gz.sum
+RUN sha256sum -c proj-9.3.1.tar.gz.sum
 RUN tar xf proj-9.3.1.tar.gz
 WORKDIR /tmp/src/proj-9.3.1
 RUN mkdir build
@@ -71,8 +71,8 @@ RUN cmake -G Ninja .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr && 
 # Download, build, and install HDF5
 WORKDIR /tmp/src
 RUN wget https://hdf-wordpress-1.s3.amazonaws.com/wp-content/uploads/manual/HDF5/HDF5_1_14_3/src/hdf5-1.14.3.tar.bz2
-RUN echo 'MD5 (hdf5-1.14.3.tar.bz2) = 90d2568cb0250d70559999da0cbe6cb9' > hdf5-1.14.3.tar.bz2.md5
-RUN md5sum -c hdf5-1.14.3.tar.bz2.md5
+RUN echo "9425f224ed75d1280bb46d6f26923dd938f9040e7eaebf57e66ec7357c08f917  hdf5-1.14.3.tar.bz2" > hdf5-1.14.3.tar.bz2.sum
+RUN sha256sum -c hdf5-1.14.3.tar.bz2.sum
 RUN tar xf hdf5-1.14.3.tar.bz2
 WORKDIR /tmp/src/hdf5-1.14.3
 RUN mkdir build
@@ -84,8 +84,8 @@ RUN cmake -G Ninja .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr && 
 # Download, build, and install NetCDF4
 WORKDIR /tmp/src
 RUN wget https://downloads.unidata.ucar.edu/netcdf-c/4.9.2/netcdf-c-4.9.2.tar.gz
-RUN echo 'MD5 (netcdf-c-4.9.2.tar.gz) = f48ee01534365006934f0c63d4055ea0' > netcdf-c-4.9.2.tar.gz.md5
-RUN md5sum -c netcdf-c-4.9.2.tar.gz.md5
+RUN echo "cf11babbbdb9963f09f55079e0b019f6d0371f52f8e1264a5ba8e9fdab1a6c48  netcdf-c-4.9.2.tar.gz" > netcdf-c-4.9.2.tar.gz.sum
+RUN sha256sum -c netcdf-c-4.9.2.tar.gz.sum
 RUN tar xf netcdf-c-4.9.2.tar.gz
 WORKDIR /tmp/src/netcdf-c-4.9.2
 RUN mkdir build
@@ -97,8 +97,8 @@ RUN cmake -G Ninja .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr && 
 # Download, build, and install libgeotiff
 WORKDIR /tmp/src
 RUN wget https://github.com/OSGeo/libgeotiff/releases/download/1.7.1/libgeotiff-1.7.1.tar.gz
-RUN echo 'MD5 (libgeotiff-1.7.1.tar.gz) = 22879ac6f83460605f9c39147a2ccc7a' > libgeotiff-1.7.1.tar.gz.md5
-RUN md5sum -c libgeotiff-1.7.1.tar.gz.md5
+RUN echo "05ab1347aaa471fc97347d8d4269ff0c00f30fa666d956baba37948ec87e55d6  libgeotiff-1.7.1.tar.gz" > libgeotiff-1.7.1.tar.gz.sum
+RUN sha256sum -c libgeotiff-1.7.1.tar.gz.sum
 RUN tar xf libgeotiff-1.7.1.tar.gz
 WORKDIR /tmp/src/libgeotiff-1.7.1
 RUN mkdir build
@@ -110,8 +110,8 @@ RUN cmake -G Ninja .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr && 
 # Download, build, and install GDAL
 WORKDIR /tmp/src
 RUN wget https://github.com/OSGeo/gdal/releases/download/v3.8.2/gdal-3.8.2.tar.gz
-RUN echo 'MD5 (gdal-3.8.2.tar.gz) = 7a799d9d3ebc4ae6e3258f0044125bd1' > gdal-3.8.2.tar.gz.md5
-RUN md5sum -c gdal-3.8.2.tar.gz.md5
+RUN echo "e914690d2694671d75bab15b451a42c2f115d7267a5b600eb361e94b58a089d6  gdal-3.8.2.tar.gz" > gdal-3.8.2.tar.gz.sum
+RUN sha256sum -c gdal-3.8.2.tar.gz.sum
 RUN tar xf gdal-3.8.2.tar.gz
 WORKDIR /tmp/src/gdal-3.8.2
 RUN mkdir build
@@ -133,8 +133,8 @@ ENV GSHHG_ROOT=$GMT_DATA/gshhg-gmt-2.3.7
 # Download, build, and install GMT
 WORKDIR /tmp/src
 RUN wget https://github.com/GenericMappingTools/gmt/releases/download/6.5.0/gmt-6.5.0-src.tar.gz
-RUN echo 'MD5 (gmt-6.5.0-src.tar.gz) = a03e8d73f73c3804d78a42a3d5fc3dc7' > gmt-6.5.0-src.tar.gz.md5
-RUN md5sum -c gmt-6.5.0-src.tar.gz.md5
+RUN echo "b17e165fd6c85aeb0a281700bd89522af8c2676a2d7bdb51a6b242fa9f1779c9  gmt-6.5.0-src.tar.gz" > gmt-6.5.0-src.tar.gz.sum
+RUN sha256sum -c gmt-6.5.0-src.tar.gz.sum
 RUN tar xf gmt-6.5.0-src.tar.gz
 WORKDIR /tmp/src/gmt-6.5.0
 RUN mkdir build
