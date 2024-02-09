@@ -6,7 +6,8 @@ in Docker or other container runtime environments.
 To build, do the following:
 ```shell
 $ docker buildx build --platform linux/amd64,linux/arm64 \
-  -t ghcr.io/wibl/python:1.0.3-amazonlinux -t ghcr.io/wibl/python:1.0.3
+  -t ghcr.io/wibl/python:1.0.3-amazonlinux -t ghcr.io/wibl/python:1.0.3 \
+  cloud/AWS
 ```
 
 > Note: For now, we tag this image both as `1.0.3-amazonlinux` and 
