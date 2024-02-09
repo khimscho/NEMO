@@ -27,7 +27,7 @@ time you run a `wibl-python` command, it can be easier to open a shell
 in the `wibl-base` container, then run multiple `wibl` commands:
 ```shell
 $ docker run -v ./:/var/wibl -ti ghcr.io/wibl/python:1.0.3
-bash-5.2# wibl datasim -f test3.bin -d 360 -b
+bash-5.2# wibl datasim -f test.bin -d 360 -b
 ...
 INFO:wibl.command.datasim:Step to time: 359000000
 INFO:wibl.command.datasim:Step to time: 359467302

@@ -40,79 +40,79 @@ RUN cp ./build-$(uname -m)/src/logconvert /usr/local/bin
 # Setup wibl-python, including all dependencies needed to support visuzation using GMT
 
 # Download, build, and install GEOS
-WORKDIR /usr/src
+WORKDIR /usr/src/geos
 RUN wget https://download.osgeo.org/geos/geos-3.12.1.tar.bz2
 RUN echo "d6ea7e492224b51193e8244fe3ec17c4d44d0777f3c32ca4fb171140549a0d03  geos-3.12.1.tar.bz2" > geos-3.12.1.tar.bz2.sum
 RUN sha256sum -c geos-3.12.1.tar.bz2.sum
 RUN tar xf geos-3.12.1.tar.bz2
-WORKDIR /usr/src/geos-3.12.1
+WORKDIR /usr/src/geos/geos-3.12.1
 RUN mkdir build
-WORKDIR /usr/src/geos-3.12.1/build
+WORKDIR /usr/src/geos/geos-3.12.1/build
 RUN cmake -G Ninja .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr && \
     cmake --build . -j && \
     cmake --build . --target install
 
 # Download, build, and install PROJ
-WORKDIR /usr/src
+WORKDIR /usr/src/proj
 RUN wget https://download.osgeo.org/proj/proj-9.3.1.tar.gz
 RUN echo "b0f919cb9e1f42f803a3e616c2b63a78e4d81ecfaed80978d570d3a5e29d10bc  proj-9.3.1.tar.gz" > proj-9.3.1.tar.gz.sum
 RUN sha256sum -c proj-9.3.1.tar.gz.sum
 RUN tar xf proj-9.3.1.tar.gz
-WORKDIR /usr/src/proj-9.3.1
+WORKDIR /usr/src/proj/proj-9.3.1
 RUN mkdir build
-WORKDIR /usr/src/proj-9.3.1/build
+WORKDIR /usr/src/proj/proj-9.3.1/build
 RUN cmake -G Ninja .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr && \
     cmake --build . -j && \
     cmake --build . --target install
 
 # Download, build, and install HDF5
-WORKDIR /usr/src
+WORKDIR /usr/src/hdf5
 RUN wget https://hdf-wordpress-1.s3.amazonaws.com/wp-content/uploads/manual/HDF5/HDF5_1_14_3/src/hdf5-1.14.3.tar.bz2
 RUN echo "9425f224ed75d1280bb46d6f26923dd938f9040e7eaebf57e66ec7357c08f917  hdf5-1.14.3.tar.bz2" > hdf5-1.14.3.tar.bz2.sum
 RUN sha256sum -c hdf5-1.14.3.tar.bz2.sum
 RUN tar xf hdf5-1.14.3.tar.bz2
-WORKDIR /usr/src/hdf5-1.14.3
+WORKDIR /usr/src/hdf5/hdf5-1.14.3
 RUN mkdir build
-WORKDIR /usr/src/hdf5-1.14.3/build
+WORKDIR /usr/src/hdf5/hdf5-1.14.3/build
 RUN cmake -G Ninja .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr && \
     cmake --build . -j && \
     cmake --build . --target install
 
 # Download, build, and install NetCDF4
-WORKDIR /usr/src
+WORKDIR /usr/src/netcdf
 RUN wget https://downloads.unidata.ucar.edu/netcdf-c/4.9.2/netcdf-c-4.9.2.tar.gz
 RUN echo "cf11babbbdb9963f09f55079e0b019f6d0371f52f8e1264a5ba8e9fdab1a6c48  netcdf-c-4.9.2.tar.gz" > netcdf-c-4.9.2.tar.gz.sum
 RUN sha256sum -c netcdf-c-4.9.2.tar.gz.sum
 RUN tar xf netcdf-c-4.9.2.tar.gz
-WORKDIR /usr/src/netcdf-c-4.9.2
+WORKDIR /usr/src/netcdf/netcdf-c-4.9.2
 RUN mkdir build
-WORKDIR /usr/src/netcdf-c-4.9.2/build
+WORKDIR /usr/src/netcdf/netcdf-c-4.9.2/build
 RUN cmake -G Ninja .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr && \
     cmake --build . -j && \
     cmake --build . --target install
 
 # Download, build, and install libgeotiff
-WORKDIR /usr/src
+WORKDIR /usr/src/libgeotiff
 RUN wget https://github.com/OSGeo/libgeotiff/releases/download/1.7.1/libgeotiff-1.7.1.tar.gz
 RUN echo "05ab1347aaa471fc97347d8d4269ff0c00f30fa666d956baba37948ec87e55d6  libgeotiff-1.7.1.tar.gz" > libgeotiff-1.7.1.tar.gz.sum
 RUN sha256sum -c libgeotiff-1.7.1.tar.gz.sum
 RUN tar xf libgeotiff-1.7.1.tar.gz
-WORKDIR /usr/src/libgeotiff-1.7.1
+WORKDIR /usr/src/libgeotiff/libgeotiff-1.7.1
 RUN mkdir build
-WORKDIR /usr/src/libgeotiff-1.7.1/build
+WORKDIR /usr/src/libgeotiff/libgeotiff-1.7.1/build
 RUN cmake -G Ninja .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr && \
     cmake --build . -j && \
     cmake --build . --target install
 
 # Download, build, and install GDAL
-WORKDIR /usr/src
+WORKDIR /usr/src/gdal
 RUN wget https://github.com/OSGeo/gdal/releases/download/v3.8.2/gdal-3.8.2.tar.gz
 RUN echo "e914690d2694671d75bab15b451a42c2f115d7267a5b600eb361e94b58a089d6  gdal-3.8.2.tar.gz" > gdal-3.8.2.tar.gz.sum
 RUN sha256sum -c gdal-3.8.2.tar.gz.sum
 RUN tar xf gdal-3.8.2.tar.gz
-WORKDIR /usr/src/gdal-3.8.2
+WORKDIR /usr/src/gdal/gdal-3.8.2
 RUN mkdir build
-WORKDIR /usr/src/gdal-3.8.2/build
+WORKDIR /usr/src/gdal/gdal-3.8.2/build
 # Don't build GDAL with -j (parallel) as it seems to break
 RUN cmake -G Ninja .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr && \
     cmake --build . -j && \
@@ -121,23 +121,25 @@ RUN cmake -G Ninja .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr && 
 # Download and install GMT support data
 RUN mkdir -p /var/gmt/data
 ENV GMT_DATA=/var/gmt/data
-WORKDIR /usr/src
+WORKDIR /tmp
 RUN wget https://github.com/GenericMappingTools/dcw-gmt/releases/download/2.1.2/dcw-gmt-2.1.2.tar.gz
 RUN tar xf dcw-gmt-2.1.2.tar.gz -C $GMT_DATA
+RUN rm -f dcw-gmt-2.1.2.tar.gz
 ENV DCW_ROOT=$GMT_DATA/dcw-gmt-2.1.2
 RUN wget https://github.com/GenericMappingTools/gshhg-gmt/releases/download/2.3.7/gshhg-gmt-2.3.7.tar.gz
 RUN tar xf gshhg-gmt-2.3.7.tar.gz -C $GMT_DATA
+RUN rm -f gshhg-gmt-2.3.7.tar.gz
 ENV GSHHG_ROOT=$GMT_DATA/gshhg-gmt-2.3.7
 
 # Download, build, and install GMT
-WORKDIR /usr/src
+WORKDIR /usr/src/gmt
 RUN wget https://github.com/GenericMappingTools/gmt/releases/download/6.5.0/gmt-6.5.0-src.tar.gz
 RUN echo "b17e165fd6c85aeb0a281700bd89522af8c2676a2d7bdb51a6b242fa9f1779c9  gmt-6.5.0-src.tar.gz" > gmt-6.5.0-src.tar.gz.sum
 RUN sha256sum -c gmt-6.5.0-src.tar.gz.sum
 RUN tar xf gmt-6.5.0-src.tar.gz
-WORKDIR /usr/src/gmt-6.5.0
+WORKDIR /usr/src/gmt/gmt-6.5.0
 RUN mkdir build
-WORKDIR /usr/src/gmt-6.5.0/build
+WORKDIR /usr/src/gmt/gmt-6.5.0/build
 RUN cmake -G Ninja .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_PREFIX=/usr \
       -DDCW_ROOT=$DCW_ROOT -DGSHHG_ROOT=$GSHHG_ROOT && \
     cmake --build . -j && \
@@ -145,19 +147,33 @@ RUN cmake -G Ninja .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_LIBDIR=lib -DCM
 
 # Install Python dependencies for wibl-python as well as wibl-python itself
 WORKDIR $WIBL_SRC/wibl-python
-RUN pip install -r requirements-vizlambda.txt
-RUN pip install ./wibl-manager
-RUN pip install --no-deps .
+RUN python -m pip install -r requirements-vizlambda.txt
+RUN python -m pip install ./wibl-manager
+RUN python -m pip install --no-deps .
 
 # Clean-up
 RUN dnf -y clean all && \
-    pip cache purge
+    python -m pip cache purge && \
+    rm -rf /usr/src/wibl \
+           /usr/src/NMEA2000 \
+           /usr/src/geos \
+           /usr/src/proj \
+           /usr/src/hdf5 \
+           /usr/src/netcdf \
+           /usr/src/gdal \
+           /usr/src/gmt
+
+FROM public.ecr.aws/lambda/python:3.12 AS final
+
+COPY --from=builder /usr/ /usr/
+COPY --from=builder /var/lang/ /var/lang/
+# Setup environment
+ENV GMT_DATA=/var/gmt/data
+ENV DCW_ROOT=$GMT_DATA/dcw-gmt-2.1.2
+ENV GSHHG_ROOT=$GMT_DATA/gshhg-gmt-2.3.7
 
 # Create scratch directory for bind mounting to host
 RUN mkdir -p /var/wibl
-
-FROM builder AS final
-
 WORKDIR /var/wibl
 
 ENTRYPOINT ["/bin/sh", "-c"]
