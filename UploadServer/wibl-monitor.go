@@ -142,8 +142,8 @@ func status_updates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	support.Infof("CHECKIN: status update from logger with firmware %s, command processor %s, total %d files.\n",
-		status.Versions.Firmware, status.Versions.CommandProcessor, status.Files.Count)
+	support.Infof("CHECKIN: status update from logger on IP %s with firmware %s, command processor %s, total %d files.\n",
+		status.Server.IPAddress, status.Versions.Firmware, status.Versions.CommandProcessor, status.Files.Count)
 }
 
 // Accept a file transfer from the logger client (which should contain a binary-encoded body

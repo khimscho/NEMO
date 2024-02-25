@@ -38,6 +38,7 @@ type VersionInfo struct {
 type WebServerInfo struct {
 	CurrentStatus string `json:"current"`
 	BootStatus    string `json:"boot"`
+	IPAddress     string `json:"ip"`
 }
 
 type DataSentence struct {

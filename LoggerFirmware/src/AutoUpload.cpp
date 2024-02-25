@@ -67,6 +67,18 @@ UploadManager::~UploadManager(void)
 
 void UploadManager::UploadCycle(void)
 {
+    if (m_lastUploadCycle == 0) {
+        // This generally only happens on first boot, or if you manage to hit the exact millisecond
+        // when the elapsed time rolls over.  That's pretty unlikely.  This is therefore a good
+        // opportunity to send an initial status message to the upload server to announce our
+        // presence (and check if it's there).
+        if (!ReportStatus()) {
+            // Failed to report status ... means the server's not there, or we're not connected
+            Serial.printf("DBG: UploadManager::UploadCycle failed to report status at 0 ms elapsed (usually first boot).\n");
+            return;
+        }
+        m_lastUploadCycle = 1; // So that we only do this once per boot cycle.
+    }
     unsigned long start_time = millis();
     if ((start_time - m_lastUploadCycle) < m_uploadInterval) return; // Not time yet ...
     m_lastUploadCycle = start_time;

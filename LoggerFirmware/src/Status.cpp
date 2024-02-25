@@ -115,11 +115,13 @@ DynamicJsonDocument CurrentStatus(logger::Manager *m)
     int now = millis();
     status["elapsed"] = now;
 
-    String server_status, boot_status;
-    logger::LoggerConfig.GetConfigString(logger::Config::ConfigParam::CONFIG_WS_STATUS_S, server_status);
+    String server_status, boot_status, ip_address;
+    logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_WS_STATUS_S, server_status);
     logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_WS_BOOTSTATUS_S, boot_status);
+    logger::LoggerConfig.GetConfigString(logger::Config::CONFIG_WIFIIP_S, ip_address);
     status["webserver"]["current"] = server_status;
     status["webserver"]["boot"] = boot_status;
+    status["webserver"]["ip"] = ip_address;
 
     status["data"] = lkg;
     status["files"] = filelist["files"];
